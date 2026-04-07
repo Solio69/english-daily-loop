@@ -1,29 +1,38 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { Button } from '../components/Button';
-import { BookOpen, Clock, Loader2, Sparkles, Plus, X } from 'lucide-react';
+import { Clock, Loader2, Sparkles } from 'lucide-react';
+import { getRandomReadingText } from '../services/readingService';
+import { ReadingMode, ReadingText } from '../types/reading';
 
-const MOCK_TEXT = {
-  title: "A Day in the City",
-  level: "My level",
-  time: "3 min",
-  body: "The city was alive with the sound of traffic and the chatter of people. Sarah walked down the busy street, feeling the energy of the morning. She stopped at a small café to get a cup of coffee and a croissant. The smell of fresh bread was everywhere.\n\nShe looked at her watch and realized she was almost late for her meeting. She picked up her bag and started to walk faster. The tall buildings seemed to reach for the sky, and the sun was shining brightly. It was a beautiful day to be in the city."
-};
+const READING_MODES: Array<{ value: ReadingMode; label: string }> = [
+  { value: 'my_level', label: 'My level' },
+  { value: 'one_level_up', label: 'One level up' },
+];
 
 export const ReadingScreen: React.FC<{ onBack: () => void, onNext?: () => void }> = ({ onBack, onNext }) => {
-  const [level, setLevel] = useState<'My level' | 'One level up'>('My level');
+  const [level, setLevel] = useState<ReadingMode>('my_level');
   const [loading, setLoading] = useState(false);
-  const [text, setText] = useState<typeof MOCK_TEXT | null>(null);
+  const [text, setText] = useState<ReadingText | null>(null);
   const [selectedWord, setSelectedWord] = useState<{ word: string; index: number; x: number; y: number } | null>(null);
   const [savedWords, setSavedWords] = useState<Set<number>>(new Set());
+  const [errorText, setErrorText] = useState<string | null>(null);
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     setLoading(true);
     setText(null);
     setSavedWords(new Set());
-    setTimeout(() => {
-      setText(MOCK_TEXT);
+    setSelectedWord(null);
+    setErrorText(null);
+
+    try {
+      const nextText = await getRandomReadingText(level);
+      setText(nextText);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not load text. Please try again.';
+      setErrorText(message);
+    } finally {
       setLoading(false);
-    }, 1500);
+    }
   };
 
   const handleWordClick = (word: string, index: number, e: React.MouseEvent) => {
@@ -43,13 +52,13 @@ export const ReadingScreen: React.FC<{ onBack: () => void, onNext?: () => void }
     <div className="p-4 space-y-6">
       <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 space-y-4">
         <div className="flex bg-gray-100 dark:bg-gray-900 p-1 rounded-lg">
-          {(['My level', 'One level up'] as const).map((l) => (
+          {READING_MODES.map((mode) => (
             <button
-              key={l}
-              onClick={() => setLevel(l)}
-              className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${level === l ? 'bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}
+              key={mode.value}
+              onClick={() => setLevel(mode.value)}
+              className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${level === mode.value ? 'bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}
             >
-              {l}
+              {mode.label}
             </button>
           ))}
         </div>
@@ -65,13 +74,19 @@ export const ReadingScreen: React.FC<{ onBack: () => void, onNext?: () => void }
         </div>
       )}
 
+      {errorText && (
+        <div className="p-4 rounded-xl border border-red-200 bg-red-50 text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300">
+          {errorText}
+        </div>
+      )}
+
       {text && (
         <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 space-y-4">
           <div className="flex justify-between items-center text-sm text-gray-500 dark:text-gray-400">
             <span className="font-medium text-gray-900 dark:text-white">{text.title}</span>
             <div className="flex items-center gap-2">
               <span className="bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded text-xs">{text.level}</span>
-              <span className="flex items-center gap-1"><Clock size={14} /> {text.time}</span>
+              <span className="flex items-center gap-1"><Clock size={14} /> {text.estimatedMinutes} min</span>
             </div>
           </div>
           <p className="text-gray-800 dark:text-gray-200 leading-relaxed text-lg">
@@ -80,9 +95,9 @@ export const ReadingScreen: React.FC<{ onBack: () => void, onNext?: () => void }
               const isSelected = selectedWord?.index === i;
               const isSaved = savedWords.has(i);
               return (
-                <span 
-                  key={i} 
-                  onClick={(e) => handleWordClick(cleanWord, i, e)} 
+                <span
+                  key={i}
+                  onClick={(e) => handleWordClick(cleanWord, i, e)}
                   className={`cursor-pointer rounded px-0.5 transition-colors ${isSelected ? 'bg-blue-200 dark:bg-orange-900/40' : isSaved ? 'bg-green-200 dark:bg-green-900/40' : 'hover:bg-blue-100 dark:hover:bg-gray-700'}`}
                 >
                   {word}{' '}
@@ -98,11 +113,11 @@ export const ReadingScreen: React.FC<{ onBack: () => void, onNext?: () => void }
       )}
 
       {selectedWord && (
-        <div 
-          className="absolute bg-white dark:bg-gray-800 p-3 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 flex flex-col gap-2 z-50" 
-          style={{ 
-            top: selectedWord.y > window.innerHeight / 2 + window.scrollY ? selectedWord.y - 110 : selectedWord.y + 30, 
-            left: selectedWord.x - 70 
+        <div
+          className="absolute bg-white dark:bg-gray-800 p-3 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 flex flex-col gap-2 z-50"
+          style={{
+            top: selectedWord.y > window.innerHeight / 2 + window.scrollY ? selectedWord.y - 110 : selectedWord.y + 30,
+            left: selectedWord.x - 70
           }}
         >
           <p className="text-xs text-center dark:text-gray-200">Add to dictionary?</p>
