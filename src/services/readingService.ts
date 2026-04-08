@@ -1,5 +1,5 @@
-import { supabase } from '../lib/supabase';
-import { ReadingMode, ReadingText } from '../types/reading';
+﻿import { supabase } from "../lib/supabase";
+import { ReadingMode, ReadingText } from "../types/reading";
 
 type ReadingTextRow = {
   id: string;
@@ -9,32 +9,27 @@ type ReadingTextRow = {
   estimated_minutes: number;
 };
 
-const fetchReadingTextsByMode = async (mode: ReadingMode): Promise<ReadingText[]> => {
-  const { data, error } = await supabase
-    .from('reading_texts')
-    .select('id, title, level, body, estimated_minutes')
-    .eq('tier', mode)
-    .eq('is_active', true);
+export const getRandomReadingText = async (
+  mode: ReadingMode,
+): Promise<ReadingText> => {
+  const { data, error } = await supabase.rpc("get_random_reading_text", {
+    p_tier: mode,
+  });
 
   if (error) {
-    throw new Error('Could not load text. Please try again.');
+    throw new Error("Не удалось загрузить текст. Попробуй еще раз.");
   }
 
-  const rows = (data ?? []) as ReadingTextRow[];
-  return rows.map((row) => ({
+  const row = (Array.isArray(data) ? data[0] : data) as ReadingTextRow | null;
+  if (!row) {
+    throw new Error("Для выбранного режима тексты не найдены.");
+  }
+
+  return {
     id: row.id,
     title: row.title,
     level: row.level,
     body: row.body,
     estimatedMinutes: row.estimated_minutes,
-  }));
-};
-
-export const getRandomReadingText = async (mode: ReadingMode): Promise<ReadingText> => {
-  const texts = await fetchReadingTextsByMode(mode);
-  if (texts.length === 0) {
-    throw new Error('No texts found for selected mode.');
-  }
-
-  return texts[Math.floor(Math.random() * texts.length)];
+  };
 };
