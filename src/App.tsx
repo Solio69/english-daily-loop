@@ -35,6 +35,7 @@ export default function App() {
   useEffect(() => {
     const bootstrap = async () => {
       try {
+        window.Telegram?.WebApp?.ready?.();
         const user = await getCurrentAppUser();
         setAppUser(user);
         setCurrentScreen('home');

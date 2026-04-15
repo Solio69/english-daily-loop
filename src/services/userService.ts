@@ -1,7 +1,15 @@
 ﻿import { supabase } from "../lib/supabase";
 import { AppUser, SaveUserSettingsInput, UserSettings } from "../types/user";
 
-const DEV_TELEGRAM_USER_ID = 999000001;
+const DEV_TELEGRAM_USER_ID = Number(
+  import.meta.env.VITE_DEV_TELEGRAM_USER_ID ?? 999000001,
+);
+// TODO: Local launch helper. Keep fallback disabled for real Telegram auth checks.
+const ENABLE_DEV_AUTH_FALLBACK =
+  import.meta.env.VITE_ENABLE_DEV_AUTH_FALLBACK !== "false";
+// TODO: Local debugging helper for browser console auth traces.
+const AUTH_DEBUG_ENABLED =
+  import.meta.env.DEV || import.meta.env.VITE_DEBUG_AUTH === "true";
 
 type UserRow = {
   id: string;
@@ -15,6 +23,40 @@ type UserSettingsRow = {
   english_level: "A1" | "A2" | "B1" | "B2";
   daily_exercise_minutes: number;
   daily_review_words: number;
+};
+
+type AuthTelegramFunctionSuccess = {
+  ok: true;
+  data: {
+    user: {
+      id: string;
+      telegramUserId: number;
+      firstName: string | null;
+      settingsCompletedAt: string | null;
+      firstTextCompletedAt: string | null;
+    };
+  };
+};
+
+type AuthTelegramFunctionError = {
+  ok: false;
+  error: {
+    code: string;
+    message: string;
+  };
+};
+
+type AuthTelegramFunctionResponse =
+  | AuthTelegramFunctionSuccess
+  | AuthTelegramFunctionError;
+
+const authLog = (message: string, details?: unknown): void => {
+  if (!AUTH_DEBUG_ENABLED) return;
+  if (details !== undefined) {
+    console.info(`[EDL auth] ${message}`, details);
+    return;
+  }
+  console.info(`[EDL auth] ${message}`);
 };
 
 const mapSettings = (row: UserSettingsRow): UserSettings => ({
@@ -74,6 +116,54 @@ const getOrCreateDevUser = async (): Promise<UserRow> => {
   return created as UserRow;
 };
 
+const getTelegramInitData = (): string | null => {
+  const initData = window.Telegram?.WebApp?.initData?.trim();
+  authLog("Telegram initData check", {
+    hasTelegramObject: Boolean(window.Telegram?.WebApp),
+    hasInitData: Boolean(initData),
+    initDataLength: initData?.length ?? 0,
+  });
+  return initData || null;
+};
+
+const getOrCreateTelegramUser = async (initData: string): Promise<UserRow> => {
+  authLog("Calling auth-telegram function", {
+    initDataLength: initData.length,
+  });
+  const { data, error } = await supabase.functions.invoke("auth-telegram", {
+    body: { initData },
+  });
+
+  if (error) {
+    authLog("auth-telegram invoke failed", error);
+    throw new Error("Не удалось авторизоваться через Telegram.");
+  }
+
+  const payload = data as AuthTelegramFunctionResponse | null;
+  if (!payload) {
+    authLog("auth-telegram returned empty payload");
+    throw new Error("Пустой ответ от сервера авторизации.");
+  }
+
+  if ("error" in payload) {
+    authLog("auth-telegram returned business error", payload.error);
+    throw new Error(payload.error.message);
+  }
+
+  authLog("auth-telegram success", {
+    telegramUserId: payload.data.user.telegramUserId,
+    appUserId: payload.data.user.id,
+  });
+
+  return {
+    id: payload.data.user.id,
+    telegram_user_id: payload.data.user.telegramUserId,
+    first_name: payload.data.user.firstName,
+    settings_completed_at: payload.data.user.settingsCompletedAt,
+    first_text_completed_at: payload.data.user.firstTextCompletedAt,
+  };
+};
+
 const getUserSettings = async (
   userId: string,
 ): Promise<UserSettings | null> => {
@@ -111,10 +201,30 @@ const getUserById = async (userId: string): Promise<UserRow> => {
 };
 
 export const getCurrentAppUser = async (): Promise<AppUser> => {
-  const user = await getOrCreateDevUser();
+  const initData = getTelegramInitData();
+  const source = initData
+    ? "telegram"
+    : ENABLE_DEV_AUTH_FALLBACK
+      ? "dev_fallback"
+      : "no_auth_source";
+  authLog("Selecting user source", { source });
+  const user = initData
+    ? await getOrCreateTelegramUser(initData)
+    : ENABLE_DEV_AUTH_FALLBACK
+      ? await getOrCreateDevUser()
+      : (() => {
+          throw new Error(
+            "Telegram initData не найден. Открой приложение внутри Telegram.",
+          );
+        })();
   const settings = user.settings_completed_at
     ? await getUserSettings(user.id)
     : null;
+  authLog("Bootstrapped app user", {
+    appUserId: user.id,
+    telegramUserId: user.telegram_user_id,
+    hasSettings: Boolean(settings),
+  });
   return mapUser(user, settings);
 };
 
@@ -122,6 +232,7 @@ export const saveCurrentUserSettings = async (
   userId: string,
   input: SaveUserSettingsInput,
 ): Promise<AppUser> => {
+  authLog("Saving user settings", { userId, input });
   const { error: upsertError } = await supabase.from("user_settings").upsert(
     {
       user_id: userId,
@@ -133,6 +244,7 @@ export const saveCurrentUserSettings = async (
   );
 
   if (upsertError) {
+    authLog("Failed to upsert user_settings", upsertError);
     throw new Error("Не удалось сохранить настройки.");
   }
 
@@ -144,10 +256,12 @@ export const saveCurrentUserSettings = async (
     .is("settings_completed_at", null);
 
   if (markError) {
+    authLog("Failed to update users.settings_completed_at", markError);
     throw new Error("Не удалось обновить статус онбординга.");
   }
 
   const user = await getUserById(userId);
+  authLog("Settings saved successfully", { userId: user.id });
   return mapUser(user, input);
 };
 

@@ -10,8 +10,9 @@
 - Целевой продукт: Telegram Mini App.
 - Вектор по данным: Supabase (Postgres).
 - Локальная инфраструктура уже настроена: Docker + WSL + Supabase local.
-- Единый запуск локальной инфраструктуры: `npm run dev:all` (frontend + Supabase + логи DB/API).
-- Отдельного backend-сервера (Express) сейчас нет; backend-слой пока представлен Supabase API.
+- Единый запуск локальной инфраструктуры: `npm run dev:all` (frontend + Supabase + auth function + Cloudflare tunnels + логи DB/API + startup summary + автообновление `VITE_SUPABASE_URL` в `.env.local`).
+- Отдельного backend-сервера (Express) сейчас нет; backend-слой представлен Supabase API + Edge Functions.
+- Папка `tools/` используется для локальных утилит запуска (например, `cloudflared.exe`) и не коммитится.
 
 ## Правила коммуникации
 - По умолчанию объяснять на русском языке.
@@ -60,8 +61,22 @@
 - Supabase local и Docker-окружение уже работают.
 - Уже подключены и используются таблицы `public.users`, `public.user_settings` и `public.reading_texts`.
 - В проекте есть базовые миграции и сиды для локальной разработки (dev user + моковые тексты).
+- Корневой `tsconfig.json` исключает `supabase/functions`, потому что Edge Functions работают в Deno-рантайме и не должны проверяться frontend `tsc`.
+- Telegram auth реализована через Edge Function `supabase/functions/auth-telegram/index.ts`:
+  - серверная валидация `initData` (подпись + `auth_date`)
+  - `find-or-create` пользователя по `telegram_user_id`
+  - единый контракт ответа (`ok/data` или `ok/error`).
+- Для стабильной DX в редакторе: у функции используется `// @ts-nocheck`, а для Deno-окружения есть `supabase/functions/deno.json` и `supabase/functions/deno-globals.d.ts`.
+- На фронте подключен Telegram WebApp SDK (`index.html`) и типы `window.Telegram.WebApp` (`src/types/telegram-webapp.d.ts`).
+- Bootstrap пользователя в `src/services/userService.ts` сначала пытается авторизоваться через `auth-telegram`; dev fallback управляется env-переменной `VITE_ENABLE_DEV_AUTH_FALLBACK`.
 - Логика чтения вынесена в сервисный слой (`src/services/readingService.ts`), UI-компонент не содержит прямых запросов к БД.
 - При bootstrap настройки пользователя должны приходить с backend, если `settings_completed_at` уже заполнен.
 - В состоянии "настройки сохранены, но первый текст еще не прочитан" разделы `Упражнения` и `Слова` заблокированы, но `Главная` и `Текст` доступны.
+- `vite.config.ts` разрешает внешние tunnel host'ы (`.trycloudflare.com`, `.loca.lt`) для запуска Mini App через Telegram.
+- `npm run dev:all` автоматически поднимает frontend/API туннели и печатает `STARTUP SUMMARY` с двумя URL:
+  - `BotFather /setmenubutton URL` = FRONTEND TUNNEL URL
+  - `.env.local VITE_SUPABASE_URL` = SUPABASE API TUNNEL URL.
+- Логи в `dev:all` цветные по источнику (`[frontend]`, `[auth]`, `[db]`, `[api]`, `[tunnel-*]`), HTTP-методы и статус-коды дополнительно подсвечиваются.
+- Если в summary указано `Frontend restart required: YES`, нужно перезапустить `dev:all`.
 - Для локального старта использовать `npm run dev:all`, для остановки Supabase: `npm run dev:stop`.
 
