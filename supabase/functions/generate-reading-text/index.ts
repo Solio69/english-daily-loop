@@ -1,0 +1,589 @@
+// @ts-nocheck
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
+
+type EnglishLevel = "A1" | "A2" | "B1" | "B2";
+type ReadingMinutes = 3 | 5 | 10 | 15;
+type TelegramUser = {
+  id: number;
+};
+type UserIdRow = {
+  id: string;
+};
+type UserSettingsRow = {
+  english_level: EnglishLevel;
+  daily_reading_minutes: number;
+};
+
+type UserReadingSettings = {
+  englishLevel: EnglishLevel;
+  dailyReadingMinutes: ReadingMinutes;
+};
+
+type ReadingGenerationConfig = {
+  wordMin: number;
+  wordMax: number;
+  validationWordMin: number;
+  validationWordMax: number;
+  maxTokens: number;
+};
+
+type OpenRouterChoice = {
+  message?: {
+    content?: string | Array<{ type?: string; text?: string }>;
+  };
+};
+
+type OpenRouterResponse = {
+  choices?: OpenRouterChoice[];
+  error?: {
+    message?: string;
+  };
+};
+
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
+
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const DEFAULT_PRIMARY_MODEL = "openai/gpt-oss-20b:free";
+const DEFAULT_FALLBACK_MODEL = "google/gemma-3-12b-it:free";
+const MODEL_TIMEOUT_MS = 18_000;
+const MAX_AUTH_AGE_SECONDS = 24 * 60 * 60;
+const textEncoder = new TextEncoder();
+const READING_CONFIG_BY_MINUTES: Record<
+  ReadingMinutes,
+  Omit<ReadingGenerationConfig, "validationWordMin" | "validationWordMax">
+> = {
+  3: { wordMin: 120, wordMax: 180, maxTokens: 450 },
+  5: { wordMin: 220, wordMax: 320, maxTokens: 750 },
+  10: { wordMin: 450, wordMax: 650, maxTokens: 1300 },
+  15: { wordMin: 700, wordMax: 950, maxTokens: 1900 },
+};
+
+class AppError extends Error {
+  status: number;
+  code: string;
+
+  constructor(status: number, code: string, message: string) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
+}
+
+const fail = (status: number, code: string, message: string): never => {
+  throw new AppError(status, code, message);
+};
+
+const jsonResponse = (status: number, payload: unknown): Response =>
+  new Response(JSON.stringify(payload), {
+    status,
+    headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+  });
+
+const successResponse = (status: number, data: unknown): Response =>
+  jsonResponse(status, { ok: true, data });
+
+const errorResponse = (
+  status: number,
+  code: string,
+  message: string,
+): Response => jsonResponse(status, { ok: false, error: { code, message } });
+
+const parseEnglishLevel = (value: unknown): EnglishLevel => {
+  if (value === "A1" || value === "A2" || value === "B1" || value === "B2") {
+    return value;
+  }
+  fail(
+    500,
+    "INVALID_ENGLISH_LEVEL",
+    "User english level has an unsupported value.",
+  );
+};
+
+const parseReadingMinutes = (value: unknown): ReadingMinutes => {
+  if (value === 3 || value === 5 || value === 10 || value === 15) {
+    return value;
+  }
+  fail(
+    500,
+    "INVALID_READING_MINUTES",
+    "User reading minutes has an unsupported value.",
+  );
+};
+
+const getReadingGenerationConfig = (
+  readingMinutes: ReadingMinutes,
+): ReadingGenerationConfig => {
+  const config = READING_CONFIG_BY_MINUTES[readingMinutes];
+  return {
+    ...config,
+    validationWordMin: Math.floor(config.wordMin * 0.8),
+    validationWordMax: Math.ceil(config.wordMax * 1.2),
+  };
+};
+
+const normalizeModelList = (primary: string, fallback: string): string[] => {
+  const values = [primary, fallback].map((item) => item.trim()).filter(Boolean);
+  return Array.from(new Set(values));
+};
+
+const stripCodeFence = (raw: string): string => {
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith("```")) {
+    return trimmed;
+  }
+
+  return trimmed
+    .replace(/^```(?:json)?/i, "")
+    .replace(/```$/i, "")
+    .trim();
+};
+
+const toBufferSource = (value: Uint8Array): BufferSource => {
+  const view = new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+  return view as BufferSource;
+};
+
+const toHex = (bytes: Uint8Array): string =>
+  Array.from(bytes)
+    .map((item) => item.toString(16).padStart(2, "0"))
+    .join("");
+
+const timingSafeEqual = (a: string, b: string): boolean => {
+  if (a.length !== b.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return mismatch === 0;
+};
+
+const hmacSha256 = async (
+  key: Uint8Array,
+  data: string,
+): Promise<Uint8Array> => {
+  const cryptoKey = await crypto.subtle.importKey(
+    "raw",
+    toBufferSource(key),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    cryptoKey,
+    toBufferSource(textEncoder.encode(data)),
+  );
+  return new Uint8Array(signature);
+};
+
+const buildDataCheckString = (params: URLSearchParams): string => {
+  const pairs: string[] = [];
+  for (const [key, value] of params.entries()) {
+    if (key === "hash") continue;
+    pairs.push(`${key}=${value}`);
+  }
+  pairs.sort((a, b) => a.localeCompare(b));
+  return pairs.join("\n");
+};
+
+const parseInitData = (
+  rawInitData: string,
+): { params: URLSearchParams; user: TelegramUser } => {
+  const params = new URLSearchParams(rawInitData);
+  const userRaw = params.get("user");
+  if (!userRaw) {
+    fail(400, "INIT_DATA_INVALID", "Field user is missing in initData.");
+  }
+
+  let user: TelegramUser;
+  try {
+    user = JSON.parse(userRaw) as TelegramUser;
+  } catch {
+    fail(400, "INIT_DATA_INVALID", "Field user in initData has invalid JSON.");
+  }
+
+  if (!user.id) {
+    fail(400, "INIT_DATA_INVALID", "telegram user id is missing in initData.");
+  }
+
+  return { params, user };
+};
+
+const validateTelegramInitData = async (
+  rawInitData: string,
+  botToken: string,
+): Promise<TelegramUser> => {
+  const { params, user } = parseInitData(rawInitData);
+  const receivedHash = params.get("hash");
+  if (!receivedHash) {
+    fail(400, "INIT_DATA_INVALID", "hash is missing in initData.");
+  }
+
+  const authDateRaw = params.get("auth_date");
+  if (!authDateRaw) {
+    fail(400, "INIT_DATA_INVALID", "auth_date is missing in initData.");
+  }
+
+  const authDate = Number(authDateRaw);
+  if (!Number.isFinite(authDate)) {
+    fail(400, "INIT_DATA_INVALID", "auth_date in initData is invalid.");
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  if (now - authDate > MAX_AUTH_AGE_SECONDS) {
+    fail(
+      401,
+      "AUTH_VALIDATION_FAILED",
+      "Telegram initData is too old. Reopen the Mini App.",
+    );
+  }
+
+  const dataCheckString = buildDataCheckString(params);
+  const secretKey = await hmacSha256(
+    textEncoder.encode("WebAppData"),
+    botToken,
+  );
+  const expectedHash = toHex(await hmacSha256(secretKey, dataCheckString));
+
+  if (!timingSafeEqual(expectedHash, receivedHash.toLowerCase())) {
+    fail(
+      401,
+      "AUTH_VALIDATION_FAILED",
+      "Telegram initData signature is not valid.",
+    );
+  }
+
+  return user;
+};
+
+const getUserReadingSettingsFromDb = async (
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  telegramUserId: number,
+): Promise<UserReadingSettings> => {
+  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false },
+  });
+
+  const { data: userRow, error: userError } = await supabase
+    .from("users")
+    .select("id")
+    .eq("telegram_user_id", telegramUserId)
+    .maybeSingle();
+
+  if (userError) {
+    console.error("[generate-reading-text] failed to load user", {
+      telegramUserId,
+      error: userError.message,
+    });
+    fail(500, "USER_FIND_FAILED", "Failed to load user profile.");
+  }
+
+  if (!userRow) {
+    fail(
+      404,
+      "USER_NOT_FOUND",
+      "User profile was not found. Complete Telegram auth first.",
+    );
+  }
+
+  const appUserId = (userRow as UserIdRow).id;
+  const { data: settingsRow, error: settingsError } = await supabase
+    .from("user_settings")
+    .select("english_level, daily_reading_minutes")
+    .eq("user_id", appUserId)
+    .maybeSingle();
+
+  if (settingsError) {
+    console.error("[generate-reading-text] failed to load user settings", {
+      appUserId,
+      error: settingsError.message,
+    });
+    fail(500, "SETTINGS_LOAD_FAILED", "Failed to load user settings.");
+  }
+
+  if (!settingsRow) {
+    fail(409, "SETTINGS_NOT_COMPLETED", "User settings are not completed yet.");
+  }
+
+  const settings = settingsRow as UserSettingsRow;
+  return {
+    englishLevel: parseEnglishLevel(settings.english_level),
+    dailyReadingMinutes: parseReadingMinutes(settings.daily_reading_minutes),
+  };
+};
+
+const extractOpenRouterContent = (
+  payload: OpenRouterResponse,
+): string | null => {
+  const choice = payload.choices?.[0];
+  const content = choice?.message?.content;
+  if (!content) return null;
+
+  if (typeof content === "string") {
+    return content;
+  }
+
+  const joined = content
+    .filter((part) => part?.type === "text" && typeof part.text === "string")
+    .map((part) => part.text)
+    .join("\n")
+    .trim();
+
+  return joined || null;
+};
+
+const buildPrompt = (
+  targetLevel: EnglishLevel,
+  readingMinutes: ReadingMinutes,
+  config: ReadingGenerationConfig,
+): string => `You are an English teacher.
+Create one reading text for level ${targetLevel} and a ${readingMinutes}-minute reading session.
+
+Rules:
+- output only valid JSON
+- no markdown, no code fences
+- title must be 3-8 words
+- body must be ${config.wordMin}-${config.wordMax} words, simple and natural for level ${targetLevel}
+- estimatedMinutes must be exactly ${readingMinutes}
+- level must be exactly "${targetLevel}"
+
+JSON schema:
+{
+  "title": "string",
+  "body": "string",
+  "estimatedMinutes": ${readingMinutes},
+  "level": "${targetLevel}"
+}`;
+
+const parseGeneratedJson = (
+  raw: string,
+  targetLevel: EnglishLevel,
+  readingMinutes: ReadingMinutes,
+  config: ReadingGenerationConfig,
+): { title: string; body: string; estimatedMinutes: number; level: string } => {
+  const parsed = JSON.parse(stripCodeFence(raw)) as {
+    title?: unknown;
+    body?: unknown;
+    estimatedMinutes?: unknown;
+    level?: unknown;
+  };
+
+  if (typeof parsed.title !== "string" || !parsed.title.trim()) {
+    throw new Error("Generated JSON has invalid title.");
+  }
+  if (typeof parsed.body !== "string") {
+    throw new Error("Generated JSON has invalid body.");
+  }
+
+  const wordCount = parsed.body.trim().split(/\s+/).filter(Boolean).length;
+  if (
+    wordCount < config.validationWordMin ||
+    wordCount > config.validationWordMax
+  ) {
+    throw new Error(
+      `Generated body has ${wordCount} words, expected ${config.validationWordMin}-${config.validationWordMax}.`,
+    );
+  }
+
+  return {
+    title: parsed.title.trim(),
+    body: parsed.body.trim(),
+    estimatedMinutes: readingMinutes,
+    level: targetLevel,
+  };
+};
+
+const requestOpenRouter = async (
+  model: string,
+  prompt: string,
+  apiKey: string,
+  maxTokens: number,
+): Promise<string> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(OPENROUTER_URL, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0.7,
+        max_tokens: maxTokens,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+
+    const payload = (await response.json()) as OpenRouterResponse;
+    if (!response.ok) {
+      const details = payload.error?.message ?? "Unknown OpenRouter error.";
+      throw new Error(details);
+    }
+
+    const content = extractOpenRouterContent(payload);
+    if (!content) {
+      throw new Error("OpenRouter returned empty content.");
+    }
+
+    return content;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
+const generateWithFallback = async (
+  models: string[],
+  prompt: string,
+  apiKey: string,
+  targetLevel: EnglishLevel,
+  readingMinutes: ReadingMinutes,
+  config: ReadingGenerationConfig,
+) => {
+  let lastErrorMessage = "Unknown generation error.";
+  for (const model of models) {
+    try {
+      const raw = await requestOpenRouter(
+        model,
+        prompt,
+        apiKey,
+        config.maxTokens,
+      );
+      const generated = parseGeneratedJson(
+        raw,
+        targetLevel,
+        readingMinutes,
+        config,
+      );
+      return {
+        ...generated,
+        usedModel: model,
+      };
+    } catch (error) {
+      lastErrorMessage =
+        error instanceof Error ? error.message : "Unknown generation error.";
+      console.error("[generate-reading-text] model failed", {
+        model,
+        error: lastErrorMessage,
+      });
+    }
+  }
+
+  throw new Error(lastErrorMessage);
+};
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: CORS_HEADERS });
+  }
+
+  if (req.method !== "POST") {
+    return errorResponse(405, "METHOD_NOT_ALLOWED", "Method Not Allowed");
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")?.trim();
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.trim();
+    const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN")?.trim();
+    const openRouterApiKey = Deno.env.get("OPENROUTER_API_KEY")?.trim();
+    const primaryModel =
+      Deno.env.get("OPENROUTER_MODEL_PRIMARY")?.trim() || DEFAULT_PRIMARY_MODEL;
+    const fallbackModel =
+      Deno.env.get("OPENROUTER_MODEL_FALLBACK")?.trim() ||
+      DEFAULT_FALLBACK_MODEL;
+
+    if (!supabaseUrl || !serviceRoleKey || !botToken || !openRouterApiKey) {
+      return errorResponse(
+        500,
+        "SERVER_ENV_MISCONFIGURED",
+        "Server env vars are not configured.",
+      );
+    }
+
+    let body: { initData?: unknown };
+    try {
+      body = (await req.json()) as { initData?: unknown };
+    } catch {
+      fail(400, "INVALID_JSON", "Request body must be valid JSON.");
+    }
+
+    const initData =
+      typeof body?.initData === "string" ? body.initData.trim() : "";
+    if (!initData) {
+      fail(400, "INIT_DATA_REQUIRED", "initData is required.");
+    }
+
+    const tgUser = await validateTelegramInitData(initData, botToken);
+    const settings = await getUserReadingSettingsFromDb(
+      supabaseUrl,
+      serviceRoleKey,
+      tgUser.id,
+    );
+    const targetLevel = settings.englishLevel;
+    const config = getReadingGenerationConfig(settings.dailyReadingMinutes);
+    const prompt = buildPrompt(
+      targetLevel,
+      settings.dailyReadingMinutes,
+      config,
+    );
+    const models = normalizeModelList(primaryModel, fallbackModel);
+
+    console.log("[generate-reading-text] start", {
+      telegramUserId: tgUser.id,
+      baseLevel: settings.englishLevel,
+      dailyReadingMinutes: settings.dailyReadingMinutes,
+      targetLevel,
+      targetWords: `${config.wordMin}-${config.wordMax}`,
+      validationWords: `${config.validationWordMin}-${config.validationWordMax}`,
+      maxTokens: config.maxTokens,
+      models,
+    });
+
+    const generated = await generateWithFallback(
+      models,
+      prompt,
+      openRouterApiKey,
+      targetLevel,
+      settings.dailyReadingMinutes,
+      config,
+    );
+
+    return successResponse(200, {
+      text: {
+        id: crypto.randomUUID(),
+        title: generated.title,
+        body: generated.body,
+        level: generated.level,
+        estimatedMinutes: generated.estimatedMinutes,
+      },
+      generation: {
+        provider: "openrouter",
+        model: generated.usedModel,
+        fallbackUsed: generated.usedModel !== models[0],
+      },
+    });
+  } catch (error) {
+    if (error instanceof AppError) {
+      console.error("[generate-reading-text] request failed", {
+        status: error.status,
+        code: error.code,
+        message: error.message,
+      });
+      return errorResponse(error.status, error.code, error.message);
+    }
+
+    const message =
+      error instanceof Error ? error.message : "Unknown generation error.";
+    console.error("[generate-reading-text] failed", { message });
+    return errorResponse(502, "TEXT_GENERATION_FAILED", message);
+  }
+});

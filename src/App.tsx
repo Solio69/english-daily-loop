@@ -24,8 +24,9 @@ export default function App() {
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [hintText, setHintText] = useState<string | null>(null);
-  const [hintTone, setHintTone] = useState<'default' | 'onboarding'>('default');
+  const [hintTone, setHintTone] = useState<'default' | 'onboarding' | 'success'>('default');
   const [streakDays] = useState(0);
+  const availableGenerationAttempts = 10;
 
   const isSettingsCompleted = Boolean(appUser?.settingsCompletedAt);
   const isFirstTextCompleted = Boolean(appUser?.firstTextCompletedAt);
@@ -55,7 +56,10 @@ export default function App() {
     return () => window.clearTimeout(timeout);
   }, [hintText]);
 
-  const showHint = (message: string, tone: 'default' | 'onboarding' = 'default') => {
+  const showHint = (
+    message: string,
+    tone: 'default' | 'onboarding' | 'success' = 'default',
+  ) => {
     setHintText(message);
     setHintTone(tone);
   };
@@ -68,7 +72,7 @@ export default function App() {
       const updatedUser = await saveCurrentUserSettings(appUser.id, settings);
       setAppUser(updatedUser);
       setCurrentScreen('home');
-      showHint('Настройки сохранены. Переходи к тексту.');
+      showHint('Настройки сохранены. Переходи к тексту.', 'success');
     } catch (error) {
       showHint(error instanceof Error ? error.message : 'Не удалось сохранить настройки.');
     } finally {
@@ -130,7 +134,7 @@ export default function App() {
 
   const handleDisabledNavClick = () => {
     if (shouldForceSettings) {
-      showHint('Открой настройки, чтобы продолжить.');
+      showHint('Открой настройки, чтобы продолжить.', 'onboarding');
       return;
     }
     showHint('Сначала заверши сегодняшний текст.', 'onboarding');
@@ -166,6 +170,9 @@ export default function App() {
             onBack={() => setCurrentScreen('home')}
             onNext={isGuidedFlow ? nextStep : undefined}
             onCompleteText={handleCompleteFirstText}
+            userLevel={appUser?.settings?.englishLevel ?? null}
+            readingMinutes={appUser?.settings?.dailyReadingMinutes ?? null}
+            availableGenerationAttempts={availableGenerationAttempts}
           />
         );
       case 'vocabulary':
@@ -218,6 +225,8 @@ export default function App() {
           className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl text-sm shadow-lg ${
             hintTone === 'onboarding'
               ? 'bg-pink-500 text-white dark:bg-pink-500 dark:text-white'
+              : hintTone === 'success'
+                ? 'bg-green-500 text-white dark:bg-orange-500 dark:text-white'
               : 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
           }`}
         >

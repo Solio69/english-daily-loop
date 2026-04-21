@@ -22,6 +22,7 @@ type UserRow = {
 type UserSettingsRow = {
   english_level: "A1" | "A2" | "B1" | "B2";
   daily_exercise_minutes: number;
+  daily_reading_minutes: number;
   daily_review_words: number;
 };
 
@@ -62,6 +63,7 @@ const authLog = (message: string, details?: unknown): void => {
 const mapSettings = (row: UserSettingsRow): UserSettings => ({
   englishLevel: row.english_level,
   dailyExerciseMinutes: row.daily_exercise_minutes,
+  dailyReadingMinutes: row.daily_reading_minutes,
   dailyReviewWords: row.daily_review_words,
 });
 
@@ -169,7 +171,9 @@ const getUserSettings = async (
 ): Promise<UserSettings | null> => {
   const { data, error } = await supabase
     .from("user_settings")
-    .select("english_level, daily_exercise_minutes, daily_review_words")
+    .select(
+      "english_level, daily_exercise_minutes, daily_reading_minutes, daily_review_words",
+    )
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -238,6 +242,7 @@ export const saveCurrentUserSettings = async (
       user_id: userId,
       english_level: input.englishLevel,
       daily_exercise_minutes: input.dailyExerciseMinutes,
+      daily_reading_minutes: input.dailyReadingMinutes,
       daily_review_words: input.dailyReviewWords,
     },
     { onConflict: "user_id" },

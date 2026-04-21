@@ -26,7 +26,7 @@ const color = {
 const useColor = Boolean(process.stdout.isTTY);
 const labelColors = {
   frontend: color.magenta,
-  auth: color.blue,
+  edge: color.blue,
   db: color.yellow,
   api: color.red,
   "tunnel-frontend": color.green,
@@ -432,23 +432,24 @@ async function main() {
   const frontend = spawnLabeled(pnpmCmd, ["dev"], "frontend");
   children.push(frontend);
 
-  const authFunction = spawnLabeled(
+  const edgeFunctions = spawnLabeled(
     npxCmd,
     [
       "supabase",
       "functions",
       "serve",
       "auth-telegram",
+      "generate-reading-text",
       "--env-file",
       ".env.local",
     ],
-    "auth",
+    "edge",
   );
-  children.push(authFunction);
-  authFunction.on("exit", (code) => {
+  children.push(edgeFunctions);
+  edgeFunctions.on("exit", (code) => {
     if (!shuttingDown) {
       process.stderr.write(
-        `[auth] function runner exited with code ${code ?? "unknown"}, continuing...\n`,
+        `[edge] function runner exited with code ${code ?? "unknown"}, continuing...\n`,
       );
     }
   });

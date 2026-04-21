@@ -168,21 +168,21 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       </header>
 
       {isFirstSetup ? (
-        <section className="bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-blue-200 dark:border-orange-900/40">
-          <h2 className="text-xs font-bold text-blue-500 dark:text-orange-400 uppercase tracking-wider mb-3">
+        <section className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-blue-200 dark:border-orange-900/40">
+          <h2 className="text-xs font-bold text-blue-500 dark:text-orange-400 uppercase tracking-wider mb-2">
             Перед первым уроком
           </h2>
-          <div className="space-y-3">
-            <p className="font-bold text-lg text-gray-900 dark:text-white">
+          <div className="space-y-2.5">
+            <p className="font-bold text-base leading-snug text-gray-900 dark:text-white">
               Заполни настройки перед стартом.
             </p>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm leading-snug text-gray-500 dark:text-gray-400">
               Выбери уровень и параметры сессии в настройках, после этого
               откроется ежедневный учебный цикл.
             </p>
             <Button
               onClick={() => onNavigate("settings")}
-              className="rounded-full px-5 bg-pink-500 hover:bg-pink-600 dark:bg-pink-500 dark:hover:bg-pink-600"
+              className="rounded-full px-4 py-1.5 text-base bg-pink-500 hover:bg-pink-600 dark:bg-pink-500 dark:hover:bg-pink-600"
             >
               Открыть настройки
             </Button>

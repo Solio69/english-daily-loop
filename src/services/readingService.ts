@@ -1,5 +1,7 @@
 ﻿import { supabase } from "../lib/supabase";
-import { ReadingMode, ReadingText } from "../types/reading";
+import { ReadingText } from "../types/reading";
+
+const DEFAULT_READING_TIER = "my_level" as const;
 
 type ReadingTextRow = {
   id: string;
@@ -9,11 +11,33 @@ type ReadingTextRow = {
   estimated_minutes: number;
 };
 
-export const getRandomReadingText = async (
-  mode: ReadingMode,
-): Promise<ReadingText> => {
+type GenerateReadingTextFunctionSuccess = {
+  ok: true;
+  data: {
+    text: ReadingText;
+    generation: {
+      provider: string;
+      model: string;
+      fallbackUsed: boolean;
+    };
+  };
+};
+
+type GenerateReadingTextFunctionError = {
+  ok: false;
+  error: {
+    code: string;
+    message: string;
+  };
+};
+
+type GenerateReadingTextFunctionResponse =
+  | GenerateReadingTextFunctionSuccess
+  | GenerateReadingTextFunctionError;
+
+const getRandomReadingTextFromRpc = async (): Promise<ReadingText> => {
   const { data, error } = await supabase.rpc("get_random_reading_text", {
-    p_tier: mode,
+    p_tier: DEFAULT_READING_TIER,
   });
 
   if (error) {
@@ -31,5 +55,48 @@ export const getRandomReadingText = async (
     level: row.level,
     body: row.body,
     estimatedMinutes: row.estimated_minutes,
+    source: "db_fallback",
   };
+};
+
+const getAiGeneratedReadingText = async (): Promise<ReadingText> => {
+  const initData = window.Telegram?.WebApp?.initData?.trim();
+  if (!initData) {
+    throw new Error("Telegram initData не найден.");
+  }
+
+  const { data, error } = await supabase.functions.invoke(
+    "generate-reading-text",
+    {
+      body: { initData },
+    },
+  );
+
+  if (error) {
+    throw new Error("Не удалось обратиться к AI-сервису.");
+  }
+
+  const payload = data as GenerateReadingTextFunctionResponse | null;
+  if (!payload) {
+    throw new Error("Пустой ответ от AI-сервиса.");
+  }
+
+  if ("error" in payload) {
+    throw new Error(payload.error.message || "Ошибка генерации текста.");
+  }
+
+  return {
+    ...payload.data.text,
+    source: "ai",
+    generation: payload.data.generation,
+  };
+};
+
+export const getRandomReadingText = async (): Promise<ReadingText> => {
+  try {
+    return await getAiGeneratedReadingText();
+  } catch (aiError) {
+    console.warn("[readingService] AI generate failed, fallback to RPC", aiError);
+    return getRandomReadingTextFromRpc();
+  }
 };

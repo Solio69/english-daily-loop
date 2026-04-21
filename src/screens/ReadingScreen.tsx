@@ -1,26 +1,34 @@
-﻿import { Clock, Loader2, Sparkles } from "lucide-react";
+﻿import { BookOpen, Clock, Loader2, Sparkles } from "lucide-react";
 import React, { useState } from "react";
 import { Button } from "../components/Button";
 import { getRandomReadingText } from "../services/readingService";
-import { ReadingMode, ReadingText } from "../types/reading";
+import { ReadingText } from "../types/reading";
 
-const READING_MODES: Array<{ value: ReadingMode; label: string }> = [
-  { value: "my_level", label: "Мой уровень" },
-  { value: "one_level_up", label: "На уровень выше" },
-];
+const IS_DEV = import.meta.env.DEV;
+
+const getModelLabel = (model?: string): string | null => {
+  if (!model) return null;
+  const modelName = model.split("/").pop()?.replace(":free", "");
+  return modelName || model;
+};
 
 type ReadingScreenProps = {
   onBack: () => void;
   onNext?: () => void;
   onCompleteText?: () => Promise<void>;
+  userLevel?: string | null;
+  readingMinutes?: number | null;
+  availableGenerationAttempts?: number;
 };
 
 export const ReadingScreen: React.FC<ReadingScreenProps> = ({
   onBack,
   onNext,
   onCompleteText,
+  userLevel,
+  readingMinutes,
+  availableGenerationAttempts = 10,
 }) => {
-  const [level, setLevel] = useState<ReadingMode>("my_level");
   const [loading, setLoading] = useState(false);
   const [text, setText] = useState<ReadingText | null>(null);
   const [selectedWord, setSelectedWord] = useState<{
@@ -41,7 +49,7 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
     setErrorText(null);
 
     try {
-      const nextText = await getRandomReadingText(level);
+      const nextText = await getRandomReadingText();
       setText(nextText);
     } catch (error) {
       const message =
@@ -94,21 +102,33 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
 
   return (
     <div className="p-4 space-y-6">
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 space-y-4">
-        <div className="flex bg-gray-100 dark:bg-gray-900 p-1 rounded-lg">
-          {READING_MODES.map((mode) => (
-            <button
-              key={mode.value}
-              onClick={() => setLevel(mode.value)}
-              className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${level === mode.value ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white" : "text-gray-500 dark:text-gray-400"}`}
-            >
-              {mode.label}
-            </button>
-          ))}
+      <div className="bg-white dark:bg-gray-800 p-2.5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 space-y-2">
+        <div className="grid grid-cols-3 gap-1.5 text-[11px] sm:text-xs text-gray-700 dark:text-gray-200">
+          <p className="inline-flex items-center gap-1 min-w-0 whitespace-nowrap">
+            <BookOpen size={14} className="text-green-500 shrink-0" />
+            <span>Уровень:</span>
+            <span className="font-semibold text-green-500 truncate">
+              {userLevel ?? "—"}
+            </span>
+          </p>
+          <p className="inline-flex items-center gap-1 min-w-0 justify-center whitespace-nowrap">
+            <Sparkles size={14} className="text-green-500 shrink-0" />
+            <span>Попытки:</span>
+            <span className="font-semibold text-green-500">
+              {availableGenerationAttempts}
+            </span>
+          </p>
+          <p className="inline-flex items-center gap-1 min-w-0 justify-end whitespace-nowrap">
+            <Clock size={14} className="text-green-500 shrink-0" />
+            <span>Время:</span>
+            <span className="font-semibold text-green-500">
+              {readingMinutes ? `${readingMinutes} мин` : "—"}
+            </span>
+          </p>
         </div>
         <Button
           onClick={handleGenerate}
-          className="w-full flex items-center justify-center gap-2 dark:bg-orange-500 dark:hover:bg-orange-600"
+          className="w-full flex items-center justify-center gap-2 py-2 text-sm sm:text-base dark:bg-orange-500 dark:hover:bg-orange-600"
         >
           <Sparkles size={18} /> Сгенерировать текст
         </Button>
@@ -129,18 +149,30 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
 
       {text && (
         <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 space-y-4">
-          <div className="flex justify-between items-center text-sm text-gray-500 dark:text-gray-400">
-            <span className="font-medium text-gray-900 dark:text-white">
+          <div className="flex items-start justify-between gap-3">
+            <h3 className="font-medium text-gray-900 dark:text-white">
               {text.title}
-            </span>
-            <div className="flex items-center gap-2">
-              <span className="bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded text-xs">
-                {text.level}
+            </h3>
+            {IS_DEV && text.source && (
+              <span
+                className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide ${
+                  text.source === "ai"
+                    ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+                    : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                }`}
+                title={
+                  text.source === "ai"
+                    ? text.generation?.model
+                      ? `AI: ${text.generation.model}`
+                      : "AI"
+                    : "DB fallback"
+                }
+              >
+                {text.source === "ai"
+                  ? `AI${getModelLabel(text.generation?.model) ? ` · ${getModelLabel(text.generation?.model)}` : ""}`
+                  : "DB"}
               </span>
-              <span className="flex items-center gap-1">
-                <Clock size={14} /> {text.estimatedMinutes} мин
-              </span>
-            </div>
+            )}
           </div>
           <p className="text-gray-800 dark:text-gray-200 leading-relaxed text-lg">
             {text.body.split(" ").map((word, i) => {

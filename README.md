@@ -1,20 +1,35 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# english-daily-loop
 
-# Run and deploy your AI Studio app
+Telegram Mini App для ежедневной практики английского языка.
 
-This contains everything you need to run your app locally.
+## Stack
 
-View your app in AI Studio: https://ai.studio/apps/e13d8225-0033-4d7b-9598-e7350426b3e7
+- Vite
+- React
+- TypeScript
+- Supabase local + Edge Functions
+- OpenRouter для AI-генерации текстов
 
-## Run Locally
+## Local Run
 
-**Prerequisites:**  Node.js
-
+Prerequisites:
+- Node.js
+- pnpm
+- Docker
+- Supabase CLI
 
 1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+   ```bash
+   pnpm install
+   ```
+
+2. Create `.env.local` from `.env.example` and fill required secrets.
+
+3. Start local stack:
+   ```bash
+   npm run dev:all
+   ```
+
+`dev:all` starts the frontend, local Supabase, Edge Functions, Cloudflare tunnels,
+DB/API logs, and prints a startup summary for Telegram Mini App testing.
+
