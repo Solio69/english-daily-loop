@@ -1,5 +1,5 @@
 alter table public.user_settings
-  add column if not exists daily_reading_minutes int not null default 5;
+  add column if not exists daily_reading_minutes int not null default 3;
 
 do $$
 begin

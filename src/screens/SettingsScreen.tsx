@@ -30,7 +30,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   );
   const [time, setTime] = useState(initialSettings?.dailyExerciseMinutes ?? 5);
   const [readingTime, setReadingTime] = useState(
-    initialSettings?.dailyReadingMinutes ?? 5,
+    initialSettings?.dailyReadingMinutes ?? 3,
   );
   const [words, setWords] = useState(initialSettings?.dailyReviewWords ?? 5);
 
