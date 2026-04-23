@@ -11,7 +11,8 @@ import { ReadingScreen } from './screens/ReadingScreen';
 import { VocabularyScreen } from './screens/VocabularyScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { AppUser, SaveUserSettingsInput } from './types/user';
-import { getCurrentAppUser, markFirstTextCompleted, saveCurrentUserSettings } from './services/userService';
+import { getCurrentAppUser, saveCurrentUserSettings } from './services/userService';
+import { completeReadingText } from './services/readingService';
 
 type ScreenId = 'home' | 'exercises' | 'reading' | 'vocabulary' | 'settings';
 
@@ -26,7 +27,6 @@ export default function App() {
   const [hintText, setHintText] = useState<string | null>(null);
   const [hintTone, setHintTone] = useState<'default' | 'onboarding' | 'success'>('default');
   const [streakDays] = useState(0);
-  const availableGenerationAttempts = 10;
 
   const isSettingsCompleted = Boolean(appUser?.settingsCompletedAt);
   const isFirstTextCompleted = Boolean(appUser?.firstTextCompletedAt);
@@ -81,12 +81,20 @@ export default function App() {
   };
 
   const handleCompleteFirstText = async () => {
-    if (!appUser || appUser.firstTextCompletedAt) return;
+    if (!appUser) return;
 
     try {
-      const updatedUser = await markFirstTextCompleted(appUser.id);
-      setAppUser(updatedUser);
-      showHint('Отличный старт. Теперь все разделы доступны.');
+      const result = await completeReadingText();
+      setAppUser({
+        ...appUser,
+        firstTextCompletedAt:
+          result.firstTextCompletedAt ?? appUser.firstTextCompletedAt,
+      });
+      showHint(
+        appUser.firstTextCompletedAt
+          ? 'Текст на сегодня завершен.'
+          : 'Отличный старт. Теперь все разделы доступны.',
+      );
     } catch (error) {
       showHint(error instanceof Error ? error.message : 'Не удалось сохранить завершение текста.');
       throw error;
@@ -172,7 +180,6 @@ export default function App() {
             onCompleteText={handleCompleteFirstText}
             userLevel={appUser?.settings?.englishLevel ?? null}
             readingMinutes={appUser?.settings?.dailyReadingMinutes ?? null}
-            availableGenerationAttempts={availableGenerationAttempts}
           />
         );
       case 'vocabulary':

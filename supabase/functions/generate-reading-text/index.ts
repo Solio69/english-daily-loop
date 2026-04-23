@@ -6,8 +6,9 @@ type ReadingMinutes = 3 | 5 | 10 | 15;
 type TelegramUser = {
   id: number;
 };
-type UserIdRow = {
+type UserRow = {
   id: string;
+  telegram_user_id: number;
 };
 type UserSettingsRow = {
   english_level: EnglishLevel;
@@ -15,6 +16,8 @@ type UserSettingsRow = {
 };
 
 type UserReadingSettings = {
+  appUser: UserRow;
+  appUserId: string;
   englishLevel: EnglishLevel;
   dailyReadingMinutes: ReadingMinutes;
 };
@@ -52,6 +55,8 @@ const DEFAULT_PRIMARY_MODEL = "openai/gpt-oss-20b:free";
 const DEFAULT_FALLBACK_MODEL = "google/gemma-3-12b-it:free";
 const MODEL_TIMEOUT_MS = 18_000;
 const MAX_AUTH_AGE_SECONDS = 24 * 60 * 60;
+const DAILY_GENERATION_LIMIT = 10;
+const MOSCOW_TIME_ZONE = "Europe/Moscow";
 const textEncoder = new TextEncoder();
 const READING_CONFIG_BY_MINUTES: Record<
   ReadingMinutes,
@@ -130,6 +135,26 @@ const normalizeModelList = (primary: string, fallback: string): string[] => {
   const values = [primary, fallback].map((item) => item.trim()).filter(Boolean);
   return Array.from(new Set(values));
 };
+
+const getMoscowDate = (): string => {
+  const parts = new Intl.DateTimeFormat("en", {
+    timeZone: MOSCOW_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const values = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+
+  return `${values.year}-${values.month}-${values.day}`;
+};
+
+const getDailyGenerationLimit = (_user: UserRow): number =>
+  DAILY_GENERATION_LIMIT;
 
 const stripCodeFence = (raw: string): string => {
   const trimmed = raw.trim();
@@ -262,17 +287,12 @@ const validateTelegramInitData = async (
 };
 
 const getUserReadingSettingsFromDb = async (
-  supabaseUrl: string,
-  serviceRoleKey: string,
+  supabase: ReturnType<typeof createClient>,
   telegramUserId: number,
 ): Promise<UserReadingSettings> => {
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false },
-  });
-
   const { data: userRow, error: userError } = await supabase
     .from("users")
-    .select("id")
+    .select("id, telegram_user_id")
     .eq("telegram_user_id", telegramUserId)
     .maybeSingle();
 
@@ -292,16 +312,16 @@ const getUserReadingSettingsFromDb = async (
     );
   }
 
-  const appUserId = (userRow as UserIdRow).id;
+  const appUser = userRow as UserRow;
   const { data: settingsRow, error: settingsError } = await supabase
     .from("user_settings")
     .select("english_level, daily_reading_minutes")
-    .eq("user_id", appUserId)
+    .eq("user_id", appUser.id)
     .maybeSingle();
 
   if (settingsError) {
     console.error("[generate-reading-text] failed to load user settings", {
-      appUserId,
+      appUserId: appUser.id,
       error: settingsError.message,
     });
     fail(500, "SETTINGS_LOAD_FAILED", "Failed to load user settings.");
@@ -313,6 +333,8 @@ const getUserReadingSettingsFromDb = async (
 
   const settings = settingsRow as UserSettingsRow;
   return {
+    appUser,
+    appUserId: appUser.id,
     englishLevel: parseEnglishLevel(settings.english_level),
     dailyReadingMinutes: parseReadingMinutes(settings.daily_reading_minutes),
   };
@@ -490,6 +512,10 @@ Deno.serve(async (req: Request) => {
     return errorResponse(405, "METHOD_NOT_ALLOWED", "Method Not Allowed");
   }
 
+  let startedAttempt:
+    | { supabase: ReturnType<typeof createClient>; attemptId: string }
+    | null = null;
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")?.trim();
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.trim();
@@ -523,11 +549,83 @@ Deno.serve(async (req: Request) => {
     }
 
     const tgUser = await validateTelegramInitData(initData, botToken);
-    const settings = await getUserReadingSettingsFromDb(
-      supabaseUrl,
-      serviceRoleKey,
-      tgUser.id,
-    );
+    const supabase = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false },
+    });
+    const settings = await getUserReadingSettingsFromDb(supabase, tgUser.id);
+    const today = getMoscowDate();
+    const dailyLimit = getDailyGenerationLimit(settings.appUser);
+
+    const { data: completionRow, error: completionError } = await supabase
+      .from("user_daily_reading_completions")
+      .select("id")
+      .eq("user_id", settings.appUserId)
+      .eq("completed_date", today)
+      .maybeSingle();
+
+    if (completionError) {
+      console.error("[generate-reading-text] failed to load completion", {
+        appUserId: settings.appUserId,
+        error: completionError.message,
+      });
+      fail(500, "COMPLETION_LOAD_FAILED", "Failed to load reading completion.");
+    }
+
+    if (completionRow) {
+      fail(
+        409,
+        "DAILY_READING_ALREADY_COMPLETED",
+        "Today's reading text is already completed.",
+      );
+    }
+
+    const { count: attemptsCount, error: attemptsError } = await supabase
+      .from("reading_generation_attempts")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", settings.appUserId)
+      .eq("attempt_date", today);
+
+    if (attemptsError) {
+      console.error("[generate-reading-text] failed to count attempts", {
+        appUserId: settings.appUserId,
+        error: attemptsError.message,
+      });
+      fail(500, "ATTEMPTS_LOAD_FAILED", "Failed to load generation attempts.");
+    }
+
+    const usedAttempts = attemptsCount ?? 0;
+    if (usedAttempts >= dailyLimit) {
+      fail(
+        429,
+        "GENERATION_ATTEMPTS_EXHAUSTED",
+        "Daily text generation attempts are exhausted.",
+      );
+    }
+
+    const { data: attemptRow, error: attemptInsertError } = await supabase
+      .from("reading_generation_attempts")
+      .insert({
+        user_id: settings.appUserId,
+        attempt_date: today,
+        status: "started",
+        provider: "openrouter",
+      })
+      .select("id")
+      .single();
+
+    if (attemptInsertError || !attemptRow) {
+      console.error("[generate-reading-text] failed to create attempt", {
+        appUserId: settings.appUserId,
+        error: attemptInsertError?.message,
+      });
+      fail(500, "ATTEMPT_CREATE_FAILED", "Failed to save generation attempt.");
+    }
+
+    startedAttempt = {
+      supabase,
+      attemptId: (attemptRow as { id: string }).id,
+    };
+
     const targetLevel = settings.englishLevel;
     const config = getReadingGenerationConfig(settings.dailyReadingMinutes);
     const prompt = buildPrompt(
@@ -539,6 +637,11 @@ Deno.serve(async (req: Request) => {
 
     console.log("[generate-reading-text] start", {
       telegramUserId: tgUser.id,
+      appUserId: settings.appUserId,
+      attemptId: startedAttempt.attemptId,
+      attemptDate: today,
+      usedAttempts,
+      dailyLimit,
       baseLevel: settings.englishLevel,
       dailyReadingMinutes: settings.dailyReadingMinutes,
       targetLevel,
@@ -557,9 +660,55 @@ Deno.serve(async (req: Request) => {
       config,
     );
 
+    const fallbackUsed = generated.usedModel !== models[0];
+    const { error: activeTextError } = await supabase
+      .from("user_active_reading_texts")
+      .upsert(
+        {
+          user_id: settings.appUserId,
+          title: generated.title,
+          body: generated.body,
+          level: generated.level,
+          estimated_minutes: generated.estimatedMinutes,
+          provider: "openrouter",
+          model: generated.usedModel,
+          fallback_used: fallbackUsed,
+          generated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id" },
+      );
+
+    if (activeTextError) {
+      console.error("[generate-reading-text] failed to save active text", {
+        appUserId: settings.appUserId,
+        attemptId: startedAttempt.attemptId,
+        error: activeTextError.message,
+      });
+      fail(500, "ACTIVE_TEXT_SAVE_FAILED", "Failed to save generated text.");
+    }
+
+    const { error: attemptUpdateError } = await supabase
+      .from("reading_generation_attempts")
+      .update({
+        status: "succeeded",
+        provider: "openrouter",
+        model: generated.usedModel,
+        error_code: null,
+        error_message: null,
+      })
+      .eq("id", startedAttempt.attemptId);
+
+    if (attemptUpdateError) {
+      console.error("[generate-reading-text] failed to update attempt", {
+        appUserId: settings.appUserId,
+        attemptId: startedAttempt.attemptId,
+        error: attemptUpdateError.message,
+      });
+    }
+
     return successResponse(200, {
       text: {
-        id: crypto.randomUUID(),
+        id: `active-${settings.appUserId}`,
         title: generated.title,
         body: generated.body,
         level: generated.level,
@@ -568,10 +717,35 @@ Deno.serve(async (req: Request) => {
       generation: {
         provider: "openrouter",
         model: generated.usedModel,
-        fallbackUsed: generated.usedModel !== models[0],
+        fallbackUsed,
       },
+      dailyLimit,
+      usedAttempts: usedAttempts + 1,
+      remainingAttempts: Math.max(dailyLimit - usedAttempts - 1, 0),
     });
   } catch (error) {
+    if (startedAttempt) {
+      const code =
+        error instanceof AppError ? error.code : "TEXT_GENERATION_FAILED";
+      const message =
+        error instanceof Error ? error.message : "Unknown generation error.";
+      const { error: updateError } = await startedAttempt.supabase
+        .from("reading_generation_attempts")
+        .update({
+          status: "failed",
+          error_code: code,
+          error_message: message,
+        })
+        .eq("id", startedAttempt.attemptId);
+
+      if (updateError) {
+        console.error("[generate-reading-text] failed to mark attempt failed", {
+          attemptId: startedAttempt.attemptId,
+          error: updateError.message,
+        });
+      }
+    }
+
     if (error instanceof AppError) {
       console.error("[generate-reading-text] request failed", {
         status: error.status,

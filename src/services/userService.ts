@@ -269,24 +269,3 @@ export const saveCurrentUserSettings = async (
   authLog("Settings saved successfully", { userId: user.id });
   return mapUser(user, input);
 };
-
-export const markFirstTextCompleted = async (
-  userId: string,
-): Promise<AppUser> => {
-  const nowIso = new Date().toISOString();
-  const { error } = await supabase
-    .from("users")
-    .update({ first_text_completed_at: nowIso })
-    .eq("id", userId)
-    .is("first_text_completed_at", null);
-
-  if (error) {
-    throw new Error("Не удалось обновить статус завершения текста.");
-  }
-
-  const user = await getUserById(userId);
-  const settings = user.settings_completed_at
-    ? await getUserSettings(userId)
-    : null;
-  return mapUser(user, settings);
-};

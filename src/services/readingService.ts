@@ -1,15 +1,10 @@
-﻿import { supabase } from "../lib/supabase";
-import { ReadingText } from "../types/reading";
-
-const DEFAULT_READING_TIER = "my_level" as const;
-
-type ReadingTextRow = {
-  id: string;
-  title: string;
-  level: string;
-  body: string;
-  estimated_minutes: number;
-};
+import { supabase } from "../lib/supabase";
+import {
+  CompleteReadingTextResult,
+  GenerateReadingTextResult,
+  ReadingState,
+  ReadingText,
+} from "../types/reading";
 
 type GenerateReadingTextFunctionSuccess = {
   ok: true;
@@ -20,10 +15,13 @@ type GenerateReadingTextFunctionSuccess = {
       model: string;
       fallbackUsed: boolean;
     };
+    dailyLimit: number;
+    usedAttempts: number;
+    remainingAttempts: number;
   };
 };
 
-type GenerateReadingTextFunctionError = {
+type FunctionError = {
   ok: false;
   error: {
     code: string;
@@ -33,70 +31,154 @@ type GenerateReadingTextFunctionError = {
 
 type GenerateReadingTextFunctionResponse =
   | GenerateReadingTextFunctionSuccess
-  | GenerateReadingTextFunctionError;
+  | FunctionError;
 
-const getRandomReadingTextFromRpc = async (): Promise<ReadingText> => {
-  const { data, error } = await supabase.rpc("get_random_reading_text", {
-    p_tier: DEFAULT_READING_TIER,
-  });
+type ReadingStateFunctionResponse =
+  | {
+      ok: true;
+      data: ReadingState;
+    }
+  | FunctionError;
 
-  if (error) {
-    throw new Error("Не удалось загрузить текст. Попробуй еще раз.");
+type CompleteReadingTextFunctionResponse =
+  | {
+      ok: true;
+      data: CompleteReadingTextResult;
+    }
+  | FunctionError;
+
+const getFunctionErrorMessage = async (
+  error: unknown,
+  fallback: string,
+): Promise<string> => {
+  const context =
+    error && typeof error === "object" && "context" in error
+      ? (error as { context?: unknown }).context
+      : null;
+
+  if (context instanceof Response) {
+    try {
+      const payload = (await context.clone().json()) as FunctionError | null;
+      if (payload && "error" in payload && payload.error.message) {
+        return payload.error.message;
+      }
+    } catch {
+      return fallback;
+    }
   }
 
-  const row = (Array.isArray(data) ? data[0] : data) as ReadingTextRow | null;
-  if (!row) {
-    throw new Error("Для выбранного режима тексты не найдены.");
-  }
-
-  return {
-    id: row.id,
-    title: row.title,
-    level: row.level,
-    body: row.body,
-    estimatedMinutes: row.estimated_minutes,
-    source: "db_fallback",
-  };
+  return fallback;
 };
 
-const getAiGeneratedReadingText = async (): Promise<ReadingText> => {
+const getTelegramInitData = (): string => {
   const initData = window.Telegram?.WebApp?.initData?.trim();
   if (!initData) {
     throw new Error("Telegram initData не найден.");
   }
 
+  return initData;
+};
+
+export const getReadingState = async (): Promise<ReadingState> => {
+  const initData = getTelegramInitData();
+
   const { data, error } = await supabase.functions.invoke(
-    "generate-reading-text",
+    "get-reading-state",
     {
       body: { initData },
     },
   );
 
   if (error) {
-    throw new Error("Не удалось обратиться к AI-сервису.");
+    throw new Error(
+      await getFunctionErrorMessage(
+        error,
+        "Не удалось загрузить состояние чтения.",
+      ),
+    );
   }
 
-  const payload = data as GenerateReadingTextFunctionResponse | null;
+  const payload = data as ReadingStateFunctionResponse | null;
   if (!payload) {
-    throw new Error("Пустой ответ от AI-сервиса.");
+    throw new Error("Пустой ответ от сервера чтения.");
   }
 
   if ("error" in payload) {
-    throw new Error(payload.error.message || "Ошибка генерации текста.");
+    throw new Error(payload.error.message || "Ошибка загрузки чтения.");
   }
 
-  return {
-    ...payload.data.text,
-    source: "ai",
-    generation: payload.data.generation,
+  return payload.data;
+};
+
+export const generateReadingText =
+  async (): Promise<GenerateReadingTextResult> => {
+    const initData = getTelegramInitData();
+
+    const { data, error } = await supabase.functions.invoke(
+      "generate-reading-text",
+      {
+        body: { initData },
+      },
+    );
+
+    if (error) {
+      throw new Error(
+        await getFunctionErrorMessage(
+          error,
+          "Не удалось обратиться к AI-сервису.",
+        ),
+      );
+    }
+
+    const payload = data as GenerateReadingTextFunctionResponse | null;
+    if (!payload) {
+      throw new Error("Пустой ответ от AI-сервиса.");
+    }
+
+    if ("error" in payload) {
+      throw new Error(payload.error.message || "Ошибка генерации текста.");
+    }
+
+    return {
+      text: {
+        ...payload.data.text,
+        source: "ai",
+        generation: payload.data.generation,
+      },
+      dailyLimit: payload.data.dailyLimit,
+      usedAttempts: payload.data.usedAttempts,
+      remainingAttempts: payload.data.remainingAttempts,
+    };
   };
-};
 
-export const getRandomReadingText = async (): Promise<ReadingText> => {
-  try {
-    return await getAiGeneratedReadingText();
-  } catch (aiError) {
-    console.warn("[readingService] AI generate failed, fallback to RPC", aiError);
-    return getRandomReadingTextFromRpc();
-  }
-};
+export const completeReadingText =
+  async (): Promise<CompleteReadingTextResult> => {
+    const initData = getTelegramInitData();
+
+    const { data, error } = await supabase.functions.invoke(
+      "complete-reading-text",
+      {
+        body: { initData },
+      },
+    );
+
+    if (error) {
+      throw new Error(
+        await getFunctionErrorMessage(
+          error,
+          "Не удалось сохранить завершение текста.",
+        ),
+      );
+    }
+
+    const payload = data as CompleteReadingTextFunctionResponse | null;
+    if (!payload) {
+      throw new Error("Пустой ответ от сервера чтения.");
+    }
+
+    if ("error" in payload) {
+      throw new Error(payload.error.message || "Ошибка завершения текста.");
+    }
+
+    return payload.data;
+  };

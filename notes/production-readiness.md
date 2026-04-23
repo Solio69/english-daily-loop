@@ -4,41 +4,44 @@
 перед production-версией.
 
 ## 1) AI generation observability
-- Сейчас `readingService` тихо переключается на DB fallback, если AI-генерация упала.
-- Dev-бейдж `AI / DB` помогает локально, но production-диагностика должна быть серверной:
+- `readingService` больше не переключается на DB fallback при ошибке AI.
+- Попытка генерации списывается до запроса к OpenRouter, а неуспешная попытка помечается в `reading_generation_attempts.status = 'failed'`.
+- Dev-бейдж `AI` помогает локально, но production-диагностика должна быть серверной:
   - structured logs
   - error code
   - provider/model
-  - причина fallback
+  - attempt id
+  - remaining attempts
+  - причина ошибки генерации
   - correlation/request id, если появится backend-сессия
 
 ## 2) Telegram initData validation reuse
-- `auth-telegram` и `generate-reading-text` сейчас имеют похожую серверную проверку `initData`.
+- `auth-telegram`, `generate-reading-text`, `get-reading-state` и `complete-reading-text` сейчас имеют похожую серверную проверку `initData`.
 - Для MVP это нормально.
-- Если появится еще одна Edge Function с Telegram auth, стоит вынести общую проверку в общий модуль.
+- Перед production стоит вынести общую проверку в общий модуль для Edge Functions.
 
 ## 3) DB fallback length
 - AI-текст учитывает `daily_reading_minutes`.
-- RPC fallback `get_random_reading_text` пока не учитывает время чтения.
-- Если AI упал, пользователь может получить DB-текст не той длины, которую выбрал в настройках.
-- Перед production стоит:
+- RPC fallback `get_random_reading_text` больше не используется в текущем UI генерации.
+- Если fallback вернется как отдельный продуктовый сценарий, перед production стоит:
   - добавить длину/минуты в `reading_texts`
   - фильтровать fallback по `daily_reading_minutes`
   - или явно показывать, что выдан fallback-текст.
 
 ## 4) Generation attempts
-- UI сейчас показывает моковое значение попыток генерации.
-- Серверный учет лимита генераций пока не реализован.
-- Перед production нужно решить:
-  - дневной или недельный лимит
-  - где хранить счетчик
-  - что считается попыткой: только успешная генерация или любой AI-запрос
-  - что делать при DB fallback
+- Серверный учет дневного лимита реализован через `reading_generation_attempts`.
+- День считается по `Europe/Moscow`.
+- Текущий MVP-лимит: `10` попыток для всех пользователей.
+- Попытка считается списанной после записи attempt перед OpenRouter, независимо от успеха генерации.
+- Перед production стоит:
+  - добавить тарифы free/paid в `getDailyGenerationLimit(user)`
+  - сделать атомарную DB/RPC-операцию "проверить лимит и списать попытку"
+  - добавить более явные user-facing сообщения для `429` и `DAILY_READING_ALREADY_COMPLETED`
 
 ## 5) Generated text persistence
-- Сейчас AI-тексты не сохраняются в БД.
-- Это упрощает MVP, но ограничивает аналитику и повторное открытие текста.
-- Перед production стоит решить, сохраняем ли:
+- Последний успешный непрочитанный AI-текст сохраняется в `user_active_reading_texts`.
+- Прочитанные тексты пока не сохраняются: при завершении активный текст удаляется, а факт дня пишется в `user_daily_reading_completions`.
+- Перед production стоит решить, сохраняем ли историю прочитанных текстов:
   - `user_id`
   - `title`
   - `body`
@@ -48,6 +51,7 @@
   - `model`
   - `fallback_used`
   - `created_at`
+  - `completed_at`
 
 ## 6) OpenRouter/free model reliability
 - Free-модели могут быть временно недоступны или менять доступные endpoints.
@@ -61,4 +65,3 @@
 - `OPENROUTER_API_KEY`, `TELEGRAM_BOT_TOKEN`, `SUPABASE_SERVICE_ROLE_KEY` должны оставаться только на сервере.
 - Frontend может видеть только `VITE_*` переменные.
 - Перед production проверить, что реальные секреты не попали в git history и логи.
-

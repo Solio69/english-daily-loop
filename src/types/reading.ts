@@ -13,3 +13,25 @@ export type ReadingText = {
     fallbackUsed: boolean;
   };
 };
+
+export type ReadingState = {
+  today: string;
+  dailyLimit: number;
+  usedAttempts: number;
+  remainingAttempts: number;
+  isReadingCompletedToday: boolean;
+  activeText: ReadingText | null;
+};
+
+export type GenerateReadingTextResult = {
+  text: ReadingText;
+  dailyLimit: number;
+  usedAttempts: number;
+  remainingAttempts: number;
+};
+
+export type CompleteReadingTextResult = {
+  completedDate: string;
+  firstTextCompletedAt: string | null;
+  isReadingCompletedToday: boolean;
+};

@@ -60,22 +60,36 @@
 
 ## Текущий статус (для будущих агентов)
 - Supabase local и Docker-окружение уже работают.
-- Уже подключены и используются таблицы `public.users`, `public.user_settings` и `public.reading_texts`.
+- Уже подключены и используются таблицы `public.users`, `public.user_settings`, `public.reading_texts`, `public.reading_generation_attempts`, `public.user_active_reading_texts` и `public.user_daily_reading_completions`.
 - В `public.user_settings` есть настройки `english_level`, `daily_exercise_minutes`, `daily_reading_minutes`, `daily_review_words`.
 - В проекте есть базовые миграции и сиды для локальной разработки (dev user + моковые тексты).
 - Корневой `tsconfig.json` исключает `supabase/functions`, потому что Edge Functions работают в Deno-рантайме и не должны проверяться frontend `tsc`.
 - Telegram auth реализована через Edge Function `supabase/functions/auth-telegram/index.ts`:
   - серверная валидация `initData` (подпись + `auth_date`)
-  - `find-or-create` пользователя по `telegram_user_id`
+  - идемпотентный `find-or-create/upsert` пользователя по `telegram_user_id`
   - единый контракт ответа (`ok/data` или `ok/error`).
 - Генерация текста реализована через Edge Function `supabase/functions/generate-reading-text/index.ts`:
   - серверная валидация `Telegram initData`
   - поиск пользователя по `telegram_user_id`
   - чтение `english_level` и `daily_reading_minutes` из `user_settings`
+  - проверка дневного завершения чтения по `user_daily_reading_completions`
+  - проверка дневного лимита попыток по `reading_generation_attempts`
+  - списание попытки до запроса к OpenRouter
   - генерация через OpenRouter primary/fallback модели
   - динамический `max_tokens` и диапазон слов по времени чтения
   - валидация длины с допуском примерно `±20%`
+  - сохранение последнего успешного непрочитанного текста в `user_active_reading_texts`
   - единый контракт ответа (`ok/data` или `ok/error`).
+- Состояние экрана чтения реализовано через Edge Function `supabase/functions/get-reading-state/index.ts`:
+  - серверная валидация `Telegram initData`
+  - дата дня считается по timezone `Europe/Moscow`
+  - возвращает активный текст, дневной лимит, использованные/оставшиеся попытки и флаг `isReadingCompletedToday`.
+- Завершение чтения реализовано через Edge Function `supabase/functions/complete-reading-text/index.ts`:
+  - серверная валидация `Telegram initData`
+  - запись дневного завершения в `user_daily_reading_completions`
+  - удаление активного непрочитанного текста из `user_active_reading_texts`
+  - заполнение `users.first_text_completed_at` только для онбординга, если это первый прочитанный текст пользователя.
+- Текущий дневной лимит генерации для MVP: `10` попыток для всех пользователей; место расширения под тарифы — `getDailyGenerationLimit(user)` в Edge Functions чтения.
 - Текущие дефолтные OpenRouter-модели:
   - primary: `openai/gpt-oss-20b:free`
   - fallback: `google/gemma-3-12b-it:free`.
@@ -87,20 +101,23 @@
 - На фронте подключен Telegram WebApp SDK (`index.html`) и типы `window.Telegram.WebApp` (`src/types/telegram-webapp.d.ts`).
 - Bootstrap пользователя в `src/services/userService.ts` сначала пытается авторизоваться через `auth-telegram`; dev fallback управляется env-переменной `VITE_ENABLE_DEV_AUTH_FALLBACK`.
 - Логика чтения вынесена в сервисный слой (`src/services/readingService.ts`), UI-компонент не содержит прямых запросов к БД.
-- `readingService` сначала вызывает `generate-reading-text`, а при ошибке делает UX fallback на RPC `get_random_reading_text`.
-- В dev-режиме экран чтения показывает источник текста (`AI` + модель или `DB`) через metadata `ReadingText.source/generation`.
+- `readingService` вызывает `get-reading-state`, `generate-reading-text` и `complete-reading-text`; прямой RPC fallback `get_random_reading_text` больше не используется в текущем UI генерации.
+- Если генерация упала, новая попытка уже списана, новый текст не сохраняется, а ранее активный текст остается доступен после завершения состояния загрузки.
+- В dev-режиме экран чтения показывает источник текста (`AI` + модель) через metadata `ReadingText.source/generation`.
 - Настройка времени чтения влияет на размер AI-текста:
   - `3` мин: `120-180` слов, `max_tokens: 450`
   - `5` мин: `220-320` слов, `max_tokens: 750`
   - `10` мин: `450-650` слов, `max_tokens: 1300`
   - `15` мин: `700-950` слов, `max_tokens: 1900`.
 - При bootstrap настройки пользователя должны приходить с backend, если `settings_completed_at` уже заполнен.
+- `users.first_text_completed_at` используется только для онбординга; ежедневный факт прочтения хранится отдельно в `user_daily_reading_completions`.
 - В состоянии "настройки сохранены, но первый текст еще не прочитан" разделы `Упражнения` и `Слова` заблокированы, но `Главная` и `Текст` доступны.
+- После нажатия "Завершить текст" генерация в текущий день блокируется, активный текст удаляется; новый дневной цикл открывается после `00:00` по `Europe/Moscow`.
 - `vite.config.ts` разрешает внешние tunnel host'ы (`.trycloudflare.com`, `.loca.lt`) для запуска Mini App через Telegram.
 - `npm run dev:all` автоматически поднимает frontend/API туннели и печатает `STARTUP SUMMARY` с двумя URL:
   - `BotFather /setmenubutton URL` = FRONTEND TUNNEL URL
   - `.env.local VITE_SUPABASE_URL` = SUPABASE API TUNNEL URL.
-- `npm run dev:all` поднимает Edge Functions `auth-telegram` и `generate-reading-text`.
+- `npm run dev:all` поднимает Edge Functions `auth-telegram`, `complete-reading-text`, `get-reading-state` и `generate-reading-text`.
 - Логи в `dev:all` цветные по источнику (`[frontend]`, `[edge]`, `[db]`, `[api]`, `[tunnel-*]`), HTTP-методы и статус-коды дополнительно подсвечиваются.
 - Если в summary указано `Frontend restart required: YES`, нужно перезапустить `dev:all`.
 - Для локального старта использовать `npm run dev:all`, для остановки Supabase: `npm run dev:stop`.

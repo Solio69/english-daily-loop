@@ -1,7 +1,7 @@
 ﻿import { BookOpen, Clock, Loader2, Sparkles } from "lucide-react";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "../components/Button";
-import { getRandomReadingText } from "../services/readingService";
+import { generateReadingText, getReadingState } from "../services/readingService";
 import { ReadingText } from "../types/reading";
 
 const IS_DEV = import.meta.env.DEV;
@@ -18,7 +18,6 @@ type ReadingScreenProps = {
   onCompleteText?: () => Promise<void>;
   userLevel?: string | null;
   readingMinutes?: number | null;
-  availableGenerationAttempts?: number;
 };
 
 export const ReadingScreen: React.FC<ReadingScreenProps> = ({
@@ -27,10 +26,14 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
   onCompleteText,
   userLevel,
   readingMinutes,
-  availableGenerationAttempts = 10,
 }) => {
+  const [isStateLoading, setIsStateLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [text, setText] = useState<ReadingText | null>(null);
+  const [dailyLimit, setDailyLimit] = useState(10);
+  const [remainingAttempts, setRemainingAttempts] = useState(0);
+  const [isReadingCompletedToday, setIsReadingCompletedToday] =
+    useState(false);
   const [selectedWord, setSelectedWord] = useState<{
     word: string;
     index: number;
@@ -41,16 +44,55 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
   const [errorText, setErrorText] = useState<string | null>(null);
   const [isFinishing, setIsFinishing] = useState(false);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadReadingState = async () => {
+      setIsStateLoading(true);
+      setErrorText(null);
+
+      try {
+        const state = await getReadingState();
+        if (!isMounted) return;
+
+        setText(state.activeText);
+        setDailyLimit(state.dailyLimit);
+        setRemainingAttempts(state.remainingAttempts);
+        setIsReadingCompletedToday(state.isReadingCompletedToday);
+      } catch (error) {
+        if (!isMounted) return;
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Не удалось загрузить состояние чтения.";
+        setErrorText(message);
+      } finally {
+        if (isMounted) {
+          setIsStateLoading(false);
+        }
+      }
+    };
+
+    loadReadingState();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const handleGenerate = async () => {
+    if (isReadingCompletedToday || remainingAttempts <= 0) return;
+
     setLoading(true);
-    setText(null);
     setSavedWords(new Set());
     setSelectedWord(null);
     setErrorText(null);
 
     try {
-      const nextText = await getRandomReadingText();
-      setText(nextText);
+      const result = await generateReadingText();
+      setText(result.text);
+      setDailyLimit(result.dailyLimit);
+      setRemainingAttempts(result.remainingAttempts);
     } catch (error) {
       const message =
         error instanceof Error
@@ -90,6 +132,11 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
       if (onCompleteText) {
         await onCompleteText();
       }
+      setText(null);
+      setSavedWords(new Set());
+      setSelectedWord(null);
+      setIsReadingCompletedToday(true);
+      setRemainingAttempts(0);
       if (onNext) {
         onNext();
       } else {
@@ -99,6 +146,17 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
       setIsFinishing(false);
     }
   };
+
+  const isGenerateDisabled =
+    isStateLoading ||
+    loading ||
+    isReadingCompletedToday ||
+    remainingAttempts <= 0;
+  const generateButtonLabel = isReadingCompletedToday
+    ? "Текст на сегодня прочитан"
+    : remainingAttempts <= 0
+      ? "Попытки на сегодня закончились"
+      : "Сгенерировать текст";
 
   return (
     <div className="p-4 space-y-6">
@@ -115,7 +173,7 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
             <Sparkles size={14} className="text-green-500 shrink-0" />
             <span>Попытки:</span>
             <span className="font-semibold text-green-500">
-              {availableGenerationAttempts}
+              {remainingAttempts}/{dailyLimit}
             </span>
           </p>
           <p className="inline-flex items-center gap-1 min-w-0 justify-end whitespace-nowrap">
@@ -128,16 +186,30 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
         </div>
         <Button
           onClick={handleGenerate}
+          disabled={isGenerateDisabled}
           className="w-full flex items-center justify-center gap-2 py-2 text-sm sm:text-base dark:bg-orange-500 dark:hover:bg-orange-600"
         >
-          <Sparkles size={18} /> Сгенерировать текст
+          <Sparkles size={18} /> {generateButtonLabel}
         </Button>
       </div>
+
+      {isStateLoading && (
+        <div className="flex flex-col items-center justify-center py-12 gap-3 text-gray-400 dark:text-gray-500">
+          <Loader2 size={32} className="animate-spin" />
+          <p>Загружаем текст...</p>
+        </div>
+      )}
 
       {loading && (
         <div className="flex flex-col items-center justify-center py-12 gap-3 text-gray-400 dark:text-gray-500">
           <Loader2 size={32} className="animate-spin" />
           <p>Генерируем текст...</p>
+        </div>
+      )}
+
+      {isReadingCompletedToday && (
+        <div className="p-4 rounded-xl border border-green-200 bg-green-50 text-green-700 dark:border-green-900/40 dark:bg-green-900/20 dark:text-green-300">
+          Текст на сегодня уже прочитан. Новый текст будет доступен завтра.
         </div>
       )}
 
@@ -147,7 +219,7 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
         </div>
       )}
 
-      {text && (
+      {text && !loading && (
         <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 space-y-4">
           <div className="flex items-start justify-between gap-3">
             <h3 className="font-medium text-gray-900 dark:text-white">
@@ -193,7 +265,7 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
         </div>
       )}
 
-      {text && (
+      {text && !loading && (
         <Button
           variant="outline"
           className="w-full dark:border-gray-700 dark:text-gray-200"

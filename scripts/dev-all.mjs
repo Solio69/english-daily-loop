@@ -439,6 +439,9 @@ async function main() {
       "functions",
       "serve",
       "auth-telegram",
+      // TODO: Keep this local Edge Function list in sync with reading flow functions.
+      "complete-reading-text",
+      "get-reading-state",
       "generate-reading-text",
       "--env-file",
       ".env.local",

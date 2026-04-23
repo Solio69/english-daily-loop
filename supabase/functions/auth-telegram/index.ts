@@ -222,14 +222,17 @@ Deno.serve(async (req: Request) => {
     if (!appUser) {
       const { data: createdUser, error: createError } = await supabase
         .from("users")
-        .insert({
-          telegram_user_id: tgUser.id,
-          username: tgUser.username ?? null,
-          first_name: tgUser.first_name ?? null,
-          last_name: tgUser.last_name ?? null,
-          language_code: tgUser.language_code ?? null,
-          is_active: true,
-        })
+        .upsert(
+          {
+            telegram_user_id: tgUser.id,
+            username: tgUser.username ?? null,
+            first_name: tgUser.first_name ?? null,
+            last_name: tgUser.last_name ?? null,
+            language_code: tgUser.language_code ?? null,
+            is_active: true,
+          },
+          { onConflict: "telegram_user_id" },
+        )
         .select(
           "id, telegram_user_id, first_name, settings_completed_at, first_text_completed_at",
         )
