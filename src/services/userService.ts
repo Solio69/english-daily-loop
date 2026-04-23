@@ -1,4 +1,5 @@
 ﻿import { supabase } from "../lib/supabase";
+import { SubscriptionSummary } from "../types/subscription";
 import { AppUser, SaveUserSettingsInput, UserSettings } from "../types/user";
 
 const DEV_TELEGRAM_USER_ID = Number(
@@ -19,6 +20,10 @@ type UserRow = {
   first_text_completed_at: string | null;
 };
 
+type AuthenticatedUserRow = UserRow & {
+  subscription: SubscriptionSummary;
+};
+
 type UserSettingsRow = {
   english_level: "A1" | "A2" | "B1" | "B2";
   daily_exercise_minutes: number;
@@ -36,6 +41,7 @@ type AuthTelegramFunctionSuccess = {
       settingsCompletedAt: string | null;
       firstTextCompletedAt: string | null;
     };
+    subscription: SubscriptionSummary;
   };
 };
 
@@ -50,6 +56,16 @@ type AuthTelegramFunctionError = {
 type AuthTelegramFunctionResponse =
   | AuthTelegramFunctionSuccess
   | AuthTelegramFunctionError;
+
+const FREE_SUBSCRIPTION_SUMMARY: SubscriptionSummary = {
+  tier: "free",
+  limits: {
+    dailyReadingGenerations: 3,
+    vocabularyWordsLimit: 30,
+  },
+  activeSubscription: null,
+  scheduledSubscription: null,
+};
 
 const authLog = (message: string, details?: unknown): void => {
   if (!AUTH_DEBUG_ENABLED) return;
@@ -70,6 +86,7 @@ const mapSettings = (row: UserSettingsRow): UserSettings => ({
 const mapUser = (
   user: UserRow,
   settings: UserSettings | null = null,
+  subscription: SubscriptionSummary = FREE_SUBSCRIPTION_SUMMARY,
 ): AppUser => ({
   id: user.id,
   telegramUserId: user.telegram_user_id,
@@ -77,6 +94,7 @@ const mapUser = (
   settingsCompletedAt: user.settings_completed_at,
   firstTextCompletedAt: user.first_text_completed_at,
   settings,
+  subscription,
 });
 
 const getOrCreateDevUser = async (): Promise<UserRow> => {
@@ -128,7 +146,9 @@ const getTelegramInitData = (): string | null => {
   return initData || null;
 };
 
-const getOrCreateTelegramUser = async (initData: string): Promise<UserRow> => {
+const getOrCreateTelegramUser = async (
+  initData: string,
+): Promise<AuthenticatedUserRow> => {
   authLog("Calling auth-telegram function", {
     initDataLength: initData.length,
   });
@@ -163,6 +183,7 @@ const getOrCreateTelegramUser = async (initData: string): Promise<UserRow> => {
     first_name: payload.data.user.firstName,
     settings_completed_at: payload.data.user.settingsCompletedAt,
     first_text_completed_at: payload.data.user.firstTextCompletedAt,
+    subscription: payload.data.subscription,
   };
 };
 
@@ -224,17 +245,22 @@ export const getCurrentAppUser = async (): Promise<AppUser> => {
   const settings = user.settings_completed_at
     ? await getUserSettings(user.id)
     : null;
+  const subscription =
+    (user as Partial<AuthenticatedUserRow>).subscription ??
+    FREE_SUBSCRIPTION_SUMMARY;
   authLog("Bootstrapped app user", {
     appUserId: user.id,
     telegramUserId: user.telegram_user_id,
     hasSettings: Boolean(settings),
+    subscriptionTier: subscription.tier,
   });
-  return mapUser(user, settings);
+  return mapUser(user, settings, subscription);
 };
 
 export const saveCurrentUserSettings = async (
   userId: string,
   input: SaveUserSettingsInput,
+  subscription: SubscriptionSummary,
 ): Promise<AppUser> => {
   authLog("Saving user settings", { userId, input });
   const { error: upsertError } = await supabase.from("user_settings").upsert(
@@ -267,5 +293,5 @@ export const saveCurrentUserSettings = async (
 
   const user = await getUserById(userId);
   authLog("Settings saved successfully", { userId: user.id });
-  return mapUser(user, input);
+  return mapUser(user, input, subscription);
 };

@@ -1,5 +1,9 @@
 # AI-генерация текста для чтения
 
+> Update 2026-04-23: reading generation limits are now subscription-based.
+> free = `3` attempts/day, paid = `10` attempts/day.
+> See `notes/subscriptions.md`.
+
 ## 1) Область документа
 Этот документ фиксирует текущий MVP-пайплайн генерации текста для раздела `Текст`.
 Цель: чтобы следующие агенты быстро понимали, где проходит граница между фронтом,

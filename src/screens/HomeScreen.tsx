@@ -1,16 +1,27 @@
-﻿import { CheckCircle2, Clock, Flame, Settings, Target } from "lucide-react";
+import {
+  CheckCircle2,
+  Clock,
+  Crown,
+  Flame,
+  Settings,
+  Target,
+  WalletCards,
+} from "lucide-react";
 import React from "react";
 import { Button } from "../components/Button";
 import { ThemeToggle } from "../components/ThemeToggle";
+import { SubscriptionSummary } from "../types/subscription";
 
 type HomeScreenProps = {
   onNavigate: (screen: string) => void;
   onStartFlow: () => void;
+  onOpenSubscription: () => void;
   isLessonFinished: boolean;
   userName?: string | null;
   streakDays?: number;
   isFirstTextCompleted?: boolean;
   isFirstSetup?: boolean;
+  subscription?: SubscriptionSummary;
 };
 
 type StatusState = "done" | "not_started";
@@ -34,11 +45,13 @@ const STATUS_STYLES: Record<
 export const HomeScreen: React.FC<HomeScreenProps> = ({
   onNavigate,
   onStartFlow,
+  onOpenSubscription,
   isLessonFinished,
   userName,
   streakDays = 0,
   isFirstTextCompleted = false,
   isFirstSetup = false,
+  subscription,
 }) => {
   const exerciseStatus: StatusState = isFirstSetup
     ? "not_started"
@@ -53,6 +66,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     : isLessonFinished
       ? "done"
       : "not_started";
+  const isPaid = subscription?.tier === "paid";
+  const SubscriptionIcon = isPaid ? Crown : WalletCards;
 
   return (
     <div className="p-4 space-y-8">
@@ -67,18 +82,27 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </h1>
           </div>
           <div className="flex items-center gap-2">
-            {!isFirstSetup && (
-              <div className="flex items-center gap-1.5 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 px-3 py-1.5 rounded-full text-sm font-semibold">
-                <Flame size={16} />
-                {streakDays}
-              </div>
-            )}
+            <button
+              onClick={onOpenSubscription}
+              className={`h-8 rounded-full px-3 flex items-center gap-1.5 text-sm font-semibold transition-colors ${
+                isPaid
+                  ? "bg-green-50 text-green-600 dark:bg-orange-900/25 dark:text-orange-300"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+              }`}
+            >
+              <SubscriptionIcon size={16} />
+              <span>{isPaid ? "Подписка" : "Купить"}</span>
+            </button>
+            <div className="flex items-center gap-1.5 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 px-3 py-1.5 rounded-full text-sm font-semibold">
+              <Flame size={16} />
+              {streakDays}
+            </div>
             <ThemeToggle />
           </div>
         </div>
 
         <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex justify-between items-center gap-3 mb-4">
             <h2 className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
               Прогресс за день
             </h2>
@@ -161,7 +185,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               3м Текст
             </span>
             <span className="px-2 py-0.5 bg-gray-50 dark:bg-gray-700 rounded text-[10px] text-gray-500 dark:text-gray-400">
-              10 слов
+              {subscription?.limits.vocabularyWordsLimit ?? 30} слов
             </span>
           </div>
         </div>

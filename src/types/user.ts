@@ -1,3 +1,5 @@
+import { SubscriptionSummary } from "./subscription";
+
 export type UserSettings = {
   englishLevel: "A1" | "A2" | "B1" | "B2";
   dailyExerciseMinutes: number;
@@ -12,6 +14,7 @@ export type AppUser = {
   settingsCompletedAt: string | null;
   firstTextCompletedAt: string | null;
   settings: UserSettings | null;
+  subscription: SubscriptionSummary;
 };
 
 export type SaveUserSettingsInput = UserSettings;

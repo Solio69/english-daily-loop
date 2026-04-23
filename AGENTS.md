@@ -60,14 +60,27 @@
 
 ## Текущий статус (для будущих агентов)
 - Supabase local и Docker-окружение уже работают.
-- Уже подключены и используются таблицы `public.users`, `public.user_settings`, `public.reading_texts`, `public.reading_generation_attempts`, `public.user_active_reading_texts` и `public.user_daily_reading_completions`.
+- Уже подключены и используются таблицы `public.users`, `public.user_settings`, `public.reading_texts`, `public.reading_generation_attempts`, `public.user_active_reading_texts`, `public.user_daily_reading_completions` и `public.user_subscriptions`.
 - В `public.user_settings` есть настройки `english_level`, `daily_exercise_minutes`, `daily_reading_minutes`, `daily_review_words`.
 - В проекте есть базовые миграции и сиды для локальной разработки (dev user + моковые тексты).
 - Корневой `tsconfig.json` исключает `supabase/functions`, потому что Edge Functions работают в Deno-рантайме и не должны проверяться frontend `tsc`.
 - Telegram auth реализована через Edge Function `supabase/functions/auth-telegram/index.ts`:
   - серверная валидация `initData` (подпись + `auth_date`)
   - идемпотентный `find-or-create/upsert` пользователя по `telegram_user_id`
+  - возвращает `subscription` summary (`tier`, `limits`, активная/запланированная подписка)
   - единый контракт ответа (`ok/data` или `ok/error`).
+- MVP-подписки реализованы через таблицу `public.user_subscriptions`:
+  - `plan_type`: `monthly` или `yearly`
+  - `starts_at` / `ends_at` хранятся как `timestamptz`
+  - активность подписки вычисляется сервером по интервалу `starts_at <= now < ends_at`
+  - `monthly` действует 1 день, `yearly` действует 7 дней от момента оформления
+  - `source = 'mvp_zero_price'`, реальные платежи пока не подключены.
+- Оформление подписки реализовано через Edge Function `supabase/functions/activate-subscription/index.ts`:
+  - серверная валидация `Telegram initData`
+  - поиск пользователя по `telegram_user_id`
+  - создание подписки за 0 рублей
+  - если активна monthly, можно запланировать yearly с началом после окончания monthly
+  - если активна yearly, действия оформления пока блокируются.
 - Генерация текста реализована через Edge Function `supabase/functions/generate-reading-text/index.ts`:
   - серверная валидация `Telegram initData`
   - поиск пользователя по `telegram_user_id`
@@ -89,7 +102,10 @@
   - запись дневного завершения в `user_daily_reading_completions`
   - удаление активного непрочитанного текста из `user_active_reading_texts`
   - заполнение `users.first_text_completed_at` только для онбординга, если это первый прочитанный текст пользователя.
-- Текущий дневной лимит генерации для MVP: `10` попыток для всех пользователей; место расширения под тарифы — `getDailyGenerationLimit(user)` в Edge Functions чтения.
+- Текущие MVP-лимиты подписок:
+  - free: `3` генерации текста в день, словарь до `30` слов
+  - paid: `10` генераций текста в день, словарь до `300` слов.
+- Дневной лимит генерации считается только на сервере в Edge Functions чтения по активной подписке из `user_subscriptions`; фронт только отображает полученные `dailyLimit/remainingAttempts`.
 - Текущие дефолтные OpenRouter-модели:
   - primary: `openai/gpt-oss-20b:free`
   - fallback: `google/gemma-3-12b-it:free`.
@@ -99,7 +115,8 @@
   - опционально `OPENROUTER_MODEL_FALLBACK`.
 - Для стабильной DX в редакторе: у функции используется `// @ts-nocheck`, а для Deno-окружения есть `supabase/functions/deno.json` и `supabase/functions/deno-globals.d.ts`.
 - На фронте подключен Telegram WebApp SDK (`index.html`) и типы `window.Telegram.WebApp` (`src/types/telegram-webapp.d.ts`).
-- Bootstrap пользователя в `src/services/userService.ts` сначала пытается авторизоваться через `auth-telegram`; dev fallback управляется env-переменной `VITE_ENABLE_DEV_AUTH_FALLBACK`.
+- Bootstrap пользователя в `src/services/userService.ts` сначала пытается авторизоваться через `auth-telegram`; dev fallback управляется env-переменной `VITE_ENABLE_DEV_AUTH_FALLBACK`; `AppUser` содержит `subscription`.
+- На фронте подписка вынесена в `src/services/subscriptionService.ts` и `src/screens/SubscriptionScreen.tsx`; клиент вызывает только `activate-subscription`, прямых записей подписки в БД с фронта нет.
 - Логика чтения вынесена в сервисный слой (`src/services/readingService.ts`), UI-компонент не содержит прямых запросов к БД.
 - `readingService` вызывает `get-reading-state`, `generate-reading-text` и `complete-reading-text`; прямой RPC fallback `get_random_reading_text` больше не используется в текущем UI генерации.
 - Если генерация упала, новая попытка уже списана, новый текст не сохраняется, а ранее активный текст остается доступен после завершения состояния загрузки.
@@ -117,7 +134,7 @@
 - `npm run dev:all` автоматически поднимает frontend/API туннели и печатает `STARTUP SUMMARY` с двумя URL:
   - `BotFather /setmenubutton URL` = FRONTEND TUNNEL URL
   - `.env.local VITE_SUPABASE_URL` = SUPABASE API TUNNEL URL.
-- `npm run dev:all` поднимает Edge Functions `auth-telegram`, `complete-reading-text`, `get-reading-state` и `generate-reading-text`.
+- `npm run dev:all` поднимает Edge Functions `auth-telegram`, `activate-subscription`, `complete-reading-text`, `get-reading-state` и `generate-reading-text`.
 - Логи в `dev:all` цветные по источнику (`[frontend]`, `[edge]`, `[db]`, `[api]`, `[tunnel-*]`), HTTP-методы и статус-коды дополнительно подсвечиваются.
 - Если в summary указано `Frontend restart required: YES`, нужно перезапустить `dev:all`.
 - Для локального старта использовать `npm run dev:all`, для остановки Supabase: `npm run dev:stop`.

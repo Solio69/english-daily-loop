@@ -10,11 +10,14 @@ import { ExercisesScreen } from './screens/ExercisesScreen';
 import { ReadingScreen } from './screens/ReadingScreen';
 import { VocabularyScreen } from './screens/VocabularyScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
+import { SubscriptionScreen } from './screens/SubscriptionScreen';
+import { SubscriptionPlanType } from './types/subscription';
 import { AppUser, SaveUserSettingsInput } from './types/user';
 import { getCurrentAppUser, saveCurrentUserSettings } from './services/userService';
 import { completeReadingText } from './services/readingService';
+import { activateSubscription } from './services/subscriptionService';
 
-type ScreenId = 'home' | 'exercises' | 'reading' | 'vocabulary' | 'settings';
+type ScreenId = 'home' | 'exercises' | 'reading' | 'vocabulary' | 'settings' | 'subscription';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<ScreenId>('home');
@@ -24,6 +27,7 @@ export default function App() {
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [activatingPlan, setActivatingPlan] = useState<SubscriptionPlanType | null>(null);
   const [hintText, setHintText] = useState<string | null>(null);
   const [hintTone, setHintTone] = useState<'default' | 'onboarding' | 'success'>('default');
   const [streakDays] = useState(0);
@@ -69,7 +73,11 @@ export default function App() {
 
     setIsSavingSettings(true);
     try {
-      const updatedUser = await saveCurrentUserSettings(appUser.id, settings);
+      const updatedUser = await saveCurrentUserSettings(
+        appUser.id,
+        settings,
+        appUser.subscription,
+      );
       setAppUser(updatedUser);
       setCurrentScreen('home');
       showHint('Настройки сохранены. Переходи к тексту.', 'success');
@@ -77,6 +85,31 @@ export default function App() {
       showHint(error instanceof Error ? error.message : 'Не удалось сохранить настройки.');
     } finally {
       setIsSavingSettings(false);
+    }
+  };
+
+  const handleActivateSubscription = async (planType: SubscriptionPlanType) => {
+    if (!appUser) return;
+
+    setActivatingPlan(planType);
+    try {
+      const subscription = await activateSubscription(planType);
+      setAppUser({
+        ...appUser,
+        subscription,
+      });
+      setCurrentScreen('home');
+      showHint(
+        appUser.subscription.activeSubscription?.planType === 'monthly' &&
+          planType === 'yearly'
+          ? 'Годовая подписка запланирована.'
+          : 'Подписка активирована.',
+        'success',
+      );
+    } catch (error) {
+      showHint(error instanceof Error ? error.message : 'Не удалось оформить подписку.');
+    } finally {
+      setActivatingPlan(null);
     }
   };
 
@@ -133,7 +166,12 @@ export default function App() {
 
   const handleNavChange = (nextScreen: string) => {
     const target = nextScreen as ScreenId;
-    if (shouldForceSettings && target !== 'home' && target !== 'settings') {
+    if (
+      shouldForceSettings &&
+      target !== 'home' &&
+      target !== 'settings' &&
+      target !== 'subscription'
+    ) {
       showHint('Сначала открой настройки, чтобы начать дневной план.');
       return;
     }
@@ -163,11 +201,13 @@ export default function App() {
           <HomeScreen
             onNavigate={handleNavChange}
             onStartFlow={startGuidedFlow}
+            onOpenSubscription={() => setCurrentScreen('subscription')}
             isLessonFinished={isLessonFinished}
             userName={appUser?.firstName}
             streakDays={streakDays}
             isFirstTextCompleted={isFirstTextCompleted}
             isFirstSetup={shouldForceSettings}
+            subscription={appUser?.subscription}
           />
         );
       case 'exercises':
@@ -194,16 +234,27 @@ export default function App() {
             isFirstSetup={!isSettingsCompleted}
           />
         );
+      case 'subscription':
+        return appUser ? (
+          <SubscriptionScreen
+            subscription={appUser.subscription}
+            onBack={() => setCurrentScreen('home')}
+            onActivate={handleActivateSubscription}
+            activatingPlan={activatingPlan}
+          />
+        ) : null;
       default:
         return (
           <HomeScreen
             onNavigate={handleNavChange}
             onStartFlow={startGuidedFlow}
+            onOpenSubscription={() => setCurrentScreen('subscription')}
             isLessonFinished={isLessonFinished}
             userName={appUser?.firstName}
             streakDays={streakDays}
             isFirstTextCompleted={isFirstTextCompleted}
             isFirstSetup={shouldForceSettings}
+            subscription={appUser?.subscription}
           />
         );
     }
@@ -219,7 +270,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
       <Layout
-        activeNav={currentScreen === 'settings' ? 'home' : currentScreen}
+        activeNav={currentScreen === 'settings' || currentScreen === 'subscription' ? 'home' : currentScreen}
         onNavChange={handleNavChange}
         showBottomNav={showBottomNav}
         disabledNavItems={disabledNavItems}

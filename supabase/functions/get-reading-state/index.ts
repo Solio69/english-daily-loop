@@ -30,7 +30,8 @@ const CORS_HEADERS = {
 };
 
 const MAX_AUTH_AGE_SECONDS = 24 * 60 * 60;
-const DAILY_GENERATION_LIMIT = 10;
+const FREE_DAILY_GENERATION_LIMIT = 3;
+const PAID_DAILY_GENERATION_LIMIT = 10;
 const MOSCOW_TIME_ZONE = "Europe/Moscow";
 const textEncoder = new TextEncoder();
 
@@ -187,8 +188,31 @@ const getMoscowDate = (): string => {
   return `${values.year}-${values.month}-${values.day}`;
 };
 
-const getDailyGenerationLimit = (_user: UserRow): number =>
-  DAILY_GENERATION_LIMIT;
+const getDailyGenerationLimit = async (
+  supabase: ReturnType<typeof createClient>,
+  user: UserRow,
+): Promise<number> => {
+  const nowIso = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("user_subscriptions")
+    .select("id")
+    .eq("user_id", user.id)
+    .lte("starts_at", nowIso)
+    .gt("ends_at", nowIso)
+    .limit(1);
+
+  if (error) {
+    console.error("[get-reading-state] failed to load subscription", {
+      appUserId: user.id,
+      error: error.message,
+    });
+    fail(500, "SUBSCRIPTION_LOAD_FAILED", "Failed to load subscription.");
+  }
+
+  return (data ?? []).length > 0
+    ? PAID_DAILY_GENERATION_LIMIT
+    : FREE_DAILY_GENERATION_LIMIT;
+};
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -254,7 +278,7 @@ Deno.serve(async (req: Request) => {
 
     const appUser = userRow as UserRow;
     const today = getMoscowDate();
-    const dailyLimit = getDailyGenerationLimit(appUser);
+    const dailyLimit = await getDailyGenerationLimit(supabase, appUser);
 
     const [
       { count: attemptsCount, error: attemptsError },

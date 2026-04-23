@@ -439,6 +439,8 @@ async function main() {
       "functions",
       "serve",
       "auth-telegram",
+      // TODO: Keep subscription Edge Functions available in local Telegram Mini App runs.
+      "activate-subscription",
       // TODO: Keep this local Edge Function list in sync with reading flow functions.
       "complete-reading-text",
       "get-reading-state",

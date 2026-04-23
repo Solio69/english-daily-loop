@@ -1,5 +1,9 @@
 # Попытки генерации и дневной текст
 
+> Update 2026-04-23: daily generation limit is no longer fixed at `10`.
+> It is now subscription-based: free = `3`, paid = `10`.
+> See `notes/subscriptions.md`.
+
 ## 1) Область документа
 Этот документ фиксирует MVP-логику дневных попыток генерации текста,
 активного непрочитанного текста и завершения дневного чтения.
