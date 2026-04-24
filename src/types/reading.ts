@@ -34,4 +34,5 @@ export type CompleteReadingTextResult = {
   completedDate: string;
   firstTextCompletedAt: string | null;
   isReadingCompletedToday: boolean;
+  streakDays: number;
 };

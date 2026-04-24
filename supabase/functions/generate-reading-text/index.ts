@@ -37,6 +37,7 @@ type OpenRouterChoice = {
 };
 
 type OpenRouterResponse = {
+  model?: string;
   choices?: OpenRouterChoice[];
   error?: {
     message?: string;
@@ -53,6 +54,7 @@ const CORS_HEADERS = {
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_PRIMARY_MODEL = "openai/gpt-oss-20b:free";
 const DEFAULT_FALLBACK_MODEL = "google/gemma-3-12b-it:free";
+const DEFAULT_TERTIARY_MODEL = "qwen/qwen3.6-plus:free";
 const MODEL_TIMEOUT_MS = 18_000;
 const MAX_AUTH_AGE_SECONDS = 24 * 60 * 60;
 const FREE_DAILY_GENERATION_LIMIT = 3;
@@ -132,9 +134,12 @@ const getReadingGenerationConfig = (
   };
 };
 
-const normalizeModelList = (primary: string, fallback: string): string[] => {
-  const values = [primary, fallback].map((item) => item.trim()).filter(Boolean);
-  return Array.from(new Set(values));
+const normalizeModelList = (...values: string[]): string[] =>
+  Array.from(new Set(values.map((item) => item.trim()).filter(Boolean)));
+
+const excludeModel = (models: string[], modelToExclude: string): string[] => {
+  const filtered = models.filter((model) => model !== modelToExclude);
+  return filtered.length === models.length ? models.slice(1) : filtered;
 };
 
 const getMoscowDate = (): string => {
@@ -446,11 +451,11 @@ const parseGeneratedJson = (
 };
 
 const requestOpenRouter = async (
-  model: string,
+  models: string[],
   prompt: string,
   apiKey: string,
   maxTokens: number,
-): Promise<string> => {
+): Promise<{ content: string; usedModel: string }> => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS);
 
@@ -463,7 +468,7 @@ const requestOpenRouter = async (
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model,
+        models,
         temperature: 0.7,
         max_tokens: maxTokens,
         messages: [{ role: "user", content: prompt }],
@@ -472,7 +477,9 @@ const requestOpenRouter = async (
 
     const payload = (await response.json()) as OpenRouterResponse;
     if (!response.ok) {
-      const details = payload.error?.message ?? "Unknown OpenRouter error.";
+      const details =
+        payload.error?.message ??
+        `OpenRouter request failed with status ${response.status}.`;
       throw new Error(details);
     }
 
@@ -481,7 +488,10 @@ const requestOpenRouter = async (
       throw new Error("OpenRouter returned empty content.");
     }
 
-    return content;
+    return {
+      content,
+      usedModel: payload.model?.trim() || models[0],
+    };
   } finally {
     clearTimeout(timeoutId);
   }
@@ -495,32 +505,49 @@ const generateWithFallback = async (
   readingMinutes: ReadingMinutes,
   config: ReadingGenerationConfig,
 ) => {
+  let remainingModels = [...models];
   let lastErrorMessage = "Unknown generation error.";
-  for (const model of models) {
+
+  while (remainingModels.length > 0) {
+    let routed: { content: string; usedModel: string };
+
     try {
-      const raw = await requestOpenRouter(
-        model,
+      routed = await requestOpenRouter(
+        remainingModels,
         prompt,
         apiKey,
         config.maxTokens,
       );
+    } catch (error) {
+      lastErrorMessage =
+        error instanceof Error ? error.message : "Unknown generation error.";
+      console.error("[generate-reading-text] model routing failed", {
+        models: remainingModels,
+        error: lastErrorMessage,
+      });
+      throw new Error(lastErrorMessage);
+    }
+
+    try {
       const generated = parseGeneratedJson(
-        raw,
+        routed.content,
         targetLevel,
         readingMinutes,
         config,
       );
       return {
         ...generated,
-        usedModel: model,
+        usedModel: routed.usedModel,
       };
     } catch (error) {
       lastErrorMessage =
         error instanceof Error ? error.message : "Unknown generation error.";
-      console.error("[generate-reading-text] model failed", {
-        model,
+      console.error("[generate-reading-text] generated content validation failed", {
+        usedModel: routed.usedModel,
+        candidateModels: remainingModels,
         error: lastErrorMessage,
       });
+      remainingModels = excludeModel(remainingModels, routed.usedModel);
     }
   }
 
@@ -550,6 +577,9 @@ Deno.serve(async (req: Request) => {
     const fallbackModel =
       Deno.env.get("OPENROUTER_MODEL_FALLBACK")?.trim() ||
       DEFAULT_FALLBACK_MODEL;
+    const tertiaryModel =
+      Deno.env.get("OPENROUTER_MODEL_TERTIARY")?.trim() ||
+      DEFAULT_TERTIARY_MODEL;
 
     if (!supabaseUrl || !serviceRoleKey || !botToken || !openRouterApiKey) {
       return errorResponse(
@@ -660,7 +690,11 @@ Deno.serve(async (req: Request) => {
       settings.dailyReadingMinutes,
       config,
     );
-    const models = normalizeModelList(primaryModel, fallbackModel);
+    const models = normalizeModelList(
+      primaryModel,
+      fallbackModel,
+      tertiaryModel,
+    );
 
     console.log("[generate-reading-text] start", {
       telegramUserId: tgUser.id,

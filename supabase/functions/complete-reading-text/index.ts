@@ -174,6 +174,63 @@ const getMoscowDate = (): string => {
   return `${values.year}-${values.month}-${values.day}`;
 };
 
+const parseDateToUtc = (value: string): Date => {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+};
+
+const formatUtcDate = (date: Date): string => {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const getPreviousDate = (value: string): string => {
+  const date = parseDateToUtc(value);
+  date.setUTCDate(date.getUTCDate() - 1);
+  return formatUtcDate(date);
+};
+
+const getReadingCompletionStreak = async (
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  today: string,
+) => {
+  const { data: completionRows, error: completionError } = await supabase
+    .from("user_daily_reading_completions")
+    .select("completed_date")
+    .eq("user_id", userId)
+    .lte("completed_date", today)
+    .order("completed_date", { ascending: false });
+
+  if (completionError) {
+    console.error("[complete-reading-text] failed to load streak", {
+      appUserId: userId,
+      error: completionError.message,
+    });
+    fail(500, "STREAK_LOAD_FAILED", "Failed to calculate reading streak.");
+  }
+
+  let streakDays = 0;
+  let expectedDate = today;
+
+  for (const row of completionRows ?? []) {
+    if (row.completed_date !== expectedDate) {
+      if (streakDays === 0) {
+        break;
+      }
+
+      break;
+    }
+
+    streakDays += 1;
+    expectedDate = getPreviousDate(expectedDate);
+  }
+
+  return streakDays;
+};
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: CORS_HEADERS });
@@ -311,10 +368,17 @@ Deno.serve(async (req: Request) => {
       firstTextCompletedAt = updatedUser.first_text_completed_at;
     }
 
+    const streakDays = await getReadingCompletionStreak(
+      supabase,
+      appUser.id,
+      today,
+    );
+
     return successResponse(200, {
       completedDate: today,
       firstTextCompletedAt,
       isReadingCompletedToday: true,
+      streakDays,
     });
   } catch (error) {
     if (error instanceof AppError) {

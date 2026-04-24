@@ -18,7 +18,11 @@ import {
   getCurrentAppUser,
   saveCurrentUserSettings,
 } from "./services/userService";
-import { ReadingHomeStatus } from "./types/homeProgress";
+import {
+  LessonCurrentStep,
+  LessonHomeStatus,
+  ReadingHomeStatus,
+} from "./types/homeProgress";
 import { SubscriptionPlanType } from "./types/subscription";
 import { AppUser, SaveUserSettingsInput } from "./types/user";
 
@@ -32,9 +36,6 @@ type ScreenId =
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<ScreenId>("home");
-  const [isGuidedFlow, setIsGuidedFlow] = useState(false);
-  const [guidedStep, setGuidedStep] = useState(0); // 0: exercises, 1: reading, 2: vocabulary
-  const [isLessonFinished, setIsLessonFinished] = useState(false);
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
@@ -42,13 +43,23 @@ export default function App() {
     useState<SubscriptionPlanType | null>(null);
   const [toastText, setToastText] = useState<string | null>(null);
   const [toastTone, setToastTone] = useState<ToastTone>("default");
-  const [streakDays] = useState(0);
 
   const isSettingsCompleted = Boolean(appUser?.settingsCompletedAt);
   const isFirstTextCompleted = Boolean(appUser?.firstTextCompletedAt);
+  const streakDays = appUser?.streakDays ?? 0;
+  const lessonStatus = appUser?.homeProgress.lesson.status ?? "not_started";
+  const lessonCurrentStep =
+    appUser?.homeProgress.lesson.currentStep ?? "reading";
   const readingStatus = appUser?.homeProgress.reading.status ?? "not_started";
   const shouldForceSettings = !isSettingsCompleted;
   const shouldForceReading = isSettingsCompleted && !isFirstTextCompleted;
+
+  const getLessonProgressFromReadingStatus = (
+    status: ReadingHomeStatus,
+  ): { status: LessonHomeStatus; currentStep: LessonCurrentStep } => ({
+    status,
+    currentStep: status === "completed" ? null : "reading",
+  });
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -84,12 +95,15 @@ export default function App() {
   };
 
   const updateReadingHomeStatus = (status: ReadingHomeStatus) => {
+    const nextLesson = getLessonProgressFromReadingStatus(status);
+
     setAppUser((currentUser) =>
       currentUser
         ? {
             ...currentUser,
             homeProgress: {
               ...currentUser.homeProgress,
+              lesson: nextLesson,
               reading: { status },
             },
           }
@@ -107,6 +121,7 @@ export default function App() {
         settings,
         appUser.subscription,
         appUser.homeProgress,
+        appUser.streakDays,
       );
       setAppUser(updatedUser);
       setCurrentScreen("home");
@@ -162,10 +177,12 @@ export default function App() {
         currentUser
           ? {
               ...currentUser,
+              streakDays: result.streakDays,
               firstTextCompletedAt:
                 result.firstTextCompletedAt ?? currentUser.firstTextCompletedAt,
               homeProgress: {
                 ...currentUser.homeProgress,
+                lesson: getLessonProgressFromReadingStatus("completed"),
                 reading: { status: "completed" },
               },
             }
@@ -188,34 +205,13 @@ export default function App() {
     }
   };
 
-  const startGuidedFlow = () => {
+  const openLesson = () => {
     if (shouldForceSettings) {
       setCurrentScreen("settings");
       return;
     }
 
-    if (shouldForceReading) {
-      setCurrentScreen("reading");
-      return;
-    }
-
-    setIsGuidedFlow(true);
-    setGuidedStep(0);
-    setCurrentScreen("exercises");
-  };
-
-  const nextStep = () => {
-    if (guidedStep === 0) {
-      setGuidedStep(1);
-      setCurrentScreen("reading");
-    } else if (guidedStep === 1) {
-      setGuidedStep(2);
-      setCurrentScreen("vocabulary");
-    } else {
-      setIsGuidedFlow(false);
-      setIsLessonFinished(true);
-      setCurrentScreen("home");
-    }
+    setCurrentScreen("reading");
   };
 
   const handleNavChange = (nextScreen: string) => {
@@ -259,11 +255,12 @@ export default function App() {
         return (
           <HomeScreen
             onNavigate={handleNavChange}
-            onStartFlow={startGuidedFlow}
+            onOpenLesson={openLesson}
             onOpenSubscription={() => setCurrentScreen("subscription")}
-            isLessonFinished={isLessonFinished}
             userName={appUser?.firstName}
             streakDays={streakDays}
+            lessonStatus={lessonStatus}
+            lessonCurrentStep={lessonCurrentStep}
             readingStatus={readingStatus}
             isFirstSetup={shouldForceSettings}
             subscription={appUser?.subscription}
@@ -275,14 +272,12 @@ export default function App() {
         return (
           <ExercisesScreen
             onBack={() => setCurrentScreen("home")}
-            onNext={isGuidedFlow ? nextStep : undefined}
           />
         );
       case "reading":
         return (
           <ReadingScreen
             onBack={() => setCurrentScreen("home")}
-            onNext={isGuidedFlow ? nextStep : undefined}
             onCompleteText={handleCompleteFirstText}
             onReadingStatusChange={updateReadingHomeStatus}
             userLevel={appUser?.settings?.englishLevel ?? null}
@@ -293,7 +288,6 @@ export default function App() {
         return (
           <VocabularyScreen
             onBack={() => setCurrentScreen("home")}
-            onNext={isGuidedFlow ? nextStep : undefined}
           />
         );
       case "settings":
@@ -319,11 +313,12 @@ export default function App() {
         return (
           <HomeScreen
             onNavigate={handleNavChange}
-            onStartFlow={startGuidedFlow}
+            onOpenLesson={openLesson}
             onOpenSubscription={() => setCurrentScreen("subscription")}
-            isLessonFinished={isLessonFinished}
             userName={appUser?.firstName}
             streakDays={streakDays}
+            lessonStatus={lessonStatus}
+            lessonCurrentStep={lessonCurrentStep}
             readingStatus={readingStatus}
             isFirstSetup={shouldForceSettings}
             subscription={appUser?.subscription}

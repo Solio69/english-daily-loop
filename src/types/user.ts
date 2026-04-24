@@ -11,6 +11,7 @@ export type AppUser = {
   id: string;
   telegramUserId: number;
   firstName: string | null;
+  streakDays: number;
   settingsCompletedAt: string | null;
   firstTextCompletedAt: string | null;
   settings: UserSettings | null;

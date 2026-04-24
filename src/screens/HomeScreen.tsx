@@ -10,16 +10,21 @@ import {
 import React from "react";
 import { Button } from "../components/Button";
 import { ThemeToggle } from "../components/ThemeToggle";
-import { ReadingHomeStatus } from "../types/homeProgress";
+import {
+  LessonCurrentStep,
+  LessonHomeStatus,
+  ReadingHomeStatus,
+} from "../types/homeProgress";
 import { SubscriptionSummary } from "../types/subscription";
 
 type HomeScreenProps = {
   onNavigate: (screen: string) => void;
-  onStartFlow: () => void;
+  onOpenLesson: () => void;
   onOpenSubscription: () => void;
-  isLessonFinished: boolean;
   userName?: string | null;
   streakDays?: number;
+  lessonStatus?: LessonHomeStatus;
+  lessonCurrentStep?: LessonCurrentStep;
   readingStatus?: ReadingHomeStatus;
   isFirstSetup?: boolean;
   subscription?: SubscriptionSummary;
@@ -52,20 +57,22 @@ const STATUS_STYLES: Record<
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
   onNavigate,
-  onStartFlow,
+  onOpenLesson,
   onOpenSubscription,
-  isLessonFinished,
   userName,
   streakDays = 0,
+  lessonStatus = "not_started",
+  lessonCurrentStep = "reading",
   readingStatus = "not_started",
   isFirstSetup = false,
   subscription,
   exerciseMinutes,
   readingMinutes,
 }) => {
+  const isLessonCompleted = lessonStatus === "completed";
   const exerciseStatus: StatusState = isFirstSetup
     ? "not_started"
-    : isLessonFinished
+    : isLessonCompleted
       ? "done"
       : "not_started";
   const readingProgressStatus: StatusState =
@@ -74,13 +81,24 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       : readingStatus === "in_progress"
         ? "in_progress"
         : "not_started";
-  const reviewStatus: StatusState = isFirstSetup
-    ? "not_started"
-    : isLessonFinished
-      ? "done"
-      : "not_started";
   const isPaid = subscription?.tier === "paid";
   const SubscriptionIcon = isPaid ? Crown : WalletCards;
+  const lessonButtonLabel =
+    lessonStatus === "in_progress" ? "Продолжить" : "Начать";
+  const lessonDescription = isLessonCompleted
+    ? "Сегодняшний урок завершен."
+    : lessonCurrentStep === "reading"
+      ? lessonStatus === "in_progress"
+        ? "Урок начат. Вернись, чтобы закончить чтение."
+        : "Начни урок с чтения текста."
+      : lessonStatus === "in_progress"
+        ? "Урок начат. Продолжай следующий шаг."
+        : "Начни сегодняшний урок.";
+  const reviewStatus: StatusState = isFirstSetup
+    ? "not_started"
+    : isLessonCompleted
+      ? "done"
+      : "not_started";
 
   return (
     <div className="p-4 space-y-8">
@@ -233,27 +251,23 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <p className="font-bold text-lg text-gray-900 dark:text-white">
-                {isLessonFinished
-                  ? "Урок 2: завершен"
-                  : "Урок 2: базовые утверждения"}
+                Урок на сегодня
               </p>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                {isLessonFinished
-                  ? "Отличная работа сегодня!"
-                  : "Фокус: структура предложения"}
+                {lessonDescription}
               </p>
             </div>
-            {isLessonFinished ? (
+            {isLessonCompleted ? (
               <div className="flex items-center gap-1.5 text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-3 py-1.5 rounded-full text-xs font-medium">
                 <CheckCircle2 size={14} />
                 <span>Завершено</span>
               </div>
             ) : (
               <Button
-                onClick={onStartFlow}
+                onClick={onOpenLesson}
                 className="rounded-full px-5 dark:bg-orange-500 dark:hover:bg-orange-600"
               >
-                Продолжить
+                {lessonButtonLabel}
               </Button>
             )}
           </div>

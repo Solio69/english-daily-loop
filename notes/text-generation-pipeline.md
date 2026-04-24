@@ -44,8 +44,8 @@ Supabase Edge Function, базой и внешней AI-моделью.
 8. Считает попытки за день в `public.reading_generation_attempts`.
 9. Если лимит не исчерпан, записывает попытку со статусом `started` до вызова AI.
 10. Строит промпт для OpenRouter.
-11. Вызывает primary-модель.
-12. Если primary-модель упала, вызывает fallback-модель.
+11. Вызывает OpenRouter с `models` parameter и приоритетным списком free-моделей.
+12. Если router-level fallback не помог или ответ пришел с невалидным JSON/длиной, приложение исключает использованную модель и пробует следующую.
 13. Валидирует JSON-ответ модели.
 14. При успехе сохраняет/перезаписывает `public.user_active_reading_texts`.
 15. Помечает попытку как `succeeded`; при ошибке после списания помечает как `failed`.
@@ -63,10 +63,17 @@ Server env:
 - `OPENROUTER_API_KEY` — обязательный, только в `.env.local`
 - `OPENROUTER_MODEL_PRIMARY` — опциональный
 - `OPENROUTER_MODEL_FALLBACK` — опциональный
+- `OPENROUTER_MODEL_TERTIARY` — опциональный
 
 Текущие дефолты:
 - primary: `openai/gpt-oss-20b:free`
 - fallback: `google/gemma-3-12b-it:free`
+- tertiary: `qwen/qwen3.6-plus:free`
+
+Текущая стратегия:
+- на запрос отправляется массив моделей через OpenRouter `models` parameter
+- OpenRouter делает router-level failover для provider/infra ошибок
+- если успешный ответ пришел, но не прошел app-level валидацию JSON или длины, Edge Function исключает использованную модель и повторяет запрос по оставшемуся списку
 
 Важно:
 - ключ OpenRouter нельзя добавлять во frontend env (`VITE_*`)

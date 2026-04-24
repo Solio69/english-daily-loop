@@ -22,6 +22,7 @@ type UserRow = {
 };
 
 type AuthenticatedUserRow = UserRow & {
+  streak_days: number;
   subscription: SubscriptionSummary;
   homeProgress: HomeProgress;
 };
@@ -42,6 +43,7 @@ type AuthTelegramFunctionSuccess = {
       settingsCompletedAt: string | null;
       firstTextCompletedAt: string | null;
     };
+    streakDays: number;
     subscription: SubscriptionSummary;
     homeProgress: HomeProgress;
   };
@@ -70,6 +72,10 @@ const FREE_SUBSCRIPTION_SUMMARY: SubscriptionSummary = {
 };
 
 const DEFAULT_HOME_PROGRESS: HomeProgress = {
+  lesson: {
+    status: "not_started",
+    currentStep: "reading",
+  },
   reading: {
     status: "not_started",
   },
@@ -95,10 +101,12 @@ const mapUser = (
   settings: UserSettings | null = null,
   subscription: SubscriptionSummary = FREE_SUBSCRIPTION_SUMMARY,
   homeProgress: HomeProgress = DEFAULT_HOME_PROGRESS,
+  streakDays = 0,
 ): AppUser => ({
   id: user.id,
   telegramUserId: user.telegram_user_id,
   firstName: user.first_name,
+  streakDays,
   settingsCompletedAt: user.settings_completed_at,
   firstTextCompletedAt: user.first_text_completed_at,
   settings,
@@ -190,6 +198,7 @@ const getOrCreateTelegramUser = async (
     id: payload.data.user.id,
     telegram_user_id: payload.data.user.telegramUserId,
     first_name: payload.data.user.firstName,
+    streak_days: payload.data.streakDays,
     settings_completed_at: payload.data.user.settingsCompletedAt,
     first_text_completed_at: payload.data.user.firstTextCompletedAt,
     subscription: payload.data.subscription,
@@ -261,14 +270,16 @@ export const getCurrentAppUser = async (): Promise<AppUser> => {
   const homeProgress =
     (user as Partial<AuthenticatedUserRow>).homeProgress ??
     DEFAULT_HOME_PROGRESS;
+  const streakDays = (user as Partial<AuthenticatedUserRow>).streak_days ?? 0;
   authLog("Bootstrapped app user", {
     appUserId: user.id,
     telegramUserId: user.telegram_user_id,
     hasSettings: Boolean(settings),
     subscriptionTier: subscription.tier,
     readingStatus: homeProgress.reading.status,
+    streakDays,
   });
-  return mapUser(user, settings, subscription, homeProgress);
+  return mapUser(user, settings, subscription, homeProgress, streakDays);
 };
 
 export const saveCurrentUserSettings = async (
@@ -276,6 +287,7 @@ export const saveCurrentUserSettings = async (
   input: SaveUserSettingsInput,
   subscription: SubscriptionSummary,
   homeProgress: HomeProgress,
+  streakDays: number,
 ): Promise<AppUser> => {
   authLog("Saving user settings", { userId, input });
   const { error: upsertError } = await supabase.from("user_settings").upsert(
@@ -307,5 +319,5 @@ export const saveCurrentUserSettings = async (
 
   const user = await getUserById(userId);
   authLog("Settings saved successfully", { userId: user.id });
-  return mapUser(user, input, subscription, homeProgress);
+  return mapUser(user, input, subscription, homeProgress, streakDays);
 };
