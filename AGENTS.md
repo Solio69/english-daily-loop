@@ -61,13 +61,15 @@
 ## Текущий статус (для будущих агентов)
 - Supabase local и Docker-окружение уже работают.
 - Уже подключены и используются таблицы `public.users`, `public.user_settings`, `public.reading_texts`, `public.reading_generation_attempts`, `public.user_active_reading_texts`, `public.user_daily_reading_completions` и `public.user_subscriptions`.
-- В `public.user_settings` есть настройки `english_level`, `daily_exercise_minutes`, `daily_reading_minutes`, `daily_review_words`.
+- В `public.user_settings` есть настройки `english_level`, `daily_exercise_minutes`, `daily_reading_minutes`.
 - В проекте есть базовые миграции и сиды для локальной разработки (dev user + моковые тексты).
+- Миграция `supabase/migrations/20260424113000_drop_daily_review_words_from_user_settings.sql` удаляет устаревшее поле `daily_review_words` из `public.user_settings`.
 - Корневой `tsconfig.json` исключает `supabase/functions`, потому что Edge Functions работают в Deno-рантайме и не должны проверяться frontend `tsc`.
 - Telegram auth реализована через Edge Function `supabase/functions/auth-telegram/index.ts`:
   - серверная валидация `initData` (подпись + `auth_date`)
   - идемпотентный `find-or-create/upsert` пользователя по `telegram_user_id`
   - возвращает `subscription` summary (`tier`, `limits`, активная/запланированная подписка)
+  - возвращает `homeProgress.reading.status` (`not_started | in_progress | completed`) для главного экрана
   - единый контракт ответа (`ok/data` или `ok/error`).
 - MVP-подписки реализованы через таблицу `public.user_subscriptions`:
   - `plan_type`: `monthly` или `yearly`
@@ -119,6 +121,7 @@
 - На фронте подписка вынесена в `src/services/subscriptionService.ts` и `src/screens/SubscriptionScreen.tsx`; клиент вызывает только `activate-subscription`, прямых записей подписки в БД с фронта нет.
 - Логика чтения вынесена в сервисный слой (`src/services/readingService.ts`), UI-компонент не содержит прямых запросов к БД.
 - `readingService` вызывает `get-reading-state`, `generate-reading-text` и `complete-reading-text`; прямой RPC fallback `get_random_reading_text` больше не используется в текущем UI генерации.
+- В bootstrap пользователя `AppUser` теперь приходит `homeProgress`; блок `Текст` на главной больше не опирается на `first_text_completed_at`, а использует серверный дневной статус чтения.
 - Если генерация упала, новая попытка уже списана, новый текст не сохраняется, а ранее активный текст остается доступен после завершения состояния загрузки.
 - В dev-режиме экран чтения показывает источник текста (`AI` + модель) через metadata `ReadingText.source/generation`.
 - Настройка времени чтения влияет на размер AI-текста:
@@ -128,8 +131,10 @@
   - `15` мин: `700-950` слов, `max_tokens: 1900`.
 - При bootstrap настройки пользователя должны приходить с backend, если `settings_completed_at` уже заполнен.
 - `users.first_text_completed_at` используется только для онбординга; ежедневный факт прочтения хранится отдельно в `user_daily_reading_completions`.
+- Экран настроек больше не содержит ручную настройку количества слов на повторение; на главной третья плашка пока зафиксирована как `30 слов` для демо.
 - В состоянии "настройки сохранены, но первый текст еще не прочитан" разделы `Упражнения` и `Слова` заблокированы, но `Главная` и `Текст` доступны.
 - После нажатия "Завершить текст" генерация в текущий день блокируется, активный текст удаляется; новый дневной цикл открывается после `00:00` по `Europe/Moscow`.
+- Верхние toast-сообщения вынесены в единый компонент `src/components/Toast.tsx` с тонами `default`, `onboarding`, `success`, `error`.
 - `vite.config.ts` разрешает внешние tunnel host'ы (`.trycloudflare.com`, `.loca.lt`) для запуска Mini App через Telegram.
 - `npm run dev:all` автоматически поднимает frontend/API туннели и печатает `STARTUP SUMMARY` с двумя URL:
   - `BotFather /setmenubutton URL` = FRONTEND TUNNEL URL

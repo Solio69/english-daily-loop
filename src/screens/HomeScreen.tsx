@@ -10,6 +10,7 @@ import {
 import React from "react";
 import { Button } from "../components/Button";
 import { ThemeToggle } from "../components/ThemeToggle";
+import { ReadingHomeStatus } from "../types/homeProgress";
 import { SubscriptionSummary } from "../types/subscription";
 
 type HomeScreenProps = {
@@ -19,12 +20,14 @@ type HomeScreenProps = {
   isLessonFinished: boolean;
   userName?: string | null;
   streakDays?: number;
-  isFirstTextCompleted?: boolean;
+  readingStatus?: ReadingHomeStatus;
   isFirstSetup?: boolean;
   subscription?: SubscriptionSummary;
+  exerciseMinutes?: number | null;
+  readingMinutes?: number | null;
 };
 
-type StatusState = "done" | "not_started";
+type StatusState = "done" | "not_started" | "in_progress";
 
 const STATUS_STYLES: Record<
   StatusState,
@@ -40,6 +43,11 @@ const STATUS_STYLES: Record<
     text: "text-gray-400 dark:text-gray-500",
     label: "Не начато",
   },
+  in_progress: {
+    icon: "bg-orange-50 dark:bg-orange-900/20 text-orange-500 dark:text-orange-300",
+    text: "text-orange-500 dark:text-orange-300",
+    label: "В процессе",
+  },
 };
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
@@ -49,18 +57,23 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   isLessonFinished,
   userName,
   streakDays = 0,
-  isFirstTextCompleted = false,
+  readingStatus = "not_started",
   isFirstSetup = false,
   subscription,
+  exerciseMinutes,
+  readingMinutes,
 }) => {
   const exerciseStatus: StatusState = isFirstSetup
     ? "not_started"
     : isLessonFinished
       ? "done"
       : "not_started";
-  const readingStatus: StatusState = isFirstTextCompleted
-    ? "done"
-    : "not_started";
+  const readingProgressStatus: StatusState =
+    readingStatus === "completed"
+      ? "done"
+      : readingStatus === "in_progress"
+        ? "in_progress"
+        : "not_started";
   const reviewStatus: StatusState = isFirstSetup
     ? "not_started"
     : isLessonFinished
@@ -143,7 +156,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </div>
             <div className="flex items-center gap-2">
               <div
-                className={`p-1.5 rounded-full ${STATUS_STYLES[readingStatus].icon}`}
+                className={`p-1.5 rounded-full ${STATUS_STYLES[readingProgressStatus].icon}`}
               >
                 <Clock size={14} />
               </div>
@@ -152,9 +165,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   Текст
                 </p>
                 <p
-                  className={`text-[10px] ${STATUS_STYLES[readingStatus].text}`}
+                  className={`text-[10px] ${STATUS_STYLES[readingProgressStatus].text}`}
                 >
-                  {STATUS_STYLES[readingStatus].label}
+                  {STATUS_STYLES[readingProgressStatus].label}
                 </p>
               </div>
             </div>
@@ -179,13 +192,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
           <div className="flex gap-1.5 pt-3 border-t border-gray-50 dark:border-gray-700">
             <span className="px-2 py-0.5 bg-gray-50 dark:bg-gray-700 rounded text-[10px] text-gray-500 dark:text-gray-400">
-              5м Упр
+              {exerciseMinutes ?? 5}м Упр
             </span>
             <span className="px-2 py-0.5 bg-gray-50 dark:bg-gray-700 rounded text-[10px] text-gray-500 dark:text-gray-400">
-              3м Текст
+              {readingMinutes ?? 3}м Текст
             </span>
             <span className="px-2 py-0.5 bg-gray-50 dark:bg-gray-700 rounded text-[10px] text-gray-500 dark:text-gray-400">
-              {subscription?.limits.vocabularyWordsLimit ?? 30} слов
+              30 слов
             </span>
           </div>
         </div>

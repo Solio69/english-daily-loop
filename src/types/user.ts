@@ -1,10 +1,10 @@
+import { HomeProgress } from "./homeProgress";
 import { SubscriptionSummary } from "./subscription";
 
 export type UserSettings = {
   englishLevel: "A1" | "A2" | "B1" | "B2";
   dailyExerciseMinutes: number;
   dailyReadingMinutes: number;
-  dailyReviewWords: number;
 };
 
 export type AppUser = {
@@ -15,6 +15,7 @@ export type AppUser = {
   firstTextCompletedAt: string | null;
   settings: UserSettings | null;
   subscription: SubscriptionSummary;
+  homeProgress: HomeProgress;
 };
 
 export type SaveUserSettingsInput = UserSettings;

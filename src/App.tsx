@@ -3,37 +3,50 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useState } from 'react';
-import { Layout } from './components/Layout';
-import { HomeScreen } from './screens/HomeScreen';
-import { ExercisesScreen } from './screens/ExercisesScreen';
-import { ReadingScreen } from './screens/ReadingScreen';
-import { VocabularyScreen } from './screens/VocabularyScreen';
-import { SettingsScreen } from './screens/SettingsScreen';
-import { SubscriptionScreen } from './screens/SubscriptionScreen';
-import { SubscriptionPlanType } from './types/subscription';
-import { AppUser, SaveUserSettingsInput } from './types/user';
-import { getCurrentAppUser, saveCurrentUserSettings } from './services/userService';
-import { completeReadingText } from './services/readingService';
-import { activateSubscription } from './services/subscriptionService';
+import { useEffect, useState } from "react";
+import { Layout } from "./components/Layout";
+import { Toast, ToastTone } from "./components/Toast";
+import { ExercisesScreen } from "./screens/ExercisesScreen";
+import { HomeScreen } from "./screens/HomeScreen";
+import { ReadingScreen } from "./screens/ReadingScreen";
+import { SettingsScreen } from "./screens/SettingsScreen";
+import { SubscriptionScreen } from "./screens/SubscriptionScreen";
+import { VocabularyScreen } from "./screens/VocabularyScreen";
+import { completeReadingText } from "./services/readingService";
+import { activateSubscription } from "./services/subscriptionService";
+import {
+  getCurrentAppUser,
+  saveCurrentUserSettings,
+} from "./services/userService";
+import { ReadingHomeStatus } from "./types/homeProgress";
+import { SubscriptionPlanType } from "./types/subscription";
+import { AppUser, SaveUserSettingsInput } from "./types/user";
 
-type ScreenId = 'home' | 'exercises' | 'reading' | 'vocabulary' | 'settings' | 'subscription';
+type ScreenId =
+  | "home"
+  | "exercises"
+  | "reading"
+  | "vocabulary"
+  | "settings"
+  | "subscription";
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<ScreenId>('home');
+  const [currentScreen, setCurrentScreen] = useState<ScreenId>("home");
   const [isGuidedFlow, setIsGuidedFlow] = useState(false);
   const [guidedStep, setGuidedStep] = useState(0); // 0: exercises, 1: reading, 2: vocabulary
   const [isLessonFinished, setIsLessonFinished] = useState(false);
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
-  const [activatingPlan, setActivatingPlan] = useState<SubscriptionPlanType | null>(null);
-  const [hintText, setHintText] = useState<string | null>(null);
-  const [hintTone, setHintTone] = useState<'default' | 'onboarding' | 'success'>('default');
+  const [activatingPlan, setActivatingPlan] =
+    useState<SubscriptionPlanType | null>(null);
+  const [toastText, setToastText] = useState<string | null>(null);
+  const [toastTone, setToastTone] = useState<ToastTone>("default");
   const [streakDays] = useState(0);
 
   const isSettingsCompleted = Boolean(appUser?.settingsCompletedAt);
   const isFirstTextCompleted = Boolean(appUser?.firstTextCompletedAt);
+  const readingStatus = appUser?.homeProgress.reading.status ?? "not_started";
   const shouldForceSettings = !isSettingsCompleted;
   const shouldForceReading = isSettingsCompleted && !isFirstTextCompleted;
 
@@ -43,9 +56,14 @@ export default function App() {
         window.Telegram?.WebApp?.ready?.();
         const user = await getCurrentAppUser();
         setAppUser(user);
-        setCurrentScreen('home');
+        setCurrentScreen("home");
       } catch (error) {
-        setHintText(error instanceof Error ? error.message : 'Не удалось загрузить профиль пользователя.');
+        showToast(
+          error instanceof Error
+            ? error.message
+            : "Не удалось загрузить профиль пользователя.",
+          "error",
+        );
       } finally {
         setIsBootstrapping(false);
       }
@@ -55,17 +73,28 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!hintText) return;
-    const timeout = window.setTimeout(() => setHintText(null), 2500);
+    if (!toastText) return;
+    const timeout = window.setTimeout(() => setToastText(null), 2500);
     return () => window.clearTimeout(timeout);
-  }, [hintText]);
+  }, [toastText]);
 
-  const showHint = (
-    message: string,
-    tone: 'default' | 'onboarding' | 'success' = 'default',
-  ) => {
-    setHintText(message);
-    setHintTone(tone);
+  const showToast = (message: string, tone: ToastTone = "default") => {
+    setToastText(message);
+    setToastTone(tone);
+  };
+
+  const updateReadingHomeStatus = (status: ReadingHomeStatus) => {
+    setAppUser((currentUser) =>
+      currentUser
+        ? {
+            ...currentUser,
+            homeProgress: {
+              ...currentUser.homeProgress,
+              reading: { status },
+            },
+          }
+        : currentUser,
+    );
   };
 
   const handleSaveSettings = async (settings: SaveUserSettingsInput) => {
@@ -77,12 +106,18 @@ export default function App() {
         appUser.id,
         settings,
         appUser.subscription,
+        appUser.homeProgress,
       );
       setAppUser(updatedUser);
-      setCurrentScreen('home');
-      showHint('Настройки сохранены. Переходи к тексту.', 'success');
+      setCurrentScreen("home");
+      showToast("Настройки сохранены. Переходи к тексту.", "success");
     } catch (error) {
-      showHint(error instanceof Error ? error.message : 'Не удалось сохранить настройки.');
+      showToast(
+        error instanceof Error
+          ? error.message
+          : "Не удалось сохранить настройки.",
+        "error",
+      );
     } finally {
       setIsSavingSettings(false);
     }
@@ -98,16 +133,21 @@ export default function App() {
         ...appUser,
         subscription,
       });
-      setCurrentScreen('home');
-      showHint(
-        appUser.subscription.activeSubscription?.planType === 'monthly' &&
-          planType === 'yearly'
-          ? 'Годовая подписка запланирована.'
-          : 'Подписка активирована.',
-        'success',
+      setCurrentScreen("home");
+      showToast(
+        appUser.subscription.activeSubscription?.planType === "monthly" &&
+          planType === "yearly"
+          ? "Годовая подписка запланирована."
+          : "Подписка активирована.",
+        "success",
       );
     } catch (error) {
-      showHint(error instanceof Error ? error.message : 'Не удалось оформить подписку.');
+      showToast(
+        error instanceof Error
+          ? error.message
+          : "Не удалось оформить подписку.",
+        "error",
+      );
     } finally {
       setActivatingPlan(null);
     }
@@ -118,49 +158,63 @@ export default function App() {
 
     try {
       const result = await completeReadingText();
-      setAppUser({
-        ...appUser,
-        firstTextCompletedAt:
-          result.firstTextCompletedAt ?? appUser.firstTextCompletedAt,
-      });
-      showHint(
+      setAppUser((currentUser) =>
+        currentUser
+          ? {
+              ...currentUser,
+              firstTextCompletedAt:
+                result.firstTextCompletedAt ?? currentUser.firstTextCompletedAt,
+              homeProgress: {
+                ...currentUser.homeProgress,
+                reading: { status: "completed" },
+              },
+            }
+          : currentUser,
+      );
+      showToast(
         appUser.firstTextCompletedAt
-          ? 'Текст на сегодня завершен.'
-          : 'Отличный старт. Теперь все разделы доступны.',
+          ? "Текст на сегодня завершен."
+          : "Отличный старт. Теперь все разделы доступны.",
+        appUser.firstTextCompletedAt ? "success" : "onboarding",
       );
     } catch (error) {
-      showHint(error instanceof Error ? error.message : 'Не удалось сохранить завершение текста.');
+      showToast(
+        error instanceof Error
+          ? error.message
+          : "Не удалось сохранить завершение текста.",
+        "error",
+      );
       throw error;
     }
   };
 
   const startGuidedFlow = () => {
     if (shouldForceSettings) {
-      setCurrentScreen('settings');
+      setCurrentScreen("settings");
       return;
     }
 
     if (shouldForceReading) {
-      setCurrentScreen('reading');
+      setCurrentScreen("reading");
       return;
     }
 
     setIsGuidedFlow(true);
     setGuidedStep(0);
-    setCurrentScreen('exercises');
+    setCurrentScreen("exercises");
   };
 
   const nextStep = () => {
     if (guidedStep === 0) {
       setGuidedStep(1);
-      setCurrentScreen('reading');
+      setCurrentScreen("reading");
     } else if (guidedStep === 1) {
       setGuidedStep(2);
-      setCurrentScreen('vocabulary');
+      setCurrentScreen("vocabulary");
     } else {
       setIsGuidedFlow(false);
       setIsLessonFinished(true);
-      setCurrentScreen('home');
+      setCurrentScreen("home");
     }
   };
 
@@ -168,11 +222,14 @@ export default function App() {
     const target = nextScreen as ScreenId;
     if (
       shouldForceSettings &&
-      target !== 'home' &&
-      target !== 'settings' &&
-      target !== 'subscription'
+      target !== "home" &&
+      target !== "settings" &&
+      target !== "subscription"
     ) {
-      showHint('Сначала открой настройки, чтобы начать дневной план.');
+      showToast(
+        "Сначала открой настройки, чтобы начать дневной план.",
+        "onboarding",
+      );
       return;
     }
     setCurrentScreen(target);
@@ -180,65 +237,80 @@ export default function App() {
 
   const handleDisabledNavClick = () => {
     if (shouldForceSettings) {
-      showHint('Открой настройки, чтобы продолжить.', 'onboarding');
+      showToast("Открой настройки, чтобы продолжить.", "onboarding");
       return;
     }
-    showHint('Сначала заверши сегодняшний текст.', 'onboarding');
+    showToast("Сначала заверши сегодняшний текст.", "onboarding");
   };
 
   if (isBootstrapping) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors flex items-center justify-center">
-        <p className="text-sm text-gray-500 dark:text-gray-400">Загружаем профиль...</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Загружаем профиль...
+        </p>
       </div>
     );
   }
 
   const renderScreen = () => {
     switch (currentScreen) {
-      case 'home':
+      case "home":
         return (
           <HomeScreen
             onNavigate={handleNavChange}
             onStartFlow={startGuidedFlow}
-            onOpenSubscription={() => setCurrentScreen('subscription')}
+            onOpenSubscription={() => setCurrentScreen("subscription")}
             isLessonFinished={isLessonFinished}
             userName={appUser?.firstName}
             streakDays={streakDays}
-            isFirstTextCompleted={isFirstTextCompleted}
+            readingStatus={readingStatus}
             isFirstSetup={shouldForceSettings}
             subscription={appUser?.subscription}
+            exerciseMinutes={appUser?.settings?.dailyExerciseMinutes ?? null}
+            readingMinutes={appUser?.settings?.dailyReadingMinutes ?? null}
           />
         );
-      case 'exercises':
-        return <ExercisesScreen onBack={() => setCurrentScreen('home')} onNext={isGuidedFlow ? nextStep : undefined} />;
-      case 'reading':
+      case "exercises":
+        return (
+          <ExercisesScreen
+            onBack={() => setCurrentScreen("home")}
+            onNext={isGuidedFlow ? nextStep : undefined}
+          />
+        );
+      case "reading":
         return (
           <ReadingScreen
-            onBack={() => setCurrentScreen('home')}
+            onBack={() => setCurrentScreen("home")}
             onNext={isGuidedFlow ? nextStep : undefined}
             onCompleteText={handleCompleteFirstText}
+            onReadingStatusChange={updateReadingHomeStatus}
             userLevel={appUser?.settings?.englishLevel ?? null}
             readingMinutes={appUser?.settings?.dailyReadingMinutes ?? null}
           />
         );
-      case 'vocabulary':
-        return <VocabularyScreen onBack={() => setCurrentScreen('home')} onNext={isGuidedFlow ? nextStep : undefined} />;
-      case 'settings':
+      case "vocabulary":
+        return (
+          <VocabularyScreen
+            onBack={() => setCurrentScreen("home")}
+            onNext={isGuidedFlow ? nextStep : undefined}
+          />
+        );
+      case "settings":
         return (
           <SettingsScreen
-            onBack={() => setCurrentScreen('home')}
+            onBack={() => setCurrentScreen("home")}
             onSave={handleSaveSettings}
             initialSettings={appUser?.settings}
             isSaving={isSavingSettings}
             isFirstSetup={!isSettingsCompleted}
           />
         );
-      case 'subscription':
+      case "subscription":
         return appUser ? (
           <SubscriptionScreen
             subscription={appUser.subscription}
-            onBack={() => setCurrentScreen('home')}
+            onBack={() => setCurrentScreen("home")}
             onActivate={handleActivateSubscription}
             activatingPlan={activatingPlan}
           />
@@ -248,29 +320,35 @@ export default function App() {
           <HomeScreen
             onNavigate={handleNavChange}
             onStartFlow={startGuidedFlow}
-            onOpenSubscription={() => setCurrentScreen('subscription')}
+            onOpenSubscription={() => setCurrentScreen("subscription")}
             isLessonFinished={isLessonFinished}
             userName={appUser?.firstName}
             streakDays={streakDays}
-            isFirstTextCompleted={isFirstTextCompleted}
+            readingStatus={readingStatus}
             isFirstSetup={shouldForceSettings}
             subscription={appUser?.subscription}
+            exerciseMinutes={appUser?.settings?.dailyExerciseMinutes ?? null}
+            readingMinutes={appUser?.settings?.dailyReadingMinutes ?? null}
           />
         );
     }
   };
 
   const disabledNavItems = shouldForceSettings
-    ? ['home', 'exercises', 'reading', 'vocabulary']
+    ? ["home", "exercises", "reading", "vocabulary"]
     : shouldForceReading
-      ? ['exercises', 'vocabulary']
+      ? ["exercises", "vocabulary"]
       : [];
-  const showBottomNav = currentScreen !== 'settings' || isSettingsCompleted;
+  const showBottomNav = currentScreen !== "settings" || isSettingsCompleted;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
       <Layout
-        activeNav={currentScreen === 'settings' || currentScreen === 'subscription' ? 'home' : currentScreen}
+        activeNav={
+          currentScreen === "settings" || currentScreen === "subscription"
+            ? "home"
+            : currentScreen
+        }
         onNavChange={handleNavChange}
         showBottomNav={showBottomNav}
         disabledNavItems={disabledNavItems}
@@ -278,20 +356,7 @@ export default function App() {
       >
         {renderScreen()}
       </Layout>
-      {hintText && (
-        <div
-          className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl text-sm shadow-lg ${
-            hintTone === 'onboarding'
-              ? 'bg-pink-500 text-white dark:bg-pink-500 dark:text-white'
-              : hintTone === 'success'
-                ? 'bg-green-500 text-white dark:bg-orange-500 dark:text-white'
-              : 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
-          }`}
-        >
-          {hintText}
-        </div>
-      )}
+      {toastText && <Toast message={toastText} tone={toastTone} />}
     </div>
   );
 }
-

@@ -1,7 +1,8 @@
 ﻿import { BookOpen, Clock, Loader2, Sparkles } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useEffectEvent, useState } from "react";
 import { Button } from "../components/Button";
 import { generateReadingText, getReadingState } from "../services/readingService";
+import { ReadingHomeStatus } from "../types/homeProgress";
 import { ReadingText } from "../types/reading";
 
 const IS_DEV = import.meta.env.DEV;
@@ -12,10 +13,20 @@ const getModelLabel = (model?: string): string | null => {
   return modelName || model;
 };
 
+const resolveReadingStatus = (
+  nextText: ReadingText | null,
+  completedToday: boolean,
+): ReadingHomeStatus => {
+  if (completedToday) return "completed";
+  if (nextText) return "in_progress";
+  return "not_started";
+};
+
 type ReadingScreenProps = {
   onBack: () => void;
   onNext?: () => void;
   onCompleteText?: () => Promise<void>;
+  onReadingStatusChange?: (status: ReadingHomeStatus) => void;
   userLevel?: string | null;
   readingMinutes?: number | null;
 };
@@ -24,6 +35,7 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
   onBack,
   onNext,
   onCompleteText,
+  onReadingStatusChange,
   userLevel,
   readingMinutes,
 }) => {
@@ -43,6 +55,11 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
   const [savedWords, setSavedWords] = useState<Set<number>>(new Set());
   const [errorText, setErrorText] = useState<string | null>(null);
   const [isFinishing, setIsFinishing] = useState(false);
+  const emitReadingStatusChange = useEffectEvent(
+    (status: ReadingHomeStatus) => {
+      onReadingStatusChange?.(status);
+    },
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -59,6 +76,9 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
         setDailyLimit(state.dailyLimit);
         setRemainingAttempts(state.remainingAttempts);
         setIsReadingCompletedToday(state.isReadingCompletedToday);
+        emitReadingStatusChange(
+          resolveReadingStatus(state.activeText, state.isReadingCompletedToday),
+        );
       } catch (error) {
         if (!isMounted) return;
         const message =
@@ -93,6 +113,7 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
       setText(result.text);
       setDailyLimit(result.dailyLimit);
       setRemainingAttempts(result.remainingAttempts);
+      emitReadingStatusChange("in_progress");
     } catch (error) {
       const message =
         error instanceof Error
@@ -137,6 +158,7 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
       setSelectedWord(null);
       setIsReadingCompletedToday(true);
       setRemainingAttempts(0);
+      emitReadingStatusChange("completed");
       if (onNext) {
         onNext();
       } else {

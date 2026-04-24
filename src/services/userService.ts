@@ -1,5 +1,6 @@
 ﻿import { supabase } from "../lib/supabase";
 import { SubscriptionSummary } from "../types/subscription";
+import { HomeProgress } from "../types/homeProgress";
 import { AppUser, SaveUserSettingsInput, UserSettings } from "../types/user";
 
 const DEV_TELEGRAM_USER_ID = Number(
@@ -22,13 +23,13 @@ type UserRow = {
 
 type AuthenticatedUserRow = UserRow & {
   subscription: SubscriptionSummary;
+  homeProgress: HomeProgress;
 };
 
 type UserSettingsRow = {
   english_level: "A1" | "A2" | "B1" | "B2";
   daily_exercise_minutes: number;
   daily_reading_minutes: number;
-  daily_review_words: number;
 };
 
 type AuthTelegramFunctionSuccess = {
@@ -42,6 +43,7 @@ type AuthTelegramFunctionSuccess = {
       firstTextCompletedAt: string | null;
     };
     subscription: SubscriptionSummary;
+    homeProgress: HomeProgress;
   };
 };
 
@@ -67,6 +69,12 @@ const FREE_SUBSCRIPTION_SUMMARY: SubscriptionSummary = {
   scheduledSubscription: null,
 };
 
+const DEFAULT_HOME_PROGRESS: HomeProgress = {
+  reading: {
+    status: "not_started",
+  },
+};
+
 const authLog = (message: string, details?: unknown): void => {
   if (!AUTH_DEBUG_ENABLED) return;
   if (details !== undefined) {
@@ -80,13 +88,13 @@ const mapSettings = (row: UserSettingsRow): UserSettings => ({
   englishLevel: row.english_level,
   dailyExerciseMinutes: row.daily_exercise_minutes,
   dailyReadingMinutes: row.daily_reading_minutes,
-  dailyReviewWords: row.daily_review_words,
 });
 
 const mapUser = (
   user: UserRow,
   settings: UserSettings | null = null,
   subscription: SubscriptionSummary = FREE_SUBSCRIPTION_SUMMARY,
+  homeProgress: HomeProgress = DEFAULT_HOME_PROGRESS,
 ): AppUser => ({
   id: user.id,
   telegramUserId: user.telegram_user_id,
@@ -95,6 +103,7 @@ const mapUser = (
   firstTextCompletedAt: user.first_text_completed_at,
   settings,
   subscription,
+  homeProgress,
 });
 
 const getOrCreateDevUser = async (): Promise<UserRow> => {
@@ -184,6 +193,7 @@ const getOrCreateTelegramUser = async (
     settings_completed_at: payload.data.user.settingsCompletedAt,
     first_text_completed_at: payload.data.user.firstTextCompletedAt,
     subscription: payload.data.subscription,
+    homeProgress: payload.data.homeProgress,
   };
 };
 
@@ -193,7 +203,7 @@ const getUserSettings = async (
   const { data, error } = await supabase
     .from("user_settings")
     .select(
-      "english_level, daily_exercise_minutes, daily_reading_minutes, daily_review_words",
+      "english_level, daily_exercise_minutes, daily_reading_minutes",
     )
     .eq("user_id", userId)
     .maybeSingle();
@@ -248,19 +258,24 @@ export const getCurrentAppUser = async (): Promise<AppUser> => {
   const subscription =
     (user as Partial<AuthenticatedUserRow>).subscription ??
     FREE_SUBSCRIPTION_SUMMARY;
+  const homeProgress =
+    (user as Partial<AuthenticatedUserRow>).homeProgress ??
+    DEFAULT_HOME_PROGRESS;
   authLog("Bootstrapped app user", {
     appUserId: user.id,
     telegramUserId: user.telegram_user_id,
     hasSettings: Boolean(settings),
     subscriptionTier: subscription.tier,
+    readingStatus: homeProgress.reading.status,
   });
-  return mapUser(user, settings, subscription);
+  return mapUser(user, settings, subscription, homeProgress);
 };
 
 export const saveCurrentUserSettings = async (
   userId: string,
   input: SaveUserSettingsInput,
   subscription: SubscriptionSummary,
+  homeProgress: HomeProgress,
 ): Promise<AppUser> => {
   authLog("Saving user settings", { userId, input });
   const { error: upsertError } = await supabase.from("user_settings").upsert(
@@ -269,7 +284,6 @@ export const saveCurrentUserSettings = async (
       english_level: input.englishLevel,
       daily_exercise_minutes: input.dailyExerciseMinutes,
       daily_reading_minutes: input.dailyReadingMinutes,
-      daily_review_words: input.dailyReviewWords,
     },
     { onConflict: "user_id" },
   );
@@ -293,5 +307,5 @@ export const saveCurrentUserSettings = async (
 
   const user = await getUserById(userId);
   authLog("Settings saved successfully", { userId: user.id });
-  return mapUser(user, input, subscription);
+  return mapUser(user, input, subscription, homeProgress);
 };

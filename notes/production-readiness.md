@@ -35,10 +35,11 @@
 ## 4) Generation attempts
 - Серверный учет дневного лимита реализован через `reading_generation_attempts`.
 - День считается по `Europe/Moscow`.
-- Текущий MVP-лимит: `10` попыток для всех пользователей.
+- Текущий MVP-лимит зависит от активной подписки:
+  - free: `3`
+  - paid: `10`
 - Попытка считается списанной после записи attempt перед OpenRouter, независимо от успеха генерации.
 - Перед production стоит:
-  - добавить тарифы free/paid в `getDailyGenerationLimit(user)`
   - сделать атомарную DB/RPC-операцию "проверить лимит и списать попытку"
   - добавить более явные user-facing сообщения для `429` и `DAILY_READING_ALREADY_COMPLETED`
 

@@ -59,6 +59,7 @@ RLS включен, frontend policies не добавлены.
   - `limits`
   - `activeSubscription`
   - `scheduledSubscription`
+  - дополнительно возвращает `homeProgress.reading.status` для главного экрана
 
 `activate-subscription`:
 - валидирует `Telegram initData`

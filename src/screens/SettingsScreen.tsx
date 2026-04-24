@@ -19,6 +19,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   isFirstSetup = false,
 }) => {
   const shouldUseStickySave = !isFirstSetup;
+  const optionButtonClass =
+    "h-12 text-sm font-medium transition-colors";
   const LEVEL_OPTIONS: UserSettings["englishLevel"][] = [
     "A1",
     "A2",
@@ -32,20 +34,20 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [readingTime, setReadingTime] = useState(
     initialSettings?.dailyReadingMinutes ?? 3,
   );
-  const [words, setWords] = useState(initialSettings?.dailyReviewWords ?? 5);
 
   const handleSave = async () => {
     await onSave({
       englishLevel: level,
       dailyExerciseMinutes: time,
       dailyReadingMinutes: readingTime,
-      dailyReviewWords: words,
     });
   };
 
   return (
     <div
-      className={`p-4 space-y-6 ${shouldUseStickySave ? "pb-24" : "pb-4"}`}
+      className={`flex min-h-screen flex-col p-4 ${
+        shouldUseStickySave ? "pb-24" : "pb-4"
+      }`}
     >
       <button
         onClick={onBack}
@@ -55,7 +57,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         <ChevronLeft size={20} /> Назад
       </button>
 
-      <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+      <h1 className="mt-2 text-xl font-bold text-gray-900 dark:text-white">
         Настройки сессии
       </h1>
       {isFirstSetup && (
@@ -64,18 +66,18 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         </p>
       )}
 
-      <div className="space-y-5">
+      <div className="space-y-5 pt-6">
         {/* Text Level */}
         <section>
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
             Уровень текста
           </h2>
-          <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-full">
+          <div className="-mx-0.5 flex bg-gray-100 dark:bg-gray-800 rounded-full">
             {LEVEL_OPTIONS.map((option) => (
               <button
                 key={option}
                 onClick={() => setLevel(option)}
-                className={`flex-1 py-1.5 text-sm font-medium rounded-full transition-colors ${
+                className={`flex-1 rounded-full ${optionButtonClass} ${
                   level === option
                     ? "bg-green-500 text-white shadow-sm"
                     : "text-gray-500 dark:text-gray-400"
@@ -97,7 +99,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               <button
                 key={value}
                 onClick={() => setReadingTime(value)}
-                className={`py-1.5 text-sm font-medium rounded-xl transition-colors ${
+                className={`rounded-xl ${optionButtonClass} ${
                   readingTime === value
                     ? "bg-green-500 text-white"
                     : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
@@ -119,7 +121,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               <button
                 key={value}
                 onClick={() => setTime(value)}
-                className={`py-1.5 text-sm font-medium rounded-xl transition-colors ${
+                className={`rounded-xl ${optionButtonClass} ${
                   time === value
                     ? "bg-green-500 text-white"
                     : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
@@ -130,39 +132,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             ))}
           </div>
         </section>
-
-        {/* Words to Review */}
-        <section>
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-              Слов на повторение
-            </h2>
-            <span className="text-[10px] text-gray-400 dark:text-gray-500">
-              Настройка MVP
-            </span>
-          </div>
-          <div className="grid grid-cols-4 gap-2">
-            {[5, 10, 15, 20].map((value) => (
-              <button
-                key={value}
-                onClick={() => setWords(value)}
-                className={`py-1.5 text-sm font-medium rounded-xl transition-colors ${
-                  words === value
-                    ? "bg-green-500 text-white"
-                    : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
-                }`}
-              >
-                {value}
-              </button>
-            ))}
-          </div>
-        </section>
       </div>
 
-      <div className={shouldUseStickySave ? "sticky bottom-20 z-10 pt-1" : "pt-1"}>
+      <div className="mt-auto pt-6">
         <Button
           onClick={handleSave}
-          className="w-full rounded-full py-2.5 text-base dark:bg-orange-500 dark:hover:bg-orange-600"
+          className="w-full rounded-full py-3 text-base dark:bg-orange-500 dark:hover:bg-orange-600"
           disabled={isSaving}
         >
           {isSaving ? "Сохраняем..." : "Сохранить"}

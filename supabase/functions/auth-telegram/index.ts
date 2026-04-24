@@ -33,6 +33,7 @@ const CORS_HEADERS = {
 };
 
 const MAX_AUTH_AGE_SECONDS = 24 * 60 * 60;
+const MOSCOW_TIME_ZONE = "Europe/Moscow";
 const FREE_LIMITS = {
   dailyReadingGenerations: 3,
   vocabularyWordsLimit: 30,
@@ -43,6 +44,23 @@ const PAID_LIMITS = {
 };
 
 const textEncoder = new TextEncoder();
+
+const getMoscowDate = (): string => {
+  const parts = new Intl.DateTimeFormat("en", {
+    timeZone: MOSCOW_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const values = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+
+  return `${values.year}-${values.month}-${values.day}`;
+};
 
 const toBufferSource = (value: Uint8Array): BufferSource => {
   const view = new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
@@ -235,6 +253,51 @@ const getSubscriptionSummary = async (
   };
 };
 
+const getHomeProgress = async (
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+) => {
+  const today = getMoscowDate();
+  const [
+    { data: completionRows, error: completionError },
+    { data: activeTextRow, error: activeTextError },
+  ] = await Promise.all([
+    supabase
+      .from("user_daily_reading_completions")
+      .select("user_id")
+      .eq("user_id", userId)
+      .eq("completed_date", today)
+      .limit(1),
+    supabase
+      .from("user_active_reading_texts")
+      .select("user_id")
+      .eq("user_id", userId)
+      .maybeSingle(),
+  ]);
+
+  if (completionError || activeTextError) {
+    console.error("[auth-telegram] failed to load home progress", {
+      appUserId: userId,
+      completionError: completionError?.message,
+      activeTextError: activeTextError?.message,
+    });
+    throw new Error("Failed to load home progress.");
+  }
+
+  const readingStatus =
+    (completionRows?.length ?? 0) > 0
+      ? "completed"
+      : activeTextRow
+        ? "in_progress"
+        : "not_started";
+
+  return {
+    reading: {
+      status: readingStatus,
+    },
+  };
+};
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: CORS_HEADERS });
@@ -328,7 +391,10 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const subscription = await getSubscriptionSummary(supabase, appUser.id);
+    const [subscription, homeProgress] = await Promise.all([
+      getSubscriptionSummary(supabase, appUser.id),
+      getHomeProgress(supabase, appUser.id),
+    ]);
 
     return successResponse(200, {
       user: {
@@ -339,6 +405,7 @@ Deno.serve(async (req: Request) => {
         firstTextCompletedAt: appUser.first_text_completed_at,
       },
       subscription,
+      homeProgress,
     });
   } catch (error) {
     const message =
