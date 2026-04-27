@@ -4,7 +4,7 @@
 перед production-версией.
 
 ## 1) AI generation observability
-- `readingService` больше не переключается на DB fallback при ошибке AI.
+- `readingService` при ошибке AI возвращает ошибку и сохраняет последний активный текст доступным в UI.
 - Попытка генерации списывается до запроса к OpenRouter, а неуспешная попытка помечается в `reading_generation_attempts.status = 'failed'`.
 - Dev-бейдж `AI` помогает локально, но production-диагностика должна быть серверной:
   - structured logs
@@ -18,11 +18,12 @@
 ## 2) Telegram initData validation reuse
 - `auth-telegram`, `generate-reading-text`, `get-reading-state` и `complete-reading-text` сейчас имеют похожую серверную проверку `initData`.
 - Для MVP это нормально.
+- `auth-telegram` разделяет ошибки validation и внутренние DB/server ошибки: Telegram validation возвращается как `401 AUTH_VALIDATION_FAILED`, а внутренние сбои как `5xx`.
 - Перед production стоит вынести общую проверку в общий модуль для Edge Functions.
 
 ## 3) DB fallback length
 - AI-текст учитывает `daily_reading_minutes`.
-- RPC fallback `get_random_reading_text` больше не используется в текущем UI генерации.
+- Текущий UI генерации не использует RPC fallback `get_random_reading_text`.
 - Если fallback вернется как отдельный продуктовый сценарий, перед production стоит:
   - добавить длину/минуты в `reading_texts`
   - фильтровать fallback по `daily_reading_minutes`
@@ -35,13 +36,14 @@
   - free: `3`
   - paid: `10`
 - Попытка считается списанной после записи attempt перед OpenRouter, независимо от успеха генерации.
+- Проверка дневного лимита и запись attempt объединены в RPC `claim_reading_generation_attempt`, который использует transaction-level advisory lock на `user_id + attempt_date`.
 - Перед production стоит:
-  - сделать атомарную DB/RPC-операцию "проверить лимит и списать попытку"
   - добавить более явные user-facing сообщения для `429` и `DAILY_READING_ALREADY_COMPLETED`
 
 ## 5) Generated text persistence
 - Последний успешный непрочитанный AI-текст сохраняется в `user_active_reading_texts`.
 - Прочитанные тексты пока не сохраняются: при завершении активный текст удаляется, а факт дня пишется в `user_daily_reading_completions`.
+- Само завершение чтения выполняется транзакционно через RPC `complete_daily_reading_text`.
 - Перед production стоит решить, сохраняем ли историю прочитанных текстов:
   - `user_id`
   - `title`
@@ -68,3 +70,8 @@
 - `OPENROUTER_API_KEY`, `TELEGRAM_BOT_TOKEN`, `SUPABASE_SERVICE_ROLE_KEY` должны оставаться только на сервере.
 - Frontend может видеть только `VITE_*` переменные.
 - Перед production проверить, что реальные секреты не попали в git history и логи.
+
+## 8) MVP subscriptions
+- Активация MVP-подписки выполняется транзакционно через RPC `activate_mvp_subscription`.
+- RPC использует advisory lock на пользователя, чтобы параллельные запросы оформления не создавали дубли active/scheduled подписок.
+- Перед production при подключении реальных платежей нужно будет связать эту операцию с платежным provider event/webhook и идемпотентным payment id.

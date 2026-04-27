@@ -8,7 +8,7 @@ const DEV_TELEGRAM_USER_ID = Number(
 );
 // TODO: Local launch helper. Keep fallback disabled for real Telegram auth checks.
 const ENABLE_DEV_AUTH_FALLBACK =
-  import.meta.env.VITE_ENABLE_DEV_AUTH_FALLBACK !== "false";
+  import.meta.env.VITE_ENABLE_DEV_AUTH_FALLBACK === "true";
 // TODO: Local debugging helper for browser console auth traces.
 const AUTH_DEBUG_ENABLED =
   import.meta.env.DEV || import.meta.env.VITE_DEBUG_AUTH === "true";
@@ -25,12 +25,7 @@ type AuthenticatedUserRow = UserRow & {
   streak_days: number;
   subscription: SubscriptionSummary;
   homeProgress: HomeProgress;
-};
-
-type UserSettingsRow = {
-  english_level: "A1" | "A2" | "B1" | "B2";
-  daily_exercise_minutes: number;
-  daily_reading_minutes: number;
+  settings: UserSettings | null;
 };
 
 type AuthTelegramFunctionSuccess = {
@@ -43,6 +38,7 @@ type AuthTelegramFunctionSuccess = {
       settingsCompletedAt: string | null;
       firstTextCompletedAt: string | null;
     };
+    settings: UserSettings | null;
     streakDays: number;
     subscription: SubscriptionSummary;
     homeProgress: HomeProgress;
@@ -59,6 +55,26 @@ type AuthTelegramFunctionError = {
 
 type AuthTelegramFunctionResponse =
   | AuthTelegramFunctionSuccess
+  | AuthTelegramFunctionError;
+
+type SaveUserSettingsFunctionSuccess = {
+  ok: true;
+  data: {
+    user: {
+      id: string;
+      telegramUserId: number;
+      firstName: string | null;
+      settingsCompletedAt: string | null;
+      firstTextCompletedAt: string | null;
+    };
+    settings: UserSettings;
+    subscription: SubscriptionSummary;
+    homeProgress: HomeProgress;
+  };
+};
+
+type SaveUserSettingsFunctionResponse =
+  | SaveUserSettingsFunctionSuccess
   | AuthTelegramFunctionError;
 
 const FREE_SUBSCRIPTION_SUMMARY: SubscriptionSummary = {
@@ -90,12 +106,6 @@ const authLog = (message: string, details?: unknown): void => {
   console.info(`[EDL auth] ${message}`);
 };
 
-const mapSettings = (row: UserSettingsRow): UserSettings => ({
-  englishLevel: row.english_level,
-  dailyExerciseMinutes: row.daily_exercise_minutes,
-  dailyReadingMinutes: row.daily_reading_minutes,
-});
-
 const mapUser = (
   user: UserRow,
   settings: UserSettings | null = null,
@@ -114,45 +124,6 @@ const mapUser = (
   homeProgress,
 });
 
-const getOrCreateDevUser = async (): Promise<UserRow> => {
-  const { data, error } = await supabase
-    .from("users")
-    .select(
-      "id, telegram_user_id, first_name, settings_completed_at, first_text_completed_at",
-    )
-    .eq("telegram_user_id", DEV_TELEGRAM_USER_ID)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error("Не удалось загрузить профиль пользователя.");
-  }
-
-  if (data) {
-    return data as UserRow;
-  }
-
-  const { data: created, error: createError } = await supabase
-    .from("users")
-    .insert({
-      telegram_user_id: DEV_TELEGRAM_USER_ID,
-      username: "dev_user",
-      first_name: "Dev",
-      last_name: "User",
-      language_code: "ru",
-      is_active: true,
-    })
-    .select(
-      "id, telegram_user_id, first_name, settings_completed_at, first_text_completed_at",
-    )
-    .single();
-
-  if (createError || !created) {
-    throw new Error("Не удалось инициализировать профиль пользователя.");
-  }
-
-  return created as UserRow;
-};
-
 const getTelegramInitData = (): string | null => {
   const initData = window.Telegram?.WebApp?.initData?.trim();
   authLog("Telegram initData check", {
@@ -163,14 +134,39 @@ const getTelegramInitData = (): string | null => {
   return initData || null;
 };
 
-const getOrCreateTelegramUser = async (
-  initData: string,
+const getFunctionErrorMessage = async (
+  error: unknown,
+  fallback: string,
+): Promise<string> => {
+  const context =
+    error && typeof error === "object" && "context" in error
+      ? (error as { context?: unknown }).context
+      : null;
+
+  if (context instanceof Response) {
+    try {
+      const payload = (await context.clone().json()) as
+        | AuthTelegramFunctionError
+        | null;
+      if (payload && "error" in payload && payload.error.message) {
+        return payload.error.message;
+      }
+    } catch {
+      return fallback;
+    }
+  }
+
+  return fallback;
+};
+
+const getAuthenticatedUser = async (
+  body: { initData: string } | { devTelegramUserId: number },
 ): Promise<AuthenticatedUserRow> => {
   authLog("Calling auth-telegram function", {
-    initDataLength: initData.length,
+    source: "initData" in body ? "telegram" : "dev_fallback",
   });
   const { data, error } = await supabase.functions.invoke("auth-telegram", {
-    body: { initData },
+    body,
   });
 
   if (error) {
@@ -201,47 +197,10 @@ const getOrCreateTelegramUser = async (
     streak_days: payload.data.streakDays,
     settings_completed_at: payload.data.user.settingsCompletedAt,
     first_text_completed_at: payload.data.user.firstTextCompletedAt,
+    settings: payload.data.settings,
     subscription: payload.data.subscription,
     homeProgress: payload.data.homeProgress,
   };
-};
-
-const getUserSettings = async (
-  userId: string,
-): Promise<UserSettings | null> => {
-  const { data, error } = await supabase
-    .from("user_settings")
-    .select(
-      "english_level, daily_exercise_minutes, daily_reading_minutes",
-    )
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error("Не удалось загрузить настройки пользователя.");
-  }
-
-  if (!data) {
-    return null;
-  }
-
-  return mapSettings(data as UserSettingsRow);
-};
-
-const getUserById = async (userId: string): Promise<UserRow> => {
-  const { data, error } = await supabase
-    .from("users")
-    .select(
-      "id, telegram_user_id, first_name, settings_completed_at, first_text_completed_at",
-    )
-    .eq("id", userId)
-    .single();
-
-  if (error || !data) {
-    throw new Error("Не удалось загрузить профиль пользователя.");
-  }
-
-  return data as UserRow;
 };
 
 export const getCurrentAppUser = async (): Promise<AppUser> => {
@@ -253,17 +212,15 @@ export const getCurrentAppUser = async (): Promise<AppUser> => {
       : "no_auth_source";
   authLog("Selecting user source", { source });
   const user = initData
-    ? await getOrCreateTelegramUser(initData)
+    ? await getAuthenticatedUser({ initData })
     : ENABLE_DEV_AUTH_FALLBACK
-      ? await getOrCreateDevUser()
+      ? await getAuthenticatedUser({ devTelegramUserId: DEV_TELEGRAM_USER_ID })
       : (() => {
           throw new Error(
             "Telegram initData не найден. Открой приложение внутри Telegram.",
           );
         })();
-  const settings = user.settings_completed_at
-    ? await getUserSettings(user.id)
-    : null;
+  const settings = user.settings;
   const subscription =
     (user as Partial<AuthenticatedUserRow>).subscription ??
     FREE_SUBSCRIPTION_SUMMARY;
@@ -290,34 +247,52 @@ export const saveCurrentUserSettings = async (
   streakDays: number,
 ): Promise<AppUser> => {
   authLog("Saving user settings", { userId, input });
-  const { error: upsertError } = await supabase.from("user_settings").upsert(
-    {
-      user_id: userId,
-      english_level: input.englishLevel,
-      daily_exercise_minutes: input.dailyExerciseMinutes,
-      daily_reading_minutes: input.dailyReadingMinutes,
-    },
-    { onConflict: "user_id" },
+  const initData = getTelegramInitData();
+  const body = initData
+    ? { initData, settings: input }
+    : ENABLE_DEV_AUTH_FALLBACK
+      ? {
+          devTelegramUserId: DEV_TELEGRAM_USER_ID,
+          settings: input,
+        }
+      : { settings: input };
+
+  const { data, error } = await supabase.functions.invoke(
+    "save-user-settings",
+    { body },
   );
 
-  if (upsertError) {
-    authLog("Failed to upsert user_settings", upsertError);
-    throw new Error("Не удалось сохранить настройки.");
+  if (error) {
+    authLog("save-user-settings invoke failed", error);
+    throw new Error(
+      await getFunctionErrorMessage(error, "Не удалось сохранить настройки."),
+    );
   }
 
-  const nowIso = new Date().toISOString();
-  const { error: markError } = await supabase
-    .from("users")
-    .update({ settings_completed_at: nowIso })
-    .eq("id", userId)
-    .is("settings_completed_at", null);
-
-  if (markError) {
-    authLog("Failed to update users.settings_completed_at", markError);
-    throw new Error("Не удалось обновить статус онбординга.");
+  const payload = data as SaveUserSettingsFunctionResponse | null;
+  if (!payload) {
+    throw new Error("Пустой ответ от сервера настроек.");
   }
 
-  const user = await getUserById(userId);
-  authLog("Settings saved successfully", { userId: user.id });
-  return mapUser(user, input, subscription, homeProgress, streakDays);
+  if ("error" in payload) {
+    authLog("save-user-settings returned business error", payload.error);
+    throw new Error(payload.error.message || "Не удалось сохранить настройки.");
+  }
+
+  const userRow: UserRow = {
+    id: payload.data.user.id,
+    telegram_user_id: payload.data.user.telegramUserId,
+    first_name: payload.data.user.firstName,
+    settings_completed_at: payload.data.user.settingsCompletedAt,
+    first_text_completed_at: payload.data.user.firstTextCompletedAt,
+  };
+
+  authLog("Settings saved successfully", { userId: userRow.id });
+  return mapUser(
+    userRow,
+    payload.data.settings,
+    payload.data.subscription ?? subscription,
+    payload.data.homeProgress ?? homeProgress,
+    streakDays,
+  );
 };

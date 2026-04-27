@@ -47,6 +47,12 @@
 Миграция:
 - `supabase/migrations/20260423133000_create_user_subscriptions.sql`
 
+Транзакционная активация подписки реализована через RPC:
+- `public.activate_mvp_subscription(...)`
+- миграция: `supabase/migrations/20260427173000_activate_mvp_subscription.sql`
+
+RPC берет advisory lock на пользователя, проверяет active/scheduled подписки и создает новую строку в одной транзакции. Это защищает от дублей при параллельных запросах оформления.
+
 RLS включен, frontend policies не добавлены.
 Доступ идет через Edge Functions с `SUPABASE_SERVICE_ROLE_KEY`.
 
@@ -65,7 +71,7 @@ RLS включен, frontend policies не добавлены.
 - валидирует `Telegram initData`
 - принимает `planType: monthly | yearly`
 - находит пользователя по `telegram_user_id`
-- создает строку в `user_subscriptions`
+- транзакционно создает строку в `user_subscriptions` через RPC `activate_mvp_subscription`
 - если active monthly и выбран yearly, создает yearly с `starts_at = currentMonthly.ends_at`
 - если active yearly, возвращает business error
 - если active monthly и снова выбран monthly, возвращает business error
@@ -109,4 +115,3 @@ npx supabase db reset
 - Продление monthly поверх monthly пока не реализовано.
 - При active yearly пользователь пока не видит действий оформления.
 - Логика subscription summary продублирована в нескольких Edge Functions; перед production стоит вынести общие helpers.
-- Проверка лимита и запись generation attempt пока не атомарны.

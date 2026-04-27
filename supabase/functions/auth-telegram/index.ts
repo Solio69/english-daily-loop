@@ -18,6 +18,12 @@ type UserRow = {
   first_text_completed_at: string | null;
 };
 
+type UserSettingsRow = {
+  english_level: "A1" | "A2" | "B1" | "B2";
+  daily_exercise_minutes: number;
+  daily_reading_minutes: number;
+};
+
 type SubscriptionRow = {
   id: string;
   plan_type: "monthly" | "yearly";
@@ -34,6 +40,7 @@ const CORS_HEADERS = {
 
 const MAX_AUTH_AGE_SECONDS = 24 * 60 * 60;
 const MOSCOW_TIME_ZONE = "Europe/Moscow";
+const DEV_TELEGRAM_USER_ID = 999000001;
 const FREE_LIMITS = {
   dailyReadingGenerations: 3,
   vocabularyWordsLimit: 30,
@@ -44,6 +51,21 @@ const PAID_LIMITS = {
 };
 
 const textEncoder = new TextEncoder();
+
+class AppError extends Error {
+  status: number;
+  code: string;
+
+  constructor(status: number, code: string, message: string) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
+}
+
+const fail = (status: number, code: string, message: string): never => {
+  throw new AppError(status, code, message);
+};
 
 const getMoscowDate = (): string => {
   const parts = new Intl.DateTimeFormat("en", {
@@ -141,18 +163,18 @@ const parseInitData = (
   const userRaw = params.get("user");
 
   if (!userRaw) {
-    throw new Error("Отсутствует поле user в initData.");
+    fail(401, "AUTH_VALIDATION_FAILED", "Отсутствует поле user в initData.");
   }
 
   let user: TelegramUser;
   try {
     user = JSON.parse(userRaw) as TelegramUser;
   } catch {
-    throw new Error("Некорректный формат user в initData.");
+    fail(401, "AUTH_VALIDATION_FAILED", "Некорректный формат user в initData.");
   }
 
   if (!user.id) {
-    throw new Error("В initData отсутствует telegram user id.");
+    fail(401, "AUTH_VALIDATION_FAILED", "В initData отсутствует telegram user id.");
   }
 
   return { params, user };
@@ -166,22 +188,26 @@ const validateTelegramInitData = async (
 
   const receivedHash = params.get("hash");
   if (!receivedHash) {
-    throw new Error("Отсутствует hash в initData.");
+    fail(401, "AUTH_VALIDATION_FAILED", "Отсутствует hash в initData.");
   }
 
   const authDateRaw = params.get("auth_date");
   if (!authDateRaw) {
-    throw new Error("Отсутствует auth_date в initData.");
+    fail(401, "AUTH_VALIDATION_FAILED", "Отсутствует auth_date в initData.");
   }
 
   const authDate = Number(authDateRaw);
   if (!Number.isFinite(authDate)) {
-    throw new Error("Некорректный auth_date в initData.");
+    fail(401, "AUTH_VALIDATION_FAILED", "Некорректный auth_date в initData.");
   }
 
   const now = Math.floor(Date.now() / 1000);
   if (now - authDate > MAX_AUTH_AGE_SECONDS) {
-    throw new Error("Данные Telegram устарели. Открой мини-приложение снова.");
+    fail(
+      401,
+      "AUTH_VALIDATION_FAILED",
+      "Данные Telegram устарели. Открой мини-приложение снова.",
+    );
   }
 
   const dataCheckString = buildDataCheckString(params);
@@ -192,7 +218,11 @@ const validateTelegramInitData = async (
   const expectedHash = toHex(await hmacSha256(secretKey, dataCheckString));
 
   if (!timingSafeEqual(expectedHash, receivedHash.toLowerCase())) {
-    throw new Error("Не удалось подтвердить подпись Telegram initData.");
+    fail(
+      401,
+      "AUTH_VALIDATION_FAILED",
+      "Не удалось подтвердить подпись Telegram initData.",
+    );
   }
 
   return user;
@@ -222,6 +252,80 @@ const mapSubscription = (row: SubscriptionRow | null) =>
         endsAt: row.ends_at,
       }
     : null;
+
+const mapSettings = (row: UserSettingsRow | null) =>
+  row
+    ? {
+        englishLevel: row.english_level,
+        dailyExerciseMinutes: row.daily_exercise_minutes,
+        dailyReadingMinutes: row.daily_reading_minutes,
+      }
+    : null;
+
+const getTelegramUserFromRequest = async (
+  body: { initData?: unknown; devTelegramUserId?: unknown },
+  botToken: string,
+): Promise<TelegramUser> => {
+  const initData =
+    typeof body?.initData === "string" ? body.initData.trim() : "";
+
+  if (initData) {
+    return validateTelegramInitData(initData, botToken);
+  }
+
+  const isDevFallbackEnabled =
+    Deno.env.get("VITE_ENABLE_DEV_AUTH_FALLBACK")?.trim() === "true";
+
+  if (!isDevFallbackEnabled) {
+    fail(400, "INIT_DATA_REQUIRED", "initData is required.");
+  }
+
+  const configuredDevTelegramUserId = Number(
+    Deno.env.get("VITE_DEV_TELEGRAM_USER_ID")?.trim() || DEV_TELEGRAM_USER_ID,
+  );
+  const requestedDevTelegramUserId =
+    typeof body?.devTelegramUserId === "number"
+      ? body.devTelegramUserId
+      : configuredDevTelegramUserId;
+
+  if (
+    !Number.isSafeInteger(requestedDevTelegramUserId) ||
+    requestedDevTelegramUserId !== configuredDevTelegramUserId
+  ) {
+    fail(403, "DEV_AUTH_FORBIDDEN", "Dev auth fallback is not allowed.");
+  }
+
+  return {
+    id: requestedDevTelegramUserId,
+    username: "dev_user",
+    first_name: "Dev",
+    last_name: "User",
+    language_code: "ru",
+  };
+};
+
+const getUserSettings = async (
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+) => {
+  const { data, error } = await supabase
+    .from("user_settings")
+    .select(
+      "english_level, daily_exercise_minutes, daily_reading_minutes",
+    )
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[auth-telegram] failed to load user settings", {
+      appUserId: userId,
+      error: error.message,
+    });
+    fail(500, "SETTINGS_LOAD_FAILED", "Failed to load user settings.");
+  }
+
+  return mapSettings((data as UserSettingsRow | null) ?? null);
+};
 
 const getSubscriptionSummary = async (
   supabase: ReturnType<typeof createClient>,
@@ -255,7 +359,7 @@ const getSubscriptionSummary = async (
       activeError: activeError?.message,
       scheduledError: scheduledError?.message,
     });
-    throw new Error("Failed to load subscription.");
+    fail(500, "SUBSCRIPTION_LOAD_FAILED", "Failed to load subscription.");
   }
 
   const activeSubscription = ((activeRows ?? [])[0] ??
@@ -299,7 +403,7 @@ const getHomeProgress = async (
       completionError: completionError?.message,
       activeTextError: activeTextError?.message,
     });
-    throw new Error("Failed to load home progress.");
+    fail(500, "HOME_PROGRESS_LOAD_FAILED", "Failed to load home progress.");
   }
 
   const readingStatus =
@@ -339,7 +443,7 @@ const getReadingCompletionStreak = async (
       appUserId: userId,
       completionError: completionError.message,
     });
-    throw new Error("Failed to load streak.");
+    fail(500, "STREAK_LOAD_FAILED", "Failed to load streak.");
   }
 
   let streakDays = 0;
@@ -376,25 +480,30 @@ Deno.serve(async (req: Request) => {
     const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN");
 
     if (!supabaseUrl || !serviceRoleKey || !botToken) {
-      return errorResponse(
+      fail(
         500,
         "SERVER_ENV_MISCONFIGURED",
         "Server auth env vars are not configured.",
       );
     }
 
-    const body = (await req.json()) as { initData?: string };
-    const initData = body?.initData?.trim();
+    let body: {
+      initData?: unknown;
+      devTelegramUserId?: unknown;
+    };
+    try {
+      body = (await req.json()) as typeof body;
+    } catch {
+      fail(400, "INVALID_JSON", "Request body must be valid JSON.");
+    }
+    const initData =
+      typeof body?.initData === "string" ? body.initData.trim() : "";
     console.log("[auth-telegram] incoming request", {
       hasInitData: Boolean(initData),
       initDataLength: initData?.length ?? 0,
     });
 
-    if (!initData) {
-      return errorResponse(400, "INIT_DATA_REQUIRED", "initData is required.");
-    }
-
-    const tgUser = await validateTelegramInitData(initData, botToken);
+    const tgUser = await getTelegramUserFromRequest(body, botToken);
     console.log("[auth-telegram] initData validated", {
       telegramUserId: tgUser.id,
     });
@@ -413,7 +522,7 @@ Deno.serve(async (req: Request) => {
 
     if (findError) {
       console.error("find user error", findError);
-      return errorResponse(500, "USER_FIND_FAILED", "Failed to find user.");
+      fail(500, "USER_FIND_FAILED", "Failed to find user.");
     }
 
     let appUser: UserRow | null = (existingUser as UserRow | null) ?? null;
@@ -439,7 +548,7 @@ Deno.serve(async (req: Request) => {
 
       if (createError || !createdUser) {
         console.error("create user error", createError);
-        return errorResponse(500, "USER_CREATE_FAILED", "Failed to create user.");
+        fail(500, "USER_CREATE_FAILED", "Failed to create user.");
       }
 
       appUser = createdUser as UserRow;
@@ -454,7 +563,8 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const [subscription, homeProgress, streakDays] = await Promise.all([
+    const [settings, subscription, homeProgress, streakDays] = await Promise.all([
+      getUserSettings(supabase, appUser.id),
       getSubscriptionSummary(supabase, appUser.id),
       getHomeProgress(supabase, appUser.id),
       getReadingCompletionStreak(supabase, appUser.id),
@@ -468,15 +578,25 @@ Deno.serve(async (req: Request) => {
         settingsCompletedAt: appUser.settings_completed_at,
         firstTextCompletedAt: appUser.first_text_completed_at,
       },
+      settings,
       subscription,
       homeProgress,
       streakDays,
     });
   } catch (error) {
+    if (error instanceof AppError) {
+      console.error("[auth-telegram] request failed", {
+        status: error.status,
+        code: error.code,
+        message: error.message,
+      });
+      return errorResponse(error.status, error.code, error.message);
+    }
+
     const message =
       error instanceof Error ? error.message : "Unknown auth error.";
     console.error("[auth-telegram] auth failed", { message });
-    return errorResponse(401, "AUTH_VALIDATION_FAILED", message);
+    return errorResponse(500, "AUTH_TELEGRAM_FAILED", message);
   }
 });
 

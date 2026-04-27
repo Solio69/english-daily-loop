@@ -7,8 +7,19 @@ type TelegramUser = {
 
 type UserRow = {
   id: string;
-  first_text_completed_at: string | null;
 };
+
+type CompleteDailyReadingTextResult =
+  | {
+      ok: true;
+      completedDate: string;
+      firstTextCompletedAt: string;
+    }
+  | {
+      ok: false;
+      code: string;
+      message: string;
+    };
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -231,6 +242,41 @@ const getReadingCompletionStreak = async (
   return streakDays;
 };
 
+const completeDailyReadingText = async (
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  completedDate: string,
+): Promise<Extract<CompleteDailyReadingTextResult, { ok: true }>> => {
+  const { data, error } = await supabase.rpc("complete_daily_reading_text", {
+    p_user_id: userId,
+    p_completed_date: completedDate,
+  });
+
+  if (error) {
+    console.error("[complete-reading-text] failed to complete text transaction", {
+      appUserId: userId,
+      completedDate,
+      error: error.message,
+    });
+    fail(500, "READING_COMPLETION_TRANSACTION_FAILED", "Failed to complete reading text.");
+  }
+
+  const result = data as CompleteDailyReadingTextResult | null;
+  if (!result) {
+    fail(500, "READING_COMPLETION_TRANSACTION_FAILED", "Empty completion result.");
+  }
+
+  if (!result.ok) {
+    fail(
+      result.code === "NO_ACTIVE_READING_TEXT" ? 409 : 500,
+      result.code,
+      result.message,
+    );
+  }
+
+  return result;
+};
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: CORS_HEADERS });
@@ -273,7 +319,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: userRow, error: userError } = await supabase
       .from("users")
-      .select("id, first_text_completed_at")
+      .select("id")
       .eq("telegram_user_id", tgUser.id)
       .maybeSingle();
 
@@ -295,78 +341,7 @@ Deno.serve(async (req: Request) => {
 
     const appUser = userRow as UserRow;
     const today = getMoscowDate();
-
-    const { data: activeTextRow, error: activeTextError } = await supabase
-      .from("user_active_reading_texts")
-      .select("user_id")
-      .eq("user_id", appUser.id)
-      .maybeSingle();
-
-    if (activeTextError) {
-      console.error("[complete-reading-text] failed to load active text", {
-        appUserId: appUser.id,
-        error: activeTextError.message,
-      });
-      fail(500, "ACTIVE_TEXT_LOAD_FAILED", "Failed to load active reading text.");
-    }
-
-    if (!activeTextRow) {
-      fail(409, "NO_ACTIVE_READING_TEXT", "There is no active reading text.");
-    }
-
-    const { error: completionError } = await supabase
-      .from("user_daily_reading_completions")
-      .upsert(
-        {
-          user_id: appUser.id,
-          completed_date: today,
-          completed_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id,completed_date" },
-      );
-
-    if (completionError) {
-      console.error("[complete-reading-text] failed to save completion", {
-        appUserId: appUser.id,
-        error: completionError.message,
-      });
-      fail(500, "COMPLETION_SAVE_FAILED", "Failed to save reading completion.");
-    }
-
-    const { error: deleteError } = await supabase
-      .from("user_active_reading_texts")
-      .delete()
-      .eq("user_id", appUser.id);
-
-    if (deleteError) {
-      console.error("[complete-reading-text] failed to delete active text", {
-        appUserId: appUser.id,
-        error: deleteError.message,
-      });
-      fail(500, "ACTIVE_TEXT_DELETE_FAILED", "Failed to clear active reading text.");
-    }
-
-    let firstTextCompletedAt = appUser.first_text_completed_at;
-    if (!firstTextCompletedAt) {
-      const nowIso = new Date().toISOString();
-      const { data: updatedUser, error: updateUserError } = await supabase
-        .from("users")
-        .update({ first_text_completed_at: nowIso })
-        .eq("id", appUser.id)
-        .is("first_text_completed_at", null)
-        .select("first_text_completed_at")
-        .single();
-
-      if (updateUserError || !updatedUser) {
-        console.error("[complete-reading-text] failed to update first text", {
-          appUserId: appUser.id,
-          error: updateUserError?.message,
-        });
-        fail(500, "FIRST_TEXT_UPDATE_FAILED", "Failed to update first text status.");
-      }
-
-      firstTextCompletedAt = updatedUser.first_text_completed_at;
-    }
+    const completion = await completeDailyReadingText(supabase, appUser.id, today);
 
     const streakDays = await getReadingCompletionStreak(
       supabase,
@@ -375,8 +350,8 @@ Deno.serve(async (req: Request) => {
     );
 
     return successResponse(200, {
-      completedDate: today,
-      firstTextCompletedAt,
+      completedDate: completion.completedDate,
+      firstTextCompletedAt: completion.firstTextCompletedAt,
       isReadingCompletedToday: true,
       streakDays,
     });

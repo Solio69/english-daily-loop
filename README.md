@@ -54,12 +54,15 @@ auth. Он только отображает состояние, которое 
 
 - `auth-telegram` — валидирует Telegram `initData`, создает или находит пользователя,
   возвращает настройки, подписку, прогресс главного экрана и streak.
-- `activate-subscription` — активирует MVP-подписку за 0 рублей.
+- `save-user-settings` — валидирует пользователя на сервере и сохраняет настройки
+  сессии в `user_settings`.
+- `activate-subscription` — транзакционно активирует MVP-подписку за 0 рублей.
 - `get-reading-state` — возвращает состояние экрана чтения: активный текст, лимиты,
   использованные попытки и факт завершения чтения за день.
-- `generate-reading-text` — списывает попытку, вызывает OpenRouter, валидирует ответ модели
+- `generate-reading-text` — атомарно списывает попытку, вызывает OpenRouter, валидирует ответ модели
   и сохраняет активный текст.
-- `complete-reading-text` — завершает дневное чтение, удаляет активный текст и обновляет streak.
+- `complete-reading-text` — транзакционно завершает дневное чтение, удаляет активный текст
+  и обновляет streak.
 
 Все чувствительные операции выполняются на сервере. `TELEGRAM_BOT_TOKEN`,
 `SUPABASE_SERVICE_ROLE_KEY` и `OPENROUTER_API_KEY` нельзя использовать в клиентском коде.
@@ -77,6 +80,16 @@ auth. Он только отображает состояние, которое 
 - `public.user_subscriptions`
 
 Дневной цикл считается по timezone `Europe/Moscow`.
+
+Доступ к чувствительным пользовательским данным идет через Edge Functions. На `public.users` и
+`public.user_settings` включен RLS, а сохранение настроек выполняется через `save-user-settings`.
+Клиент не пишет напрямую в пользовательские, reading и subscription таблицы.
+
+Критичные операции, где важна защита от параллельных запросов, вынесены в Postgres RPC:
+
+- `public.claim_reading_generation_attempt(...)` — проверяет дневной лимит и создает attempt одним DB-действием.
+- `public.complete_daily_reading_text(...)` — завершает чтение, пишет completion, удаляет active text и обновляет onboarding-флаг.
+- `public.activate_mvp_subscription(...)` — активирует или планирует MVP-подписку с advisory lock по пользователю.
 
 Текущие MVP-лимиты:
 
@@ -98,7 +111,8 @@ auth. Он только отображает состояние, которое 
 ```env
 VITE_SUPABASE_URL="http://127.0.0.1:55421"
 VITE_SUPABASE_ANON_KEY="YOUR_SUPABASE_ANON_KEY"
-VITE_ENABLE_DEV_AUTH_FALLBACK="true"
+VITE_ENABLE_DEV_AUTH_FALLBACK="false"
+VITE_DEV_TELEGRAM_USER_ID="999000001"
 OPENROUTER_API_KEY="YOUR_OPENROUTER_API_KEY"
 TELEGRAM_BOT_TOKEN="YOUR_TELEGRAM_BOT_TOKEN"
 ```
@@ -166,10 +180,16 @@ npm run dev:stop
 3. Вставь `BotFather /setmenubutton URL` из startup summary.
 4. Открой бота в Telegram и нажми кнопку меню.
 
-Для реальной Telegram-авторизации в `.env.local` нужно выключить browser fallback:
+Для реальной Telegram-авторизации browser fallback должен быть выключен:
 
 ```env
 VITE_ENABLE_DEV_AUTH_FALLBACK="false"
+```
+
+Для локальной проверки в обычном браузере вне Telegram можно явно включить fallback:
+
+```env
+VITE_ENABLE_DEV_AUTH_FALLBACK="true"
 ```
 
 ## Команды
@@ -220,6 +240,7 @@ pnpm build
 - `AGENTS.md` — правила работы в репозитории и текущий статус.
 - `GIT_POLICY.md` — строгая политика Git для AI-агентов.
 - `LOCAL_TELEGRAM_RUN.md` — подробный локальный запуск внутри Telegram.
+- `notes/server-side-data-guards.md` — серверные границы доступа, RLS и транзакционные RPC.
 - `notes/text-generation-pipeline.md` — AI-пайплайн генерации текста.
 - `notes/reading-generation-limits.md` — дневные попытки и активный текст.
 - `notes/subscriptions.md` — MVP-модель подписок.

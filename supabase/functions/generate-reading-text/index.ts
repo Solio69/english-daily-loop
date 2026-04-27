@@ -44,6 +44,21 @@ type OpenRouterResponse = {
   };
 };
 
+type ClaimGenerationAttemptResult =
+  | {
+      ok: true;
+      attemptId: string;
+      usedAttempts: number;
+      remainingAttempts: number;
+    }
+  | {
+      ok: false;
+      code: string;
+      message: string;
+      usedAttempts: number;
+      remainingAttempts: number;
+    };
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -183,6 +198,47 @@ const getDailyGenerationLimit = async (
   return (data ?? []).length > 0
     ? PAID_DAILY_GENERATION_LIMIT
     : FREE_DAILY_GENERATION_LIMIT;
+};
+
+const claimGenerationAttempt = async (
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  attemptDate: string,
+  dailyLimit: number,
+): Promise<Extract<ClaimGenerationAttemptResult, { ok: true }>> => {
+  const { data, error } = await supabase.rpc(
+    "claim_reading_generation_attempt",
+    {
+      p_user_id: userId,
+      p_attempt_date: attemptDate,
+      p_daily_limit: dailyLimit,
+      p_provider: "openrouter",
+    },
+  );
+
+  if (error) {
+    console.error("[generate-reading-text] failed to claim attempt", {
+      appUserId: userId,
+      attemptDate,
+      error: error.message,
+    });
+    fail(500, "ATTEMPT_CLAIM_FAILED", "Failed to save generation attempt.");
+  }
+
+  const result = data as ClaimGenerationAttemptResult | null;
+  if (!result) {
+    fail(500, "ATTEMPT_CLAIM_FAILED", "Empty attempt claim result.");
+  }
+
+  if (!result.ok) {
+    fail(
+      result.code === "GENERATION_ATTEMPTS_EXHAUSTED" ? 429 : 500,
+      result.code,
+      result.message,
+    );
+  }
+
+  return result;
 };
 
 const stripCodeFence = (raw: string): string => {
@@ -651,51 +707,16 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const { count: attemptsCount, error: attemptsError } = await supabase
-      .from("reading_generation_attempts")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", settings.appUserId)
-      .eq("attempt_date", today);
-
-    if (attemptsError) {
-      console.error("[generate-reading-text] failed to count attempts", {
-        appUserId: settings.appUserId,
-        error: attemptsError.message,
-      });
-      fail(500, "ATTEMPTS_LOAD_FAILED", "Failed to load generation attempts.");
-    }
-
-    const usedAttempts = attemptsCount ?? 0;
-    if (usedAttempts >= dailyLimit) {
-      fail(
-        429,
-        "GENERATION_ATTEMPTS_EXHAUSTED",
-        "Попытки генерации текста на сегодня закончились.",
-      );
-    }
-
-    const { data: attemptRow, error: attemptInsertError } = await supabase
-      .from("reading_generation_attempts")
-      .insert({
-        user_id: settings.appUserId,
-        attempt_date: today,
-        status: "started",
-        provider: "openrouter",
-      })
-      .select("id")
-      .single();
-
-    if (attemptInsertError || !attemptRow) {
-      console.error("[generate-reading-text] failed to create attempt", {
-        appUserId: settings.appUserId,
-        error: attemptInsertError?.message,
-      });
-      fail(500, "ATTEMPT_CREATE_FAILED", "Failed to save generation attempt.");
-    }
+    const claimedAttempt = await claimGenerationAttempt(
+      supabase,
+      settings.appUserId,
+      today,
+      dailyLimit,
+    );
 
     startedAttempt = {
       supabase,
-      attemptId: (attemptRow as { id: string }).id,
+      attemptId: claimedAttempt.attemptId,
     };
 
     const targetLevel = settings.englishLevel;
@@ -716,7 +737,8 @@ Deno.serve(async (req: Request) => {
       appUserId: settings.appUserId,
       attemptId: startedAttempt.attemptId,
       attemptDate: today,
-      usedAttempts,
+      usedAttempts: claimedAttempt.usedAttempts,
+      remainingAttempts: claimedAttempt.remainingAttempts,
       dailyLimit,
       baseLevel: settings.englishLevel,
       dailyReadingMinutes: settings.dailyReadingMinutes,
@@ -796,8 +818,8 @@ Deno.serve(async (req: Request) => {
         fallbackUsed,
       },
       dailyLimit,
-      usedAttempts: usedAttempts + 1,
-      remainingAttempts: Math.max(dailyLimit - usedAttempts - 1, 0),
+      usedAttempts: claimedAttempt.usedAttempts,
+      remainingAttempts: claimedAttempt.remainingAttempts,
     });
   } catch (error) {
     if (startedAttempt) {

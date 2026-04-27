@@ -19,6 +19,20 @@ type SubscriptionRow = {
   ends_at: string;
 };
 
+type ActivateMvpSubscriptionResult =
+  | {
+      ok: true;
+      subscriptionId: string;
+      planType: PlanType;
+      startsAt: string;
+      endsAt: string;
+    }
+  | {
+      ok: false;
+      code: string;
+      message: string;
+    };
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -34,10 +48,6 @@ const FREE_LIMITS = {
 const PAID_LIMITS = {
   dailyReadingGenerations: 10,
   vocabularyWordsLimit: 300,
-};
-const PLAN_DURATION_DAYS: Record<PlanType, number> = {
-  monthly: 1,
-  yearly: 7,
 };
 const textEncoder = new TextEncoder();
 
@@ -182,12 +192,6 @@ const validateTelegramInitData = async (
   return user;
 };
 
-const addDays = (date: Date, days: number): Date => {
-  const next = new Date(date);
-  next.setUTCDate(next.getUTCDate() + days);
-  return next;
-};
-
 const mapSubscription = (row: SubscriptionRow | null) =>
   row
     ? {
@@ -251,6 +255,43 @@ const getSubscriptionSummary = async (
     activeSubscription: mapSubscription(activeSubscription),
     scheduledSubscription: mapSubscription(scheduledSubscription),
   };
+};
+
+const activateMvpSubscription = async (
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  planType: PlanType,
+  nowIso: string,
+): Promise<Extract<ActivateMvpSubscriptionResult, { ok: true }>> => {
+  const { data, error } = await supabase.rpc("activate_mvp_subscription", {
+    p_user_id: userId,
+    p_plan_type: planType,
+    p_now: nowIso,
+  });
+
+  if (error) {
+    console.error("[activate-subscription] failed to activate subscription transaction", {
+      appUserId: userId,
+      planType,
+      error: error.message,
+    });
+    fail(500, "SUBSCRIPTION_ACTIVATION_TRANSACTION_FAILED", "Failed to activate subscription.");
+  }
+
+  const result = data as ActivateMvpSubscriptionResult | null;
+  if (!result) {
+    fail(500, "SUBSCRIPTION_ACTIVATION_TRANSACTION_FAILED", "Empty subscription activation result.");
+  }
+
+  if (!result.ok) {
+    fail(
+      result.code === "INVALID_PLAN_TYPE" ? 400 : 409,
+      result.code,
+      result.message,
+    );
+  }
+
+  return result;
 };
 
 Deno.serve(async (req: Request) => {
@@ -319,62 +360,7 @@ Deno.serve(async (req: Request) => {
     const appUser = userRow as UserRow;
     const now = new Date();
     const nowIso = now.toISOString();
-    const currentSummary = await getSubscriptionSummary(
-      supabase,
-      appUser.id,
-      nowIso,
-    );
-    const active = currentSummary.activeSubscription;
-    const scheduled = currentSummary.scheduledSubscription;
-
-    if (active?.planType === "yearly") {
-      fail(
-        409,
-        "YEARLY_ALREADY_ACTIVE",
-        "Yearly subscription is already active.",
-      );
-    }
-
-    if (active?.planType === "monthly" && planType === "monthly") {
-      fail(
-        409,
-        "MONTHLY_ALREADY_ACTIVE",
-        "Monthly subscription is already active.",
-      );
-    }
-
-    if (active?.planType === "monthly" && planType === "yearly" && scheduled) {
-      fail(
-        409,
-        "YEARLY_ALREADY_SCHEDULED",
-        "Yearly subscription is already scheduled.",
-      );
-    }
-
-    const startsAt =
-      active?.planType === "monthly" && planType === "yearly"
-        ? new Date(active.endsAt)
-        : now;
-    const endsAt = addDays(startsAt, PLAN_DURATION_DAYS[planType]);
-
-    const { error: insertError } = await supabase
-      .from("user_subscriptions")
-      .insert({
-        user_id: appUser.id,
-        plan_type: planType,
-        starts_at: startsAt.toISOString(),
-        ends_at: endsAt.toISOString(),
-        source: "mvp_zero_price",
-      });
-
-    if (insertError) {
-      console.error("[activate-subscription] failed to create subscription", {
-        appUserId: appUser.id,
-        planType,
-        error: insertError.message,
-      });
-      fail(500, "SUBSCRIPTION_CREATE_FAILED", "Failed to activate subscription.");
-    }
+    await activateMvpSubscription(supabase, appUser.id, planType, nowIso);
 
     const subscription = await getSubscriptionSummary(
       supabase,
