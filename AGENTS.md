@@ -69,7 +69,9 @@
   - серверная валидация `initData` (подпись + `auth_date`)
   - идемпотентный `find-or-create/upsert` пользователя по `telegram_user_id`
   - возвращает `subscription` summary (`tier`, `limits`, активная/запланированная подписка)
-  - возвращает `homeProgress.reading.status` (`not_started | in_progress | completed`) для главного экрана
+  - возвращает `homeProgress.lesson` (`status`, `currentStep`) для карточки урока на главной
+  - возвращает `homeProgress.reading.status` (`not_started | in_progress | completed`) для карточки дневного прогресса
+  - возвращает `streakDays` для счетчика с иконкой огонька
   - единый контракт ответа (`ok/data` или `ok/error`).
 - MVP-подписки реализованы через таблицу `public.user_subscriptions`:
   - `plan_type`: `monthly` или `yearly`
@@ -90,9 +92,10 @@
   - проверка дневного завершения чтения по `user_daily_reading_completions`
   - проверка дневного лимита попыток по `reading_generation_attempts`
   - списание попытки до запроса к OpenRouter
-  - генерация через OpenRouter primary/fallback модели
+  - генерация через OpenRouter `models` parameter с цепочкой free-моделей `primary -> fallback -> tertiary`
   - динамический `max_tokens` и диапазон слов по времени чтения
   - валидация длины с допуском примерно `±20%`
+  - timeout запроса к OpenRouter: `45` секунд
   - сохранение последнего успешного непрочитанного текста в `user_active_reading_texts`
   - единый контракт ответа (`ok/data` или `ok/error`).
 - Состояние экрана чтения реализовано через Edge Function `supabase/functions/get-reading-state/index.ts`:
@@ -104,25 +107,30 @@
   - запись дневного завершения в `user_daily_reading_completions`
   - удаление активного непрочитанного текста из `user_active_reading_texts`
   - заполнение `users.first_text_completed_at` только для онбординга, если это первый прочитанный текст пользователя.
+  - пересчет `streakDays` как серии подряд идущих дней по `user_daily_reading_completions`.
 - Текущие MVP-лимиты подписок:
   - free: `3` генерации текста в день, словарь до `30` слов
   - paid: `10` генераций текста в день, словарь до `300` слов.
 - Дневной лимит генерации считается только на сервере в Edge Functions чтения по активной подписке из `user_subscriptions`; фронт только отображает полученные `dailyLimit/remainingAttempts`.
 - Текущие дефолтные OpenRouter-модели:
   - primary: `openai/gpt-oss-20b:free`
-  - fallback: `google/gemma-3-12b-it:free`.
+  - fallback: `google/gemma-3-12b-it:free`
+  - tertiary: `qwen/qwen3.6-plus:free`.
 - Требуемые server env для AI:
   - `OPENROUTER_API_KEY`
   - опционально `OPENROUTER_MODEL_PRIMARY`
   - опционально `OPENROUTER_MODEL_FALLBACK`.
+  - опционально `OPENROUTER_MODEL_TERTIARY`.
 - Для стабильной DX в редакторе: у функции используется `// @ts-nocheck`, а для Deno-окружения есть `supabase/functions/deno.json` и `supabase/functions/deno-globals.d.ts`.
 - На фронте подключен Telegram WebApp SDK (`index.html`) и типы `window.Telegram.WebApp` (`src/types/telegram-webapp.d.ts`).
-- Bootstrap пользователя в `src/services/userService.ts` сначала пытается авторизоваться через `auth-telegram`; dev fallback управляется env-переменной `VITE_ENABLE_DEV_AUTH_FALLBACK`; `AppUser` содержит `subscription`.
+- Bootstrap пользователя в `src/services/userService.ts` сначала пытается авторизоваться через `auth-telegram`; dev fallback управляется env-переменной `VITE_ENABLE_DEV_AUTH_FALLBACK`; `AppUser` содержит `subscription`, `homeProgress` и `streakDays`.
 - На фронте подписка вынесена в `src/services/subscriptionService.ts` и `src/screens/SubscriptionScreen.tsx`; клиент вызывает только `activate-subscription`, прямых записей подписки в БД с фронта нет.
 - Логика чтения вынесена в сервисный слой (`src/services/readingService.ts`), UI-компонент не содержит прямых запросов к БД.
 - `readingService` вызывает `get-reading-state`, `generate-reading-text` и `complete-reading-text`; прямой RPC fallback `get_random_reading_text` больше не используется в текущем UI генерации.
-- В bootstrap пользователя `AppUser` теперь приходит `homeProgress`; блок `Текст` на главной больше не опирается на `first_text_completed_at`, а использует серверный дневной статус чтения.
+- На главной карточка урока использует `homeProgress.lesson.status` и `homeProgress.lesson.currentStep`; пока daily lesson состоит только из чтения и ведет пользователя сразу на экран текста.
+- Счетчик с иконкой огонька на главной использует `streakDays`, который сервер считает как серию подряд идущих завершений чтения по timezone `Europe/Moscow`.
 - Если генерация упала, новая попытка уже списана, новый текст не сохраняется, а ранее активный текст остается доступен после завершения состояния загрузки.
+- После неуспешной генерации экран чтения повторно запрашивает `get-reading-state`, чтобы синхронизировать активный текст и оставшиеся попытки с сервером.
 - В dev-режиме экран чтения показывает источник текста (`AI` + модель) через metadata `ReadingText.source/generation`.
 - Настройка времени чтения влияет на размер AI-текста:
   - `3` мин: `120-180` слов, `max_tokens: 450`
@@ -141,6 +149,7 @@
   - `.env.local VITE_SUPABASE_URL` = SUPABASE API TUNNEL URL.
 - `npm run dev:all` поднимает Edge Functions `auth-telegram`, `activate-subscription`, `complete-reading-text`, `get-reading-state` и `generate-reading-text`.
 - Логи в `dev:all` цветные по источнику (`[frontend]`, `[edge]`, `[db]`, `[api]`, `[tunnel-*]`), HTTP-методы и статус-коды дополнительно подсвечиваются.
+- `// TODO:` после изменения кода Edge Functions или server env для OpenRouter (`OPENROUTER_MODEL_*`, `OPENROUTER_API_KEY`) перезапускать `npm run dev:all`, чтобы локальная среда подхватила актуальную версию функций и env.
 - Если в summary указано `Frontend restart required: YES`, нужно перезапустить `dev:all`.
 - Для локального старта использовать `npm run dev:all`, для остановки Supabase: `npm run dev:stop`.
 

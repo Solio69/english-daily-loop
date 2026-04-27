@@ -1,9 +1,5 @@
 # AI-генерация текста для чтения
 
-> Update 2026-04-23: reading generation limits are now subscription-based.
-> free = `3` attempts/day, paid = `10` attempts/day.
-> See `notes/subscriptions.md`.
-
 ## 1) Область документа
 Этот документ фиксирует текущий MVP-пайплайн генерации текста для раздела `Текст`.
 Цель: чтобы следующие агенты быстро понимали, где проходит граница между фронтом,
@@ -55,8 +51,8 @@ Supabase Edge Function, базой и внешней AI-моделью.
 
 Дополнительные Edge Functions:
 - `supabase/functions/get-reading-state/index.ts` — возвращает состояние экрана чтения.
-- `supabase/functions/complete-reading-text/index.ts` — завершает дневное чтение, удаляет активный текст и заполняет `users.first_text_completed_at` для онбординга, если это первый прочитанный текст.
-- `supabase/functions/auth-telegram/index.ts` — в bootstrap пользователя отдает `homeProgress.reading.status` для главного экрана.
+- `supabase/functions/complete-reading-text/index.ts` — завершает дневное чтение, удаляет активный текст, заполняет `users.first_text_completed_at` для онбординга, если это первый прочитанный текст, и возвращает актуальный `streakDays`.
+- `supabase/functions/auth-telegram/index.ts` — в bootstrap пользователя отдает `homeProgress.lesson`, `homeProgress.reading.status` и `streakDays` для главного экрана.
 
 ## 4) OpenRouter
 Server env:
@@ -74,6 +70,9 @@ Server env:
 - на запрос отправляется массив моделей через OpenRouter `models` parameter
 - OpenRouter делает router-level failover для provider/infra ошибок
 - если успешный ответ пришел, но не прошел app-level валидацию JSON или длины, Edge Function исключает использованную модель и повторяет запрос по оставшемуся списку
+- timeout запроса к OpenRouter: `45` секунд
+
+`// TODO:` после изменения server env для OpenRouter или кода `generate-reading-text` перезапускать `npm run dev:all`, чтобы локальная среда подняла актуальную версию Edge Function
 
 Важно:
 - ключ OpenRouter нельзя добавлять во frontend env (`VITE_*`)
@@ -110,7 +109,7 @@ Server env:
 - `generation.provider`
 - `generation.model`
 - `generation.fallbackUsed`
-6. Если AI-ветка упала, RPC fallback больше не вызывается; фронт показывает ошибку и сохраняет последний активный текст на экране после завершения загрузки.
+6. Если AI-ветка упала, RPC fallback больше не вызывается; фронт показывает ошибку, сохраняет последний активный текст на экране после завершения загрузки и повторно запрашивает `get-reading-state`, чтобы синхронизировать оставшиеся попытки с сервером.
 
 ## 7) Dev-индикатор источника
 Файл:
@@ -138,13 +137,13 @@ Server env:
 - при ошибке генерации активный текст не меняется
 - после завершения чтения генерация на текущий день блокируется
 - `users.first_text_completed_at` используется только для онбординга
-- статус блока `Текст` на главной определяется сервером через `homeProgress.reading.status`
+- статус карточки урока на главной определяется сервером через `homeProgress.lesson`
+- статус блока `Текст` в карточке дневного прогресса определяется сервером через `homeProgress.reading.status`
 
 ## 9) Ограничения и будущие улучшения
 Текущие ограничения:
 - Генерация длинных текстов зависит от доступности free-моделей OpenRouter.
 - Валидация длины работает по простому подсчету слов через whitespace.
-- Дневной лимит пока не учитывает тариф пользователя и всегда равен `10`.
 - Проверка/списание попытки пока не объединены в атомарную DB-функцию; для Telegram Mini App MVP риск двойного клика снижен UI-блокировкой.
 
 Возможные следующие шаги:

@@ -55,7 +55,7 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_PRIMARY_MODEL = "openai/gpt-oss-20b:free";
 const DEFAULT_FALLBACK_MODEL = "google/gemma-3-12b-it:free";
 const DEFAULT_TERTIARY_MODEL = "qwen/qwen3.6-plus:free";
-const MODEL_TIMEOUT_MS = 18_000;
+const MODEL_TIMEOUT_MS = 45_000;
 const MAX_AUTH_AGE_SECONDS = 24 * 60 * 60;
 const FREE_DAILY_GENERATION_LIMIT = 3;
 const PAID_DAILY_GENERATION_LIMIT = 10;
@@ -460,20 +460,35 @@ const requestOpenRouter = async (
   const timeoutId = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS);
 
   try {
-    const response = await fetch(OPENROUTER_URL, {
-      method: "POST",
-      signal: controller.signal,
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        models,
-        temperature: 0.7,
-        max_tokens: maxTokens,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
+    let response: Response;
+    try {
+      response = await fetch(OPENROUTER_URL, {
+        method: "POST",
+        signal: controller.signal,
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          models,
+          temperature: 0.7,
+          max_tokens: maxTokens,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.name === "AbortError" ||
+          error.message.includes("signal has been aborted"))
+      ) {
+        throw new Error(
+          "AI-модели не ответили вовремя. Попробуй еще раз чуть позже.",
+        );
+      }
+
+      throw error;
+    }
 
     const payload = (await response.json()) as OpenRouterResponse;
     if (!response.ok) {
@@ -632,7 +647,7 @@ Deno.serve(async (req: Request) => {
       fail(
         409,
         "DAILY_READING_ALREADY_COMPLETED",
-        "Today's reading text is already completed.",
+        "Текст на сегодня уже прочитан.",
       );
     }
 
@@ -655,7 +670,7 @@ Deno.serve(async (req: Request) => {
       fail(
         429,
         "GENERATION_ATTEMPTS_EXHAUSTED",
-        "Daily text generation attempts are exhausted.",
+        "Попытки генерации текста на сегодня закончились.",
       );
     }
 

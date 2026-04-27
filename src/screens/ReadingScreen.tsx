@@ -120,6 +120,19 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
           ? error.message
           : "Не удалось загрузить текст. Попробуй еще раз.";
       setErrorText(message);
+
+      try {
+        const state = await getReadingState();
+        setText(state.activeText);
+        setDailyLimit(state.dailyLimit);
+        setRemainingAttempts(state.remainingAttempts);
+        setIsReadingCompletedToday(state.isReadingCompletedToday);
+        emitReadingStatusChange(
+          resolveReadingStatus(state.activeText, state.isReadingCompletedToday),
+        );
+      } catch {
+        // Keep the latest visible state if refresh fails after generation error.
+      }
     } finally {
       setLoading(false);
     }
@@ -193,7 +206,7 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
           </p>
           <p className="inline-flex items-center gap-1 min-w-0 justify-center whitespace-nowrap">
             <Sparkles size={14} className="text-green-500 shrink-0" />
-            <span>Попытки:</span>
+            <span>Осталось:</span>
             <span className="font-semibold text-green-500">
               {remainingAttempts}/{dailyLimit}
             </span>

@@ -1,9 +1,5 @@
 # Production readiness notes
 
-> Update 2026-04-23: free/paid subscription limits are implemented for MVP.
-> Remaining production work is real payment integration, shared Edge Function helpers,
-> and atomic DB/RPC attempt reservation. See `notes/subscriptions.md`.
-
 Этот файл фиксирует вещи, которые можно оставить в MVP, но нужно пересмотреть
 перед production-версией.
 
