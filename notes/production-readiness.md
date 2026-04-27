@@ -16,7 +16,7 @@
   - correlation/request id, если появится backend-сессия
 
 ## 2) Telegram initData validation reuse
-- `auth-telegram`, `generate-reading-text`, `get-reading-state` и `complete-reading-text` сейчас имеют похожую серверную проверку `initData`.
+- `auth-telegram`, `generate-reading-text`, `get-reading-state`, `complete-reading-text` и `get-reading-history` сейчас имеют похожую серверную проверку `initData`.
 - Для MVP это нормально.
 - `auth-telegram` разделяет ошибки validation и внутренние DB/server ошибки: Telegram validation возвращается как `401 AUTH_VALIDATION_FAILED`, а внутренние сбои как `5xx`.
 - Перед production стоит вынести общую проверку в общий модуль для Edge Functions.
@@ -42,19 +42,9 @@
 
 ## 5) Generated text persistence
 - Последний успешный непрочитанный AI-текст сохраняется в `user_active_reading_texts`.
-- Прочитанные тексты пока не сохраняются: при завершении активный текст удаляется, а факт дня пишется в `user_daily_reading_completions`.
+- Прочитанные тексты сохраняются в `user_completed_reading_texts`: при завершении активный текст копируется в историю, затем active text удаляется, а факт дня пишется в `user_daily_reading_completions`.
 - Само завершение чтения выполняется транзакционно через RPC `complete_daily_reading_text`.
-- Перед production стоит решить, сохраняем ли историю прочитанных текстов:
-  - `user_id`
-  - `title`
-  - `body`
-  - `level`
-  - `estimated_minutes`
-  - `provider`
-  - `model`
-  - `fallback_used`
-  - `created_at`
-  - `completed_at`
+- Перед production стоит добавить retention/экспорт/удаление пользовательских материалов, если появятся требования по приватности данных.
 
 ## 6) OpenRouter/free model reliability
 - Free-модели могут быть временно недоступны или менять доступные endpoints.

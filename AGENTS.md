@@ -60,7 +60,7 @@
 
 ## Текущий статус (для будущих агентов)
 - Supabase local и Docker-окружение уже работают.
-- Уже подключены и используются таблицы `public.users`, `public.user_settings`, `public.reading_texts`, `public.reading_generation_attempts`, `public.user_active_reading_texts`, `public.user_daily_reading_completions` и `public.user_subscriptions`.
+- Уже подключены и используются таблицы `public.users`, `public.user_settings`, `public.reading_texts`, `public.reading_generation_attempts`, `public.user_active_reading_texts`, `public.user_daily_reading_completions`, `public.user_completed_reading_texts` и `public.user_subscriptions`.
 - В `public.user_settings` есть настройки `english_level`, `daily_exercise_minutes`, `daily_reading_minutes`.
 - На `public.users` и `public.user_settings` включен RLS; frontend не пишет в эти таблицы напрямую, операции проходят через Edge Functions с `SUPABASE_SERVICE_ROLE_KEY`.
 - В проекте есть базовые миграции и сиды для локальной разработки (dev user + моковые тексты).
@@ -121,9 +121,15 @@
   - серверная валидация `Telegram initData`
   - транзакционное завершение через RPC `complete_daily_reading_text`
   - запись дневного завершения в `user_daily_reading_completions`
+  - сохранение snapshot прочитанного текста в `user_completed_reading_texts`
   - удаление активного непрочитанного текста из `user_active_reading_texts`
   - заполнение `users.first_text_completed_at` только для онбординга, если это первый прочитанный текст пользователя.
   - пересчет `streakDays` как серии подряд идущих дней по `user_daily_reading_completions`.
+- История прочитанных текстов реализована через Edge Function `supabase/functions/get-reading-history/index.ts`:
+  - серверная валидация `Telegram initData`
+  - чтение завершенных текстов текущего пользователя из `user_completed_reading_texts`
+  - cursor-пагинация через `limit` и `cursor`
+  - единый контракт ответа (`ok/data` или `ok/error`).
 - Текущие MVP-лимиты подписок:
   - free: `3` генерации текста в день, словарь до `30` слов
   - paid: `10` генераций текста в день, словарь до `300` слов.
@@ -145,6 +151,8 @@
 - На фронте подписка вынесена в `src/services/subscriptionService.ts` и `src/screens/SubscriptionScreen.tsx`; клиент вызывает только `activate-subscription`, прямых записей подписки в БД с фронта нет.
 - Логика чтения вынесена в сервисный слой (`src/services/readingService.ts`), UI-компонент не содержит прямых запросов к БД.
 - `readingService` вызывает `get-reading-state`, `generate-reading-text` и `complete-reading-text`; текущий UI генерации не использует прямой RPC fallback `get_random_reading_text`.
+- `materialsService` вызывает `get-reading-history`; экран `Мои материалы` показывает завершенные тексты с табами `Тексты` и `Словарь`, таб словаря зарезервирован под будущие слова на повторении.
+- На главной есть компактная карточка `Мои материалы`; плитка `Тексты` открывает экран материалов на табе текстов, плитка `Словарь` открывает таб словаря.
 - На главной карточка урока использует `homeProgress.lesson.status` и `homeProgress.lesson.currentStep`; пока daily lesson состоит только из чтения и ведет пользователя сразу на экран текста.
 - Счетчик с иконкой огонька на главной использует `streakDays`, который сервер считает как серию подряд идущих завершений чтения по timezone `Europe/Moscow`.
 - Если генерация упала, новая попытка уже списана, новый текст не сохраняется, а ранее активный текст остается доступен после завершения состояния загрузки.
@@ -165,7 +173,7 @@
 - `npm run dev:all` автоматически поднимает frontend/API туннели и печатает `STARTUP SUMMARY` с двумя URL:
   - `BotFather /setmenubutton URL` = FRONTEND TUNNEL URL
   - `.env.local VITE_SUPABASE_URL` = SUPABASE API TUNNEL URL.
-- `npm run dev:all` поднимает Edge Functions `auth-telegram`, `save-user-settings`, `activate-subscription`, `complete-reading-text`, `get-reading-state` и `generate-reading-text`.
+- `npm run dev:all` поднимает Edge Functions `auth-telegram`, `save-user-settings`, `activate-subscription`, `complete-reading-text`, `get-reading-state`, `get-reading-history` и `generate-reading-text`.
 - Логи в `dev:all` цветные по источнику (`[frontend]`, `[edge]`, `[db]`, `[api]`, `[tunnel-*]`), HTTP-методы и статус-коды дополнительно подсвечиваются.
 - `// TODO:` после изменения кода Edge Functions или server env для OpenRouter (`OPENROUTER_MODEL_*`, `OPENROUTER_API_KEY`) перезапускать `npm run dev:all`, чтобы локальная среда подхватила актуальную версию функций и env.
 - Если в summary указано `Frontend restart required: YES`, нужно перезапустить `dev:all`.

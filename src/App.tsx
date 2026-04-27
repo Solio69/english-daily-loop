@@ -8,6 +8,7 @@ import { Layout } from "./components/Layout";
 import { Toast, ToastTone } from "./components/Toast";
 import { ExercisesScreen } from "./screens/ExercisesScreen";
 import { HomeScreen } from "./screens/HomeScreen";
+import { MaterialsScreen } from "./screens/MaterialsScreen";
 import { ReadingScreen } from "./screens/ReadingScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { SubscriptionScreen } from "./screens/SubscriptionScreen";
@@ -23,6 +24,7 @@ import {
   LessonHomeStatus,
   ReadingHomeStatus,
 } from "./types/homeProgress";
+import { MaterialsTab } from "./types/materials";
 import { SubscriptionPlanType } from "./types/subscription";
 import { AppUser, SaveUserSettingsInput } from "./types/user";
 
@@ -31,6 +33,7 @@ type ScreenId =
   | "exercises"
   | "reading"
   | "vocabulary"
+  | "materials"
   | "settings"
   | "subscription";
 
@@ -39,6 +42,8 @@ export default function App() {
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [materialsInitialTab, setMaterialsInitialTab] =
+    useState<MaterialsTab>("texts");
   const [activatingPlan, setActivatingPlan] =
     useState<SubscriptionPlanType | null>(null);
   const [toastText, setToastText] = useState<string | null>(null);
@@ -214,6 +219,11 @@ export default function App() {
     setCurrentScreen("reading");
   };
 
+  const openMaterials = (tab: MaterialsTab) => {
+    setMaterialsInitialTab(tab);
+    setCurrentScreen("materials");
+  };
+
   const handleNavChange = (nextScreen: string) => {
     const target = nextScreen as ScreenId;
     if (
@@ -256,6 +266,7 @@ export default function App() {
           <HomeScreen
             onNavigate={handleNavChange}
             onOpenLesson={openLesson}
+            onOpenMaterials={openMaterials}
             onOpenSubscription={() => setCurrentScreen("subscription")}
             userName={appUser?.firstName}
             streakDays={streakDays}
@@ -290,6 +301,13 @@ export default function App() {
             onBack={() => setCurrentScreen("home")}
           />
         );
+      case "materials":
+        return (
+          <MaterialsScreen
+            onBack={() => setCurrentScreen("home")}
+            initialTab={materialsInitialTab}
+          />
+        );
       case "settings":
         return (
           <SettingsScreen
@@ -314,6 +332,7 @@ export default function App() {
           <HomeScreen
             onNavigate={handleNavChange}
             onOpenLesson={openLesson}
+            onOpenMaterials={openMaterials}
             onOpenSubscription={() => setCurrentScreen("subscription")}
             userName={appUser?.firstName}
             streakDays={streakDays}
@@ -340,7 +359,9 @@ export default function App() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
       <Layout
         activeNav={
-          currentScreen === "settings" || currentScreen === "subscription"
+          currentScreen === "settings" ||
+          currentScreen === "subscription" ||
+          currentScreen === "materials"
             ? "home"
             : currentScreen
         }

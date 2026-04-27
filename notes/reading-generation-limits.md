@@ -23,6 +23,7 @@
 - `public.reading_generation_attempts` — одна строка на списанную попытку.
 - `public.user_active_reading_texts` — текущий непрочитанный текст, одна строка на пользователя.
 - `public.user_daily_reading_completions` — факт завершения чтения за конкретную дату.
+- `public.user_completed_reading_texts` — snapshot завершенного текста для истории пользователя.
 
 Таблицы создаются миграцией:
 - `supabase/migrations/20260423120000_add_reading_generation_limits.sql`
@@ -37,7 +38,14 @@ RPC берет transaction-level advisory lock на пару `user_id + attempt_
 - `public.complete_daily_reading_text(...)`
 - миграция: `supabase/migrations/20260427172000_complete_daily_reading_text.sql`
 
-RPC одним DB-действием проверяет наличие активного текста, записывает completion, удаляет active text и заполняет `users.first_text_completed_at`, если это первый текст пользователя.
+RPC одним DB-действием проверяет наличие активного текста, записывает completion, сохраняет snapshot текста в историю, удаляет active text и заполняет `users.first_text_completed_at`, если это первый текст пользователя.
+
+История прочитанных текстов хранится отдельно:
+- таблица: `public.user_completed_reading_texts`
+- миграция: `supabase/migrations/20260427181000_create_user_completed_reading_texts.sql`
+
+При завершении чтения RPC копирует активный текст в историю перед удалением active text:
+- миграция: `supabase/migrations/20260427181100_complete_daily_reading_text_history.sql`
 
 RLS включен, frontend policies не добавлены.
 Доступ идет через Edge Functions с `SUPABASE_SERVICE_ROLE_KEY`.
@@ -61,8 +69,14 @@ RLS включен, frontend policies не добавлены.
 - транзакционно завершает чтение через RPC `complete_daily_reading_text`
 - требует наличие активного текста
 - пишет строку в `user_daily_reading_completions`
+- сохраняет snapshot текста в `user_completed_reading_texts`
 - удаляет активный текст
 - если это первый прочитанный текст, заполняет `users.first_text_completed_at`
+
+`get-reading-history`:
+- валидирует `Telegram initData`
+- возвращает завершенные тексты пользователя из `user_completed_reading_texts`
+- поддерживает cursor-пагинацию через `limit` и `cursor`
 
 `auth-telegram`:
 - дополнительно возвращает `homeProgress.reading.status` для главного экрана:
@@ -73,14 +87,17 @@ RLS включен, frontend policies не добавлены.
 ## 5) Frontend behavior
 Файл:
 - `src/services/readingService.ts`
+- `src/services/materialsService.ts`
 
 Сервисные методы:
 - `getReadingState()`
 - `generateReadingText()`
 - `completeReadingText()`
+- `getReadingHistory()`
 
 Файл:
 - `src/screens/ReadingScreen.tsx`
+- `src/screens/MaterialsScreen.tsx`
 
 Поведение UI:
 - при входе загружает состояние с сервера
@@ -90,6 +107,7 @@ RLS включен, frontend policies не добавлены.
 - если новая генерация упала, показывает ошибку, а предыдущий активный текст снова виден
 - после завершения текста очищает экран и блокирует генерацию до следующего дня
 - главная карточка `Текст` использует серверный `homeProgress.reading.status`
+- раздел `Мои материалы` показывает завершенные тексты карточками-превью и догружает историю кнопкой `Показать еще`
 
 ## 6) Local dev reset
 Для полного сброса локальной БД:
@@ -104,6 +122,7 @@ npx supabase db reset
 truncate table
   public.reading_generation_attempts,
   public.user_active_reading_texts,
+  public.user_completed_reading_texts,
   public.user_daily_reading_completions;
 
 update public.users
@@ -114,4 +133,4 @@ where telegram_user_id = 999000001;
 ## 7) Future improvements
 - Вынести Telegram initData validation в общий модуль Edge Functions.
 - Вынести расчет московской даты в общий helper.
-- Добавить историю прочитанных текстов, если продуктово понадобится аналитика или повторное открытие.
+- Добавить детальный просмотр текста из истории, если продуктово понадобится повторное открытие полного текста.

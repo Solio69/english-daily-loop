@@ -53,7 +53,13 @@ Frontend policies для этих таблиц не добавлены. Дост
 `complete-reading-text`:
 - валидирует Telegram `initData`
 - завершает дневное чтение через RPC `complete_daily_reading_text`
+- сохраняет snapshot прочитанного текста в `user_completed_reading_texts`
 - возвращает актуальный `streakDays`
+
+`get-reading-history`:
+- валидирует Telegram `initData`
+- возвращает историю прочитанных текстов текущего пользователя
+- использует cursor-пагинацию, чтобы история могла расти без offset-запросов
 
 `activate-subscription`:
 - валидирует Telegram `initData`
@@ -71,6 +77,7 @@ Frontend policies для этих таблиц не добавлены. Дост
 - берет transaction-level advisory lock на пользователя и дату завершения
 - проверяет наличие active text
 - пишет или обновляет дневной completion
+- копирует active text в историю завершенных текстов
 - удаляет active text
 - заполняет `users.first_text_completed_at` для онбординга
 

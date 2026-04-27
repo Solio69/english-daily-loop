@@ -446,6 +446,8 @@ async function main() {
       // TODO: Keep this local Edge Function list in sync with reading flow functions.
       "complete-reading-text",
       "get-reading-state",
+      // TODO: Keep materials history Edge Function available in local Telegram Mini App runs.
+      "get-reading-history",
       "generate-reading-text",
       "--env-file",
       ".env.local",

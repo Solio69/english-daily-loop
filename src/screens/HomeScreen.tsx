@@ -3,6 +3,8 @@ import {
   Clock,
   Crown,
   Flame,
+  BookOpen,
+  BookText,
   Settings,
   Target,
   WalletCards,
@@ -15,11 +17,13 @@ import {
   LessonHomeStatus,
   ReadingHomeStatus,
 } from "../types/homeProgress";
+import { MaterialsTab } from "../types/materials";
 import { SubscriptionSummary } from "../types/subscription";
 
 type HomeScreenProps = {
   onNavigate: (screen: string) => void;
   onOpenLesson: () => void;
+  onOpenMaterials: (tab: MaterialsTab) => void;
   onOpenSubscription: () => void;
   userName?: string | null;
   streakDays?: number;
@@ -58,6 +62,7 @@ const STATUS_STYLES: Record<
 export const HomeScreen: React.FC<HomeScreenProps> = ({
   onNavigate,
   onOpenLesson,
+  onOpenMaterials,
   onOpenSubscription,
   userName,
   streakDays = 0,
@@ -101,14 +106,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       : "not_started";
 
   return (
-    <div className="p-4 space-y-8">
-      <header className="space-y-6">
+    <div className="px-4 py-3 space-y-4">
+      <header className="space-y-4">
         <div className="flex justify-between items-center">
           <div>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               С возвращением,
             </p>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            <h1 className="text-[26px] leading-8 font-bold text-gray-900 dark:text-white">
               {userName ?? "Пользователь"}!
             </h1>
           </div>
@@ -132,8 +137,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-          <div className="flex justify-between items-center gap-3 mb-4">
+        <div className="bg-white dark:bg-gray-800 p-3.5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+          <div className="flex justify-between items-center gap-3 mb-3">
             <h2 className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
               Прогресс за день
             </h2>
@@ -154,7 +159,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </button>
           </div>
 
-          <div className="flex justify-between mb-4">
+          <div className="flex justify-between mb-3">
             <div className="flex items-center gap-2">
               <div
                 className={`p-1.5 rounded-full ${STATUS_STYLES[exerciseStatus].icon}`}
@@ -208,7 +213,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </div>
           </div>
 
-          <div className="flex gap-1.5 pt-3 border-t border-gray-50 dark:border-gray-700">
+          <div className="flex gap-1.5 pt-2.5 border-t border-gray-50 dark:border-gray-700">
             <span className="px-2 py-0.5 bg-gray-50 dark:bg-gray-700 rounded text-[10px] text-gray-500 dark:text-gray-400">
               {exerciseMinutes ?? 5}м Упр
             </span>
@@ -244,34 +249,77 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </div>
         </section>
       ) : (
-        <section className="bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-          <h2 className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">
-            План на сегодня
-          </h2>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-bold text-lg text-gray-900 dark:text-white">
-                Урок на сегодня
-              </p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {lessonDescription}
-              </p>
-            </div>
-            {isLessonCompleted ? (
-              <div className="flex items-center gap-1.5 text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-3 py-1.5 rounded-full text-xs font-medium">
-                <CheckCircle2 size={14} />
-                <span>Завершено</span>
+        <>
+          <section className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+            <h2 className="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">
+              План на сегодня
+            </h2>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-bold text-base text-gray-900 dark:text-white">
+                  Урок на сегодня
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {lessonDescription}
+                </p>
               </div>
-            ) : (
-              <Button
-                onClick={onOpenLesson}
-                className="rounded-full px-5 dark:bg-orange-500 dark:hover:bg-orange-600"
-              >
-                {lessonButtonLabel}
-              </Button>
-            )}
-          </div>
-        </section>
+              {isLessonCompleted ? (
+                <div className="flex items-center gap-1.5 text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-3 py-1.5 rounded-full text-xs font-medium">
+                  <CheckCircle2 size={14} />
+                  <span>Завершено</span>
+                </div>
+              ) : (
+                <Button
+                  onClick={onOpenLesson}
+                  className="shrink-0 rounded-full px-4 py-1.5 text-sm dark:bg-orange-500 dark:hover:bg-orange-600"
+                >
+                  {lessonButtonLabel}
+                </Button>
+              )}
+            </div>
+          </section>
+
+          <section className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                    Мои материалы
+                  </h2>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => onOpenMaterials("texts")}
+                  className="rounded-xl bg-gray-50 dark:bg-gray-700/70 p-2.5 text-left transition-colors hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  <div className="flex items-center gap-2 text-gray-700 dark:text-gray-200">
+                    <BookOpen size={16} className="text-green-500 dark:text-orange-300" />
+                    <span className="text-sm font-semibold">Тексты</span>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    История чтения
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onOpenMaterials("vocabulary")}
+                  className="rounded-xl bg-gray-50 dark:bg-gray-700/70 p-2.5 text-left transition-colors hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  <div className="flex items-center gap-2 text-gray-700 dark:text-gray-200">
+                    <BookText size={16} className="text-green-500 dark:text-orange-300" />
+                    <span className="text-sm font-semibold">Словарь</span>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Скоро
+                  </p>
+                </button>
+              </div>
+            </div>
+          </section>
+        </>
       )}
     </div>
   );

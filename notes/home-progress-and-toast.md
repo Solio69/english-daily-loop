@@ -40,8 +40,10 @@ Frontend:
 - `src/types/homeProgress.ts`
 - `src/types/user.ts`
 - `src/services/userService.ts`
+- `src/services/materialsService.ts`
 - `src/App.tsx`
 - `src/screens/HomeScreen.tsx`
+- `src/screens/MaterialsScreen.tsx`
 - `src/screens/ReadingScreen.tsx`
 
 ## 4) Поведение UI
@@ -62,6 +64,14 @@ Frontend:
 - показывает `streakDays`
 - после завершения текста обновляется на клиенте сразу из ответа `complete-reading-text`
 - после нового bootstrap получает актуальное значение из `auth-telegram`
+
+Карточка `Мои материалы`:
+- находится на главной под дневным планом
+- содержит плитки `Тексты` и `Словарь`
+- плитка `Тексты` открывает экран материалов на табе текстов
+- плитка `Словарь` открывает экран материалов на табе словаря
+- таб `Тексты` показывает историю завершенных чтений
+- таб `Словарь` пока зарезервирован под будущий словарь слов на повторении
 
 Локальные обновления на клиенте:
 - после генерации текста `lesson.status` и `reading.status` переходят в `in_progress`

@@ -14,6 +14,7 @@ Telegram Mini App для ежедневной практики английск�
 - Серверные дневные лимиты генерации текста.
 - Активный непрочитанный текст на пользователя.
 - Завершение дневного чтения и streak по дням.
+- Раздел `Мои материалы` с историей прочитанных текстов и местом под будущий словарь.
 - MVP-подписки: `free` и `paid` тарифное состояние без реальных платежей.
 - Локальный запуск всего стека одной командой через `npm run dev:all`.
 
@@ -61,8 +62,10 @@ auth. Он только отображает состояние, которое 
   использованные попытки и факт завершения чтения за день.
 - `generate-reading-text` — атомарно списывает попытку, вызывает OpenRouter, валидирует ответ модели
   и сохраняет активный текст.
-- `complete-reading-text` — транзакционно завершает дневное чтение, удаляет активный текст
-  и обновляет streak.
+- `complete-reading-text` — транзакционно завершает дневное чтение, сохраняет snapshot текста
+  в историю, удаляет активный текст и обновляет streak.
+- `get-reading-history` — возвращает историю прочитанных текстов текущего пользователя
+  с cursor-пагинацией.
 
 Все чувствительные операции выполняются на сервере. `TELEGRAM_BOT_TOKEN`,
 `SUPABASE_SERVICE_ROLE_KEY` и `OPENROUTER_API_KEY` нельзя использовать в клиентском коде.
@@ -77,6 +80,7 @@ auth. Он только отображает состояние, которое 
 - `public.reading_generation_attempts`
 - `public.user_active_reading_texts`
 - `public.user_daily_reading_completions`
+- `public.user_completed_reading_texts`
 - `public.user_subscriptions`
 
 Дневной цикл считается по timezone `Europe/Moscow`.
@@ -88,7 +92,7 @@ auth. Он только отображает состояние, которое 
 Критичные операции, где важна защита от параллельных запросов, вынесены в Postgres RPC:
 
 - `public.claim_reading_generation_attempt(...)` — проверяет дневной лимит и создает attempt одним DB-действием.
-- `public.complete_daily_reading_text(...)` — завершает чтение, пишет completion, удаляет active text и обновляет onboarding-флаг.
+- `public.complete_daily_reading_text(...)` — завершает чтение, пишет completion, сохраняет snapshot текста в историю, удаляет active text и обновляет onboarding-флаг.
 - `public.activate_mvp_subscription(...)` — активирует или планирует MVP-подписку с advisory lock по пользователю.
 
 Текущие MVP-лимиты:
@@ -243,6 +247,7 @@ pnpm build
 - `notes/server-side-data-guards.md` — серверные границы доступа, RLS и транзакционные RPC.
 - `notes/text-generation-pipeline.md` — AI-пайплайн генерации текста.
 - `notes/reading-generation-limits.md` — дневные попытки и активный текст.
+- `notes/materials-and-reading-history.md` — раздел `Мои материалы` и история прочитанных текстов.
 - `notes/subscriptions.md` — MVP-модель подписок.
 - `notes/home-progress-and-toast.md` — прогресс главного экрана и toast-сообщения.
 - `notes/production-readiness.md` — что нужно пересмотреть перед production.
