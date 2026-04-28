@@ -3,6 +3,9 @@
 Этот документ для разработчиков проекта `english-daily-loop`.
 Цель: быстро поднять приложение локально, открыть его внутри Telegram и видеть runtime-логи в одном терминале.
 
+Для локальной разработки без Telegram есть отдельный browser-режим. Он описан ниже и нужен
+только для проверки dev-сценариев.
+
 ## 1. Что нужно один раз подготовить
 
 1. Установить зависимости проекта:
@@ -27,14 +30,14 @@
 - `TELEGRAM_BOT_TOKEN`
 - `VITE_SUPABASE_ANON_KEY`
 - `VITE_ENABLE_DEV_AUTH_FALLBACK="false"` (для реальной Telegram-авторизации)
-- `VITE_SUPABASE_URL` (будет автоматически обновляться скриптом `dev:all`)
+- `VITE_SUPABASE_URL` (будет автоматически обновляться скриптом `dev:telegram`)
 
 Важно: не коммитить `.env.local` в git.
 
 ## 3. Ежедневный запуск (основной сценарий)
 
 1. Запустить всё одной командой:
-   `npm run dev:all`
+   `npm run dev:telegram`
 
 2. Дождаться блоков в терминале:
 
@@ -58,18 +61,72 @@
 - `[db]` — Postgres
 - `[tunnel-frontend]`, `[tunnel-api]` — cloudflared
 
-## 4. Что делает `dev:all` под капотом
+## 4. Что делает `dev:telegram` под капотом
 
-Скрипт `scripts/dev-all.mjs`:
+Скрипт `scripts/dev-stack.mjs` в Telegram mode:
 
 1. Поднимает локальный Supabase (`npx supabase start`)
 2. Запускает фронт (`pnpm dev`)
-3. Запускает функцию `auth-telegram` (`npx supabase functions serve ...`)
+3. Запускает Edge Functions (`npx supabase functions serve ...`)
 4. Поднимает 2 HTTPS tunnel:
    - frontend: `localhost:3000`
    - API: `localhost:55421`
 5. Автоматически обновляет `VITE_SUPABASE_URL` в `.env.local` значением API tunnel URL
 6. Печатает `STARTUP SUMMARY` с короткой инструкцией
+
+## 4.1 Browser-режим для локальных сценариев
+
+Browser-режим нужен только для разработки и проверки заранее подготовленных состояний.
+В production приложение работает внутри Telegram.
+
+Пример запуска:
+
+```bash
+npm run dev:browser -- active-text
+```
+
+Что делает browser mode:
+
+- поднимает локальный Supabase;
+- запускает frontend и Edge Functions;
+- не запускает tunnels;
+- ставит `VITE_SUPABASE_URL="http://127.0.0.1:55421"`;
+- включает `VITE_ENABLE_DEV_AUTH_FALLBACK="true"`;
+- ставит `VITE_DEV_TELEGRAM_USER_ID` под выбранный сценарий.
+
+Открывать:
+
+```text
+http://localhost:3000
+```
+
+Доступные сценарии:
+
+- `fresh` — новый пользователь без настроек;
+- `onboarded` — настройки сохранены, первый текст еще не прочитан;
+- `active-text` — есть активный текст;
+- `completed-today` — чтение сегодня уже завершено;
+- `paid` — активная paid-подписка;
+- `history` — есть история прочитанных текстов.
+
+Если сценарий не указан, используется `fresh`.
+
+Важно: browser mode не подменяет AI. Генерация текста использует реальный `OPENROUTER_API_KEY`
+и текущий серверный flow.
+
+Dev-сценарии хранятся в `supabase/seed.sql`. Чтобы применить seed-сценарии в локальной БД,
+используется полный reset:
+
+```bash
+npx supabase db reset
+```
+
+Эта команда пересоздает локальную БД и удаляет текущие локальные данные. Для применения только
+новых миграций без пересоздания БД используется:
+
+```bash
+npx supabase migration up
+```
 
 ## 5. Где смотреть, прошла ли Telegram-авторизация
 
@@ -89,7 +146,7 @@
 
 1. Пустая страница или не тот frontend URL  
 Причина: уже запущен другой Vite на `3000`, новый ушел на `3001`, а tunnel смотрит на `3000`.  
-Что делать: остановить лишние dev-процессы и запустить `npm run dev:all` заново.
+Что делать: остановить лишние dev-процессы и запустить `npm run dev:telegram` заново.
 
 2. `503 BOOT_ERROR / Worker failed to boot` в `auth-telegram`  
 Причина: ошибка в Deno-конфиге/функции (часто битый `deno.json`, BOM, синтаксис).  
@@ -105,11 +162,11 @@
 
 5. Tunnel URL не работает  
 Причина: Quick tunnel временный и может умереть.  
-Что делать: перезапустить `npm run dev:all`, взять новые URL и снова обновить `/setmenubutton`.
+Что делать: перезапустить `npm run dev:telegram`, взять новые URL и снова обновить `/setmenubutton`.
 
 ## 7. Остановка
 
-1. Остановить foreground-процессы: `Ctrl + C` в терминале `dev:all`
+1. Остановить foreground-процессы: `Ctrl + C` в терминале `dev:telegram`
 2. Остановить Supabase контейнеры:
    `npm run dev:stop`
 

@@ -16,7 +16,8 @@ Telegram Mini App для ежедневной практики английск�
 - Завершение дневного чтения и streak по дням.
 - Раздел `Мои материалы` с историей прочитанных текстов и местом под будущий словарь.
 - MVP-подписки: `free` и `paid` тарифное состояние без реальных платежей.
-- Локальный запуск всего стека одной командой через `npm run dev:all`.
+- Локальный запуск Telegram-режима через `npm run dev:telegram`.
+- Локальный browser-режим для dev-сценариев через `npm run dev:browser -- <scenario>`.
 
 ## Стек
 
@@ -43,7 +44,7 @@ Postgres и Supabase Edge Functions.
 - `supabase/migrations` — схема базы данных.
 - `supabase/functions` — серверная логика, которая выполняется в Deno runtime.
 - `notes` — проектные решения и текущие ограничения.
-- `scripts/dev-all.mjs` — локальная инфраструктура разработки.
+- `scripts/dev-stack.mjs` и `scripts/dev/*` — локальная инфраструктура разработки.
 - `tools` — локальные утилиты вроде `cloudflared.exe`; папка не коммитится.
 
 Важный принцип: фронт не принимает security/business-решения по лимитам, подписке и Telegram
@@ -147,13 +148,13 @@ AI-ключи, Telegram token и service role key должны оставать�
 pnpm install
 ```
 
-Запустить весь локальный стек:
+Запустить локальный стек для Telegram:
 
 ```bash
-npm run dev:all
+npm run dev:telegram
 ```
 
-`dev:all` делает следующее:
+`dev:telegram` делает следующее:
 
 - запускает локальный Supabase;
 - запускает Vite frontend на `localhost:3000`;
@@ -165,7 +166,38 @@ npm run dev:all
 - печатает `STARTUP SUMMARY` с URL для BotFather.
 
 Если в summary указано `Frontend restart required: YES`, останови процесс через `Ctrl + C`
-и запусти `npm run dev:all` еще раз.
+и запусти `npm run dev:telegram` еще раз.
+
+Для локальной разработки в браузере можно запустить сценарный режим:
+
+```bash
+npm run dev:browser -- active-text
+```
+
+Он не поднимает tunnel, включает dev fallback, выбирает локального dev-пользователя
+и открывается по адресу `http://localhost:3000`.
+
+Доступные сценарии:
+
+- `fresh`
+- `onboarded`
+- `active-text`
+- `completed-today`
+- `paid`
+- `history`
+
+Сценарии хранятся в `supabase/seed.sql`. Seed применяется при полном reset локальной БД:
+
+```bash
+npx supabase db reset
+```
+
+`db reset` пересоздает локальную БД и удаляет текущие локальные данные. Для применения только
+новых миграций без пересоздания БД используется:
+
+```bash
+npx supabase migration up
+```
 
 Остановить локальный Supabase:
 
@@ -175,7 +207,7 @@ npm run dev:stop
 
 ## Запуск внутри Telegram
 
-После `npm run dev:all` дождись `STARTUP SUMMARY`.
+После `npm run dev:telegram` дождись `STARTUP SUMMARY`.
 
 В BotFather:
 
@@ -205,10 +237,16 @@ pnpm dev
 Запускает только frontend.
 
 ```bash
-npm run dev:all
+npm run dev:telegram
 ```
 
-Запускает локальную инфраструктуру для Telegram Mini App.
+Запускает локальную инфраструктуру для Telegram Mini App с tunnels и реальным Telegram `initData`.
+
+```bash
+npm run dev:browser -- active-text
+```
+
+Запускает локальную инфраструктуру для браузера без tunnels и включает выбранный dev-сценарий.
 
 ```bash
 npm run dev:stop
@@ -234,7 +272,8 @@ pnpm build
 - Общие типы держать в `src/types`.
 - Серверные проверки Telegram `initData`, лимитов и подписок должны оставаться в Edge Functions.
 - Edge Functions работают в Deno runtime и исключены из корневого frontend `tsconfig.json`.
-- После изменения Edge Functions или server env нужно перезапустить `npm run dev:all`.
+- После изменения Edge Functions или server env нужно перезапустить активный dev-режим:
+  `npm run dev:telegram` или `npm run dev:browser -- <scenario>`.
 - После существенных изменений стоит запускать минимум `pnpm lint`.
 
 ## Документация проекта
@@ -250,4 +289,5 @@ pnpm build
 - `notes/materials-and-reading-history.md` — раздел `Мои материалы` и история прочитанных текстов.
 - `notes/subscriptions.md` — MVP-модель подписок.
 - `notes/home-progress-and-toast.md` — прогресс главного экрана и toast-сообщения.
+- `notes/dev-mode-dx.md` — локальные режимы запуска и browser dev-сценарии.
 - `notes/production-readiness.md` — что нужно пересмотреть перед production.

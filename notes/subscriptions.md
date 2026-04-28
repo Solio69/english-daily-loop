@@ -107,7 +107,7 @@ npx supabase migration up
 npx supabase db reset
 ```
 
-- `npm run dev:all` поднимает `activate-subscription` вместе с остальными Edge Functions.
+- `npm run dev:telegram` и `npm run dev:browser -- <scenario>` поднимают `activate-subscription` вместе с остальными Edge Functions.
 
 ## 8) Current limitations
 - Реальная платежная система не подключена.

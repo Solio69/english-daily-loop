@@ -10,7 +10,8 @@
 - Целевой продукт: Telegram Mini App.
 - Вектор по данным: Supabase (Postgres).
 - Локальная инфраструктура уже настроена: Docker + WSL + Supabase local.
-- Единый запуск локальной инфраструктуры: `npm run dev:all` (frontend + Supabase + Edge Functions + Cloudflare tunnels + логи DB/API + startup summary + автообновление `VITE_SUPABASE_URL` в `.env.local`).
+- Локальный Telegram-запуск: `npm run dev:telegram` (frontend + Supabase + Edge Functions + Cloudflare tunnels + логи DB/API + startup summary + автообновление `VITE_SUPABASE_URL` в `.env.local`).
+- Локальный browser-запуск для dev-сценариев: `npm run dev:browser -- <scenario>` (frontend + Supabase + Edge Functions без tunnels, с dev fallback).
 - Отдельного backend-сервера (Express) сейчас нет; backend-слой представлен Supabase API + Edge Functions.
 - Папка `tools/` используется для локальных утилит запуска (например, `cloudflared.exe`) и не коммитится.
 
@@ -170,12 +171,16 @@
 - После нажатия "Завершить текст" генерация в текущий день блокируется, активный текст удаляется; новый дневной цикл открывается после `00:00` по `Europe/Moscow`.
 - Верхние toast-сообщения вынесены в единый компонент `src/components/Toast.tsx` с тонами `default`, `onboarding`, `success`, `error`.
 - `vite.config.ts` разрешает внешние tunnel host'ы (`.trycloudflare.com`, `.loca.lt`) для запуска Mini App через Telegram.
-- `npm run dev:all` автоматически поднимает frontend/API туннели и печатает `STARTUP SUMMARY` с двумя URL:
+- `npm run dev:telegram` автоматически поднимает frontend/API туннели и печатает `STARTUP SUMMARY` с двумя URL:
   - `BotFather /setmenubutton URL` = FRONTEND TUNNEL URL
   - `.env.local VITE_SUPABASE_URL` = SUPABASE API TUNNEL URL.
-- `npm run dev:all` поднимает Edge Functions `auth-telegram`, `save-user-settings`, `activate-subscription`, `complete-reading-text`, `get-reading-state`, `get-reading-history` и `generate-reading-text`.
-- Логи в `dev:all` цветные по источнику (`[frontend]`, `[edge]`, `[db]`, `[api]`, `[tunnel-*]`), HTTP-методы и статус-коды дополнительно подсвечиваются.
-- `// TODO:` после изменения кода Edge Functions или server env для OpenRouter (`OPENROUTER_MODEL_*`, `OPENROUTER_API_KEY`) перезапускать `npm run dev:all`, чтобы локальная среда подхватила актуальную версию функций и env.
-- Если в summary указано `Frontend restart required: YES`, нужно перезапустить `dev:all`.
-- Для локального старта использовать `npm run dev:all`, для остановки Supabase: `npm run dev:stop`.
+- `npm run dev:telegram` запускает production-like локальный режим для Telegram: Supabase + frontend + Edge Functions + Cloudflare tunnels, dev fallback выключен.
+- `npm run dev:browser -- <scenario>` запускает локальный browser-режим без tunnels, включает dev fallback и выбирает dev-пользователя из seed-сценариев.
+- Browser dev-сценарии из `supabase/seed.sql`: `fresh`, `onboarded`, `active-text`, `completed-today`, `paid`, `history`.
+- Dev-сценарии применяются через `npx supabase db reset`; эта команда пересоздает локальную БД и удаляет текущие локальные данные. Новые миграции без пересоздания БД применяются через `npx supabase migration up`.
+- `npm run dev:telegram` и `npm run dev:browser -- <scenario>` поднимают Edge Functions `auth-telegram`, `save-user-settings`, `activate-subscription`, `complete-reading-text`, `get-reading-state`, `get-reading-history` и `generate-reading-text`.
+- Логи в dev-режимах цветные по источнику (`[frontend]`, `[edge]`, `[db]`, `[api]`, `[tunnel-*]`), HTTP-методы и статус-коды дополнительно подсвечиваются.
+- `// TODO:` после изменения кода Edge Functions или server env для OpenRouter (`OPENROUTER_MODEL_*`, `OPENROUTER_API_KEY`) перезапускать активный dev-режим, чтобы локальная среда подхватила актуальную версию функций и env.
+- Если в summary указано `Frontend restart required: YES`, нужно перезапустить `npm run dev:telegram`.
+- Для локального Telegram-старта использовать `npm run dev:telegram`, для browser-сценариев `npm run dev:browser -- <scenario>`, для остановки Supabase: `npm run dev:stop`.
 
