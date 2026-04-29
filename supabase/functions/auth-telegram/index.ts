@@ -40,7 +40,6 @@ const CORS_HEADERS = {
 
 const MAX_AUTH_AGE_SECONDS = 24 * 60 * 60;
 const MOSCOW_TIME_ZONE = "Europe/Moscow";
-const DEV_TELEGRAM_USER_ID = 999000001;
 const FREE_LIMITS = {
   dailyReadingGenerations: 3,
   vocabularyWordsLimit: 30,
@@ -263,45 +262,17 @@ const mapSettings = (row: UserSettingsRow | null) =>
     : null;
 
 const getTelegramUserFromRequest = async (
-  body: { initData?: unknown; devTelegramUserId?: unknown },
+  body: { initData?: unknown },
   botToken: string,
 ): Promise<TelegramUser> => {
   const initData =
     typeof body?.initData === "string" ? body.initData.trim() : "";
 
-  if (initData) {
-    return validateTelegramInitData(initData, botToken);
-  }
-
-  const isDevFallbackEnabled =
-    Deno.env.get("VITE_ENABLE_DEV_AUTH_FALLBACK")?.trim() === "true";
-
-  if (!isDevFallbackEnabled) {
+  if (!initData) {
     fail(400, "INIT_DATA_REQUIRED", "initData is required.");
   }
 
-  const configuredDevTelegramUserId = Number(
-    Deno.env.get("VITE_DEV_TELEGRAM_USER_ID")?.trim() || DEV_TELEGRAM_USER_ID,
-  );
-  const requestedDevTelegramUserId =
-    typeof body?.devTelegramUserId === "number"
-      ? body.devTelegramUserId
-      : configuredDevTelegramUserId;
-
-  if (
-    !Number.isSafeInteger(requestedDevTelegramUserId) ||
-    requestedDevTelegramUserId !== configuredDevTelegramUserId
-  ) {
-    fail(403, "DEV_AUTH_FORBIDDEN", "Dev auth fallback is not allowed.");
-  }
-
-  return {
-    id: requestedDevTelegramUserId,
-    username: "dev_user",
-    first_name: "Dev",
-    last_name: "User",
-    language_code: "ru",
-  };
+  return validateTelegramInitData(initData, botToken);
 };
 
 const getUserSettings = async (
@@ -489,7 +460,6 @@ Deno.serve(async (req: Request) => {
 
     let body: {
       initData?: unknown;
-      devTelegramUserId?: unknown;
     };
     try {
       body = (await req.json()) as typeof body;

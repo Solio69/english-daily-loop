@@ -1,15 +1,11 @@
 # Режим разработки / DX
 
-## 1) Область документа
-Документ фиксирует локальные режимы запуска приложения и dev-сценарии пользователей.
+## 1) Назначение
+Документ фиксирует текущий локальный режим разработки приложения.
 
-Production-цель приложения не меняется: приложение работает внутри Telegram Mini App.
-Browser-режим нужен только для локальной разработки, быстрого UI/debug цикла и проверки
-заранее подготовленных состояний.
+Приложение является Telegram Mini App, поэтому основной и единственный dev-запуск для проверки пользовательского flow идет внутри Telegram.
 
-## 2) Режимы запуска
-
-### Telegram mode
+## 2) Локальный Telegram-режим
 
 Команда:
 
@@ -18,78 +14,31 @@ npm run dev:telegram
 ```
 
 Что делает:
+
 - запускает локальный Supabase;
 - запускает Vite frontend;
-- запускает Edge Functions;
+- запускает Supabase Edge Functions;
 - запускает Cloudflare tunnels для frontend и Supabase API;
-- выключает `VITE_ENABLE_DEV_AUTH_FALLBACK`;
 - обновляет `VITE_SUPABASE_URL` в `.env.local` на API tunnel URL;
-- печатает URL для BotFather.
+- печатает URL для BotFather и краткий startup summary.
 
-Этот режим нужен для production-like проверки:
-- настоящий Telegram `initData`;
-- реальный Telegram user;
-- поведение внутри Telegram на телефоне;
-- tunnel/BotFather flow.
+Этот режим использует настоящий Telegram `initData` и реального Telegram-пользователя. Это ближе к production-поведению и не смешивает разработку с браузерными dev-пользователями.
 
-### Browser scenario mode
+## 3) Данные и сценарии
 
-Команда:
+Локальный seed содержит базового dev-пользователя и моковые тексты. Переключение пользовательских сценариев через подмену Telegram-пользователя не используется.
 
-```bash
-npm run dev:browser -- active-text
-```
-
-Что делает:
-- запускает локальный Supabase;
-- запускает Vite frontend;
-- запускает Edge Functions;
-- не запускает tunnels;
-- включает `VITE_ENABLE_DEV_AUTH_FALLBACK`;
-- ставит `VITE_SUPABASE_URL="http://127.0.0.1:55421"`;
-- ставит `VITE_DEV_TELEGRAM_USER_ID` под выбранный сценарий.
-
-Открывать:
-
-```text
-http://localhost:3000
-```
-
-Важно: browser mode не подменяет AI. `generate-reading-text` использует тот же
-`OPENROUTER_API_KEY` и тот же серверный flow, что и Telegram mode.
-
-## 3) Dev-сценарии
-
-Сценарии создаются в `supabase/seed.sql`.
-
-| Scenario | Telegram user id | Состояние |
-| --- | ---: | --- |
-| `fresh` | `999000001` | Новый пользователь без сохраненных настроек |
-| `onboarded` | `999000002` | Настройки сохранены, первый текст еще не прочитан |
-| `active-text` | `999000003` | Есть активный текст, чтение сегодня не завершено |
-| `completed-today` | `999000004` | Чтение на сегодня уже завершено |
-| `paid` | `999000005` | Активная MVP paid-подписка |
-| `history` | `999000006` | Есть история прочитанных текстов |
-
-Если сценарий не указан, используется `fresh`:
-
-```bash
-npm run dev:browser
-```
+Для будущей проверки состояний одного Telegram-пользователя лучше добавить отдельные dev admin reset tools: серверные команды/функции, которые будут менять состояние текущего локального пользователя в БД без `supabase db reset`.
 
 ## 4) Когда нужен reset локальной БД
 
-Seed применяется при полном reset локальной базы:
+Полный reset локальной базы:
 
 ```bash
 npx supabase db reset
 ```
 
-`db reset` пересоздает локальную БД, заново применяет миграции и затем выполняет
-`supabase/seed.sql`. Текущие локальные данные при этом удаляются.
-
-Reset нужен, когда нужно применить обновленный `supabase/seed.sql` или вернуться к базовому
-состоянию dev-сценариев.
+`db reset` пересоздает локальную БД, заново применяет миграции и выполняет `supabase/seed.sql`. Текущие локальные данные при этом удаляются.
 
 Новые миграции без пересоздания локальной БД применяются отдельно:
 
@@ -99,8 +48,6 @@ npx supabase migration up
 
 ## 5) Правила безопасности
 
-- Dev fallback включается только в browser mode.
-- Telegram mode всегда выключает dev fallback.
-- Секреты остаются в `.env.local`.
-- `OPENROUTER_API_KEY`, `TELEGRAM_BOT_TOKEN`, `SUPABASE_SERVICE_ROLE_KEY` не должны
-  попадать во frontend-код и git.
+- Telegram `initData` проверяется только на сервере в Edge Functions.
+- `TELEGRAM_BOT_TOKEN`, `OPENROUTER_API_KEY` и `SUPABASE_SERVICE_ROLE_KEY` остаются только в `.env.local` и не попадают во frontend-код или git.
+- Локальный Telegram-режим не подменяет пользователя и не обходит серверную авторизацию.

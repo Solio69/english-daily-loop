@@ -3,13 +3,7 @@ import { SubscriptionSummary } from "../types/subscription";
 import { HomeProgress } from "../types/homeProgress";
 import { AppUser, SaveUserSettingsInput, UserSettings } from "../types/user";
 
-const DEV_TELEGRAM_USER_ID = Number(
-  import.meta.env.VITE_DEV_TELEGRAM_USER_ID ?? 999000001,
-);
-// TODO: Local launch helper. Keep fallback disabled for real Telegram auth checks.
-const ENABLE_DEV_AUTH_FALLBACK =
-  import.meta.env.VITE_ENABLE_DEV_AUTH_FALLBACK === "true";
-// TODO: Local debugging helper for browser console auth traces.
+// TODO: Local debugging helper for Telegram auth traces.
 const AUTH_DEBUG_ENABLED =
   import.meta.env.DEV || import.meta.env.VITE_DEBUG_AUTH === "true";
 
@@ -160,13 +154,13 @@ const getFunctionErrorMessage = async (
 };
 
 const getAuthenticatedUser = async (
-  body: { initData: string } | { devTelegramUserId: number },
+  initData: string,
 ): Promise<AuthenticatedUserRow> => {
   authLog("Calling auth-telegram function", {
-    source: "initData" in body ? "telegram" : "dev_fallback",
+    source: "telegram",
   });
   const { data, error } = await supabase.functions.invoke("auth-telegram", {
-    body,
+    body: { initData },
   });
 
   if (error) {
@@ -205,21 +199,14 @@ const getAuthenticatedUser = async (
 
 export const getCurrentAppUser = async (): Promise<AppUser> => {
   const initData = getTelegramInitData();
-  const source = initData
-    ? "telegram"
-    : ENABLE_DEV_AUTH_FALLBACK
-      ? "dev_fallback"
-      : "no_auth_source";
+  const source = initData ? "telegram" : "no_auth_source";
   authLog("Selecting user source", { source });
-  const user = initData
-    ? await getAuthenticatedUser({ initData })
-    : ENABLE_DEV_AUTH_FALLBACK
-      ? await getAuthenticatedUser({ devTelegramUserId: DEV_TELEGRAM_USER_ID })
-      : (() => {
-          throw new Error(
-            "Telegram initData не найден. Открой приложение внутри Telegram.",
-          );
-        })();
+  if (!initData) {
+    throw new Error(
+      "Telegram initData не найден. Открой приложение внутри Telegram.",
+    );
+  }
+  const user = await getAuthenticatedUser(initData);
   const settings = user.settings;
   const subscription =
     (user as Partial<AuthenticatedUserRow>).subscription ??
@@ -248,14 +235,12 @@ export const saveCurrentUserSettings = async (
 ): Promise<AppUser> => {
   authLog("Saving user settings", { userId, input });
   const initData = getTelegramInitData();
-  const body = initData
-    ? { initData, settings: input }
-    : ENABLE_DEV_AUTH_FALLBACK
-      ? {
-          devTelegramUserId: DEV_TELEGRAM_USER_ID,
-          settings: input,
-        }
-      : { settings: input };
+  if (!initData) {
+    throw new Error(
+      "Telegram initData не найден. Открой приложение внутри Telegram.",
+    );
+  }
+  const body = { initData, settings: input };
 
   const { data, error } = await supabase.functions.invoke(
     "save-user-settings",

@@ -5,8 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
-    "dev:telegram": "node scripts/dev-stack.mjs --mode=telegram",
-    "dev:browser": "node scripts/dev-stack.mjs --mode=browser",
+    "dev:telegram": "node scripts/dev-stack.mjs",
     "dev:stop": "npx supabase stop",
     "build": "vite build",
     "preview": "vite preview",

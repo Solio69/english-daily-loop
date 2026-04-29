@@ -73,7 +73,7 @@ Server env:
 - если успешный ответ пришел, но не прошел app-level валидацию JSON или длины, Edge Function исключает использованную модель и повторяет запрос по оставшемуся списку
 - timeout запроса к OpenRouter: `45` секунд
 
-`// TODO:` после изменения server env для OpenRouter или кода `generate-reading-text` перезапускать `npm run dev:telegram` или `npm run dev:browser -- <scenario>`, чтобы локальная среда подняла актуальную версию Edge Function
+`// TODO:` после изменения server env для OpenRouter или кода `generate-reading-text` перезапускать `npm run dev:telegram`, чтобы локальная среда подняла актуальную версию Edge Function
 
 Важно:
 - ключ OpenRouter нельзя добавлять во frontend env (`VITE_*`)

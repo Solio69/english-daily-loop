@@ -4,13 +4,9 @@ import process from "node:process";
 import {
   cloudflaredExecutable,
   commands,
-  devScenarios,
   edgeFunctionNames,
-  frontendLocalUrl,
   localApiTunnelTarget,
   localFrontendTunnelTarget,
-  localSupabaseApiUrl,
-  parseDevArgs,
 } from "./dev/config.mjs";
 import { syncEnvValues } from "./dev/env.mjs";
 import { color, useColor, withColor } from "./dev/logging.mjs";
@@ -21,8 +17,6 @@ import {
 } from "./dev/supabase-local.mjs";
 import { attachTunnelUrlExtractor } from "./dev/tunnels.mjs";
 
-const { mode, scenarioName, activeScenario } = parseDevArgs();
-
 let shuttingDown = false;
 const children = [];
 const tunnelUrls = {
@@ -32,30 +26,7 @@ const tunnelUrls = {
 let startupSummaryPrinted = false;
 let frontendRestartRequired = false;
 
-function printUsageAndExit(message) {
-  if (message) {
-    process.stderr.write(`${message}\n\n`);
-  }
-  process.stderr.write("Usage:\n");
-  process.stderr.write("  npm run dev:telegram\n");
-  process.stderr.write("  npm run dev:browser -- <scenario>\n\n");
-  process.stderr.write("Scenarios:\n");
-  for (const [name, scenario] of Object.entries(devScenarios)) {
-    process.stderr.write(
-      `  ${name.padEnd(16)} ${scenario.telegramUserId}  ${scenario.description}\n`,
-    );
-  }
-  process.exit(1);
-}
-
-if (mode !== "telegram" && mode !== "browser") {
-  printUsageAndExit(`Unknown dev mode: ${mode}`);
-}
-
-if (mode === "browser" && !activeScenario) {
-  printUsageAndExit(`Unknown browser scenario: ${scenarioName}`);
-}
-
+// TODO: Local Telegram infra helper; keep API tunnel sync limited to local .env.local updates.
 function syncApiUrlToEnv(apiUrl) {
   const changed = syncEnvValues({
     VITE_SUPABASE_URL: apiUrl,
@@ -151,53 +122,11 @@ function handleTunnelUrl(kind, url) {
   }
 }
 
-function printBrowserStartupSummary() {
-  if (startupSummaryPrinted) return;
-  startupSummaryPrinted = true;
-
-  const scenario = activeScenario ?? devScenarios.fresh;
-  const line = "================ BROWSER DEV SUMMARY ================";
-  process.stdout.write(
-    useColor
-      ? `\n${color.bold}${color.cyan}${line}${color.reset}\n`
-      : `\n${line}\n`,
-  );
-  process.stdout.write(
-    useColor
-      ? `${color.bold}${color.yellow}Scenario:${color.reset} ${scenarioName} (${scenario.telegramUserId})\n`
-      : `Scenario: ${scenarioName} (${scenario.telegramUserId})\n`,
-  );
-  process.stdout.write(`Description: ${scenario.description}\n`);
-  process.stdout.write(
-    useColor
-      ? `Open: ${color.green}${frontendLocalUrl}${color.reset}\n`
-      : `Open: ${frontendLocalUrl}\n`,
-  );
-  process.stdout.write(
-    "Auth: dev fallback is enabled for this local browser run.\n\n",
-  );
-}
-
 function prepareEnv() {
-  if (mode === "browser") {
-    const scenario = activeScenario ?? devScenarios.fresh;
-    process.stdout.write(
-      `Preparing browser dev scenario "${scenarioName}" (${scenario.telegramUserId})...\n`,
-    );
-    syncEnvValues({
-      VITE_SUPABASE_URL: localSupabaseApiUrl,
-      VITE_ENABLE_DEV_AUTH_FALLBACK: "true",
-      VITE_DEV_TELEGRAM_USER_ID: String(scenario.telegramUserId),
-    });
-    return;
-  }
-
   process.stdout.write("Preparing Telegram dev mode...\n");
-  syncEnvValues({
-    VITE_ENABLE_DEV_AUTH_FALLBACK: "false",
-  });
 }
 
+// TODO: Local frontend stays on port 3000 because the Telegram tunnel targets that port.
 function startFrontend() {
   const frontend = spawnLabeled(commands.pnpm, ["dev"], "frontend");
   children.push(frontend);
@@ -238,8 +167,9 @@ function startEdgeFunctions() {
   });
 }
 
+// TODO: Local Telegram-only tunnel orchestration; keep non-Telegram auth bypass out of this stack.
 function startTunnels() {
-  if (mode === "telegram" && existsSync(cloudflaredExecutable)) {
+  if (existsSync(cloudflaredExecutable)) {
     process.stdout.write(
       "[tunnel] starting frontend tunnel (localhost:3000) and api tunnel (localhost:55421)...\n",
     );
@@ -276,14 +206,9 @@ function startTunnels() {
     return;
   }
 
-  if (mode === "telegram") {
-    process.stdout.write(
-      `[tunnel] ${cloudflaredExecutable} not found, skipping tunnel auto-start\n`,
-    );
-    return;
-  }
-
-  process.stdout.write("[tunnel] browser mode, skipping HTTPS tunnels\n");
+  process.stdout.write(
+    `[tunnel] ${cloudflaredExecutable} not found, skipping tunnel auto-start\n`,
+  );
 }
 
 async function startContainerLogs() {
@@ -348,10 +273,6 @@ async function main() {
   startEdgeFunctions();
   startTunnels();
   await startContainerLogs();
-
-  if (mode === "browser") {
-    printBrowserStartupSummary();
-  }
 
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);

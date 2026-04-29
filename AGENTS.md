@@ -11,7 +11,6 @@
 - Вектор по данным: Supabase (Postgres).
 - Локальная инфраструктура уже настроена: Docker + WSL + Supabase local.
 - Локальный Telegram-запуск: `npm run dev:telegram` (frontend + Supabase + Edge Functions + Cloudflare tunnels + логи DB/API + startup summary + автообновление `VITE_SUPABASE_URL` в `.env.local`).
-- Локальный browser-запуск для dev-сценариев: `npm run dev:browser -- <scenario>` (frontend + Supabase + Edge Functions без tunnels, с dev fallback).
 - Отдельного backend-сервера (Express) сейчас нет; backend-слой представлен Supabase API + Edge Functions.
 - Папка `tools/` используется для локальных утилит запуска (например, `cloudflared.exe`) и не коммитится.
 
@@ -84,7 +83,6 @@
   - единый контракт ответа (`ok/data` или `ok/error`).
 - Сохранение настроек пользователя реализовано через Edge Function `supabase/functions/save-user-settings/index.ts`:
   - серверная валидация `Telegram initData`
-  - dev fallback доступен только при явном `VITE_ENABLE_DEV_AUTH_FALLBACK="true"`
   - валидация `english_level`, `daily_exercise_minutes`, `daily_reading_minutes`
   - upsert в `public.user_settings`
   - заполнение `users.settings_completed_at`, если настройки сохраняются впервые
@@ -146,8 +144,7 @@
   - опционально `OPENROUTER_MODEL_TERTIARY`.
 - Для стабильной DX в редакторе: у функции используется `// @ts-nocheck`, а для Deno-окружения есть `supabase/functions/deno.json` и `supabase/functions/deno-globals.d.ts`.
 - На фронте подключен Telegram WebApp SDK (`index.html`) и типы `window.Telegram.WebApp` (`src/types/telegram-webapp.d.ts`).
-- Bootstrap пользователя в `src/services/userService.ts` сначала пытается авторизоваться через `auth-telegram`; dev fallback управляется env-переменной `VITE_ENABLE_DEV_AUTH_FALLBACK`; `AppUser` содержит `subscription`, `homeProgress` и `streakDays`.
-- Dev auth fallback на фронте включается только при явном `VITE_ENABLE_DEV_AUTH_FALLBACK="true"`; значение по умолчанию в `.env.example` — `"false"`.
+- Bootstrap пользователя в `src/services/userService.ts` авторизуется через `auth-telegram` по Telegram `initData`; `AppUser` содержит `subscription`, `homeProgress` и `streakDays`.
 - `src/services/userService.ts` сохраняет настройки через `save-user-settings`; прямых записей в `users` и `user_settings` с клиента нет.
 - На фронте подписка вынесена в `src/services/subscriptionService.ts` и `src/screens/SubscriptionScreen.tsx`; клиент вызывает только `activate-subscription`, прямых записей подписки в БД с фронта нет.
 - Логика чтения вынесена в сервисный слой (`src/services/readingService.ts`), UI-компонент не содержит прямых запросов к БД.
@@ -174,13 +171,11 @@
 - `npm run dev:telegram` автоматически поднимает frontend/API туннели и печатает `STARTUP SUMMARY` с двумя URL:
   - `BotFather /setmenubutton URL` = FRONTEND TUNNEL URL
   - `.env.local VITE_SUPABASE_URL` = SUPABASE API TUNNEL URL.
-- `npm run dev:telegram` запускает production-like локальный режим для Telegram: Supabase + frontend + Edge Functions + Cloudflare tunnels, dev fallback выключен.
-- `npm run dev:browser -- <scenario>` запускает локальный browser-режим без tunnels, включает dev fallback и выбирает dev-пользователя из seed-сценариев.
-- Browser dev-сценарии из `supabase/seed.sql`: `fresh`, `onboarded`, `active-text`, `completed-today`, `paid`, `history`.
-- Dev-сценарии применяются через `npx supabase db reset`; эта команда пересоздает локальную БД и удаляет текущие локальные данные. Новые миграции без пересоздания БД применяются через `npx supabase migration up`.
-- `npm run dev:telegram` и `npm run dev:browser -- <scenario>` поднимают Edge Functions `auth-telegram`, `save-user-settings`, `activate-subscription`, `complete-reading-text`, `get-reading-state`, `get-reading-history` и `generate-reading-text`.
+- `npm run dev:telegram` запускает production-like локальный режим для Telegram: Supabase + frontend + Edge Functions + Cloudflare tunnels.
+- Новые миграции без пересоздания БД применяются через `npx supabase migration up`; полный `npx supabase db reset` пересоздает локальную БД и удаляет текущие локальные данные.
+- `npm run dev:telegram` поднимает Edge Functions `auth-telegram`, `save-user-settings`, `activate-subscription`, `complete-reading-text`, `get-reading-state`, `get-reading-history` и `generate-reading-text`.
 - Логи в dev-режимах цветные по источнику (`[frontend]`, `[edge]`, `[db]`, `[api]`, `[tunnel-*]`), HTTP-методы и статус-коды дополнительно подсвечиваются.
 - `// TODO:` после изменения кода Edge Functions или server env для OpenRouter (`OPENROUTER_MODEL_*`, `OPENROUTER_API_KEY`) перезапускать активный dev-режим, чтобы локальная среда подхватила актуальную версию функций и env.
 - Если в summary указано `Frontend restart required: YES`, нужно перезапустить `npm run dev:telegram`.
-- Для локального Telegram-старта использовать `npm run dev:telegram`, для browser-сценариев `npm run dev:browser -- <scenario>`, для остановки Supabase: `npm run dev:stop`.
+- Для локального Telegram-старта использовать `npm run dev:telegram`, для остановки Supabase: `npm run dev:stop`.
 

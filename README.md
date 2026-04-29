@@ -2,9 +2,7 @@
 
 Telegram Mini App для ежедневной практики английского языка.
 
-Проект сейчас находится в MVP-стадии. Основной фокус: короткий ежедневный цикл обучения,
-генерация текста для чтения под уровень пользователя, дневной прогресс и простая модель
-подписок.
+Проект находится в MVP-стадии. Основной фокус: короткий ежедневный цикл обучения, генерация текста для чтения под уровень пользователя, дневной прогресс, история материалов и простая модель подписок.
 
 ## Что уже есть
 
@@ -16,8 +14,7 @@ Telegram Mini App для ежедневной практики английск�
 - Завершение дневного чтения и streak по дням.
 - Раздел `Мои материалы` с историей прочитанных текстов и местом под будущий словарь.
 - MVP-подписки: `free` и `paid` тарифное состояние без реальных платежей.
-- Локальный запуск Telegram-режима через `npm run dev:telegram`.
-- Локальный browser-режим для dev-сценариев через `npm run dev:browser -- <scenario>`.
+- Локальный Telegram-запуск через `npm run dev:telegram`.
 
 ## Стек
 
@@ -33,8 +30,7 @@ Telegram Mini App для ежедневной практики английск�
 
 ## Архитектура
 
-В проекте нет отдельного Express/Nest backend. Backend-слой сейчас состоит из Supabase API,
-Postgres и Supabase Edge Functions.
+В проекте нет отдельного Express/Nest backend. Backend-слой сейчас состоит из Supabase API, Postgres и Supabase Edge Functions.
 
 Основная граница ответственности:
 
@@ -42,34 +38,26 @@ Postgres и Supabase Edge Functions.
 - `src/services` — клиентский сервисный слой, который вызывает Supabase и Edge Functions.
 - `src/types` — общие frontend/domain типы.
 - `supabase/migrations` — схема базы данных.
-- `supabase/functions` — серверная логика, которая выполняется в Deno runtime.
+- `supabase/functions` — серверная логика в Deno runtime.
 - `notes` — проектные решения и текущие ограничения.
 - `scripts/dev-stack.mjs` и `scripts/dev/*` — локальная инфраструктура разработки.
 - `tools` — локальные утилиты вроде `cloudflared.exe`; папка не коммитится.
 
-Важный принцип: фронт не принимает security/business-решения по лимитам, подписке и Telegram
-auth. Он только отображает состояние, которое возвращает сервер.
+Важный принцип: frontend не принимает security/business-решения по лимитам, подписке и Telegram auth. Он отображает состояние, которое возвращает сервер.
 
 ## Edge Functions
 
 Сейчас используются функции:
 
-- `auth-telegram` — валидирует Telegram `initData`, создает или находит пользователя,
-  возвращает настройки, подписку, прогресс главного экрана и streak.
-- `save-user-settings` — валидирует пользователя на сервере и сохраняет настройки
-  сессии в `user_settings`.
+- `auth-telegram` — валидирует Telegram `initData`, создает или находит пользователя, возвращает настройки, подписку, прогресс главного экрана и streak.
+- `save-user-settings` — валидирует пользователя на сервере и сохраняет настройки в `user_settings`.
 - `activate-subscription` — транзакционно активирует MVP-подписку за 0 рублей.
-- `get-reading-state` — возвращает состояние экрана чтения: активный текст, лимиты,
-  использованные попытки и факт завершения чтения за день.
-- `generate-reading-text` — атомарно списывает попытку, вызывает OpenRouter, валидирует ответ модели
-  и сохраняет активный текст.
-- `complete-reading-text` — транзакционно завершает дневное чтение, сохраняет snapshot текста
-  в историю, удаляет активный текст и обновляет streak.
-- `get-reading-history` — возвращает историю прочитанных текстов текущего пользователя
-  с cursor-пагинацией.
+- `get-reading-state` — возвращает состояние экрана чтения: активный текст, лимиты, использованные попытки и факт завершения чтения за день.
+- `generate-reading-text` — атомарно списывает попытку, вызывает OpenRouter, валидирует ответ модели и сохраняет активный текст.
+- `complete-reading-text` — транзакционно завершает дневное чтение, сохраняет snapshot текста в историю, удаляет активный текст и обновляет streak.
+- `get-reading-history` — возвращает историю прочитанных текстов текущего пользователя с cursor-пагинацией.
 
-Все чувствительные операции выполняются на сервере. `TELEGRAM_BOT_TOKEN`,
-`SUPABASE_SERVICE_ROLE_KEY` и `OPENROUTER_API_KEY` нельзя использовать в клиентском коде.
+Все чувствительные операции выполняются на сервере. `TELEGRAM_BOT_TOKEN`, `SUPABASE_SERVICE_ROLE_KEY` и `OPENROUTER_API_KEY` нельзя использовать в клиентском коде.
 
 ## Данные
 
@@ -86,9 +74,7 @@ auth. Он только отображает состояние, которое 
 
 Дневной цикл считается по timezone `Europe/Moscow`.
 
-Доступ к чувствительным пользовательским данным идет через Edge Functions. На `public.users` и
-`public.user_settings` включен RLS, а сохранение настроек выполняется через `save-user-settings`.
-Клиент не пишет напрямую в пользовательские, reading и subscription таблицы.
+Доступ к чувствительным пользовательским данным идет через Edge Functions. На `public.users` и `public.user_settings` включен RLS, а сохранение настроек выполняется через `save-user-settings`. Клиент не пишет напрямую в пользовательские, reading и subscription таблицы.
 
 Критичные операции, где важна защита от параллельных запросов, вынесены в Postgres RPC:
 
@@ -116,8 +102,6 @@ auth. Он только отображает состояние, которое 
 ```env
 VITE_SUPABASE_URL="http://127.0.0.1:55421"
 VITE_SUPABASE_ANON_KEY="YOUR_SUPABASE_ANON_KEY"
-VITE_ENABLE_DEV_AUTH_FALLBACK="false"
-VITE_DEV_TELEGRAM_USER_ID="999000001"
 OPENROUTER_API_KEY="YOUR_OPENROUTER_API_KEY"
 TELEGRAM_BOT_TOKEN="YOUR_TELEGRAM_BOT_TOKEN"
 ```
@@ -130,8 +114,7 @@ OPENROUTER_MODEL_FALLBACK="google/gemma-3-12b-it:free"
 OPENROUTER_MODEL_TERTIARY="qwen/qwen3.6-plus:free"
 ```
 
-Правило безопасности: во frontend доступны только переменные с префиксом `VITE_`.
-AI-ключи, Telegram token и service role key должны оставаться только на серверной стороне.
+Правило безопасности: во frontend доступны только переменные с префиксом `VITE_`. AI-ключи, Telegram token и service role key должны оставаться только на серверной стороне.
 
 ## Локальный запуск
 
@@ -165,39 +148,21 @@ npm run dev:telegram
 - показывает логи frontend, Edge Functions, DB и API;
 - печатает `STARTUP SUMMARY` с URL для BotFather.
 
-Если в summary указано `Frontend restart required: YES`, останови процесс через `Ctrl + C`
-и запусти `npm run dev:telegram` еще раз.
+Если в summary указано `Frontend restart required: YES`, останови процесс через `Ctrl + C` и запусти `npm run dev:telegram` еще раз.
 
-Для локальной разработки в браузере можно запустить сценарный режим:
+Новые миграции без пересоздания локальной БД применяются командой:
 
 ```bash
-npm run dev:browser -- active-text
+npx supabase migration up
 ```
 
-Он не поднимает tunnel, включает dev fallback, выбирает локального dev-пользователя
-и открывается по адресу `http://localhost:3000`.
-
-Доступные сценарии:
-
-- `fresh`
-- `onboarded`
-- `active-text`
-- `completed-today`
-- `paid`
-- `history`
-
-Сценарии хранятся в `supabase/seed.sql`. Seed применяется при полном reset локальной БД:
+Полный reset локальной БД:
 
 ```bash
 npx supabase db reset
 ```
 
-`db reset` пересоздает локальную БД и удаляет текущие локальные данные. Для применения только
-новых миграций без пересоздания БД используется:
-
-```bash
-npx supabase migration up
-```
+Важно: `db reset` пересоздает локальную БД и удаляет текущие локальные данные.
 
 Остановить локальный Supabase:
 
@@ -216,17 +181,7 @@ npm run dev:stop
 3. Вставь `BotFather /setmenubutton URL` из startup summary.
 4. Открой бота в Telegram и нажми кнопку меню.
 
-Для реальной Telegram-авторизации browser fallback должен быть выключен:
-
-```env
-VITE_ENABLE_DEV_AUTH_FALLBACK="false"
-```
-
-Для локальной проверки в обычном браузере вне Telegram можно явно включить fallback:
-
-```env
-VITE_ENABLE_DEV_AUTH_FALLBACK="true"
-```
+Приложение должно открываться внутри Telegram и проходить авторизацию через настоящий `initData`.
 
 ## Команды
 
@@ -241,12 +196,6 @@ npm run dev:telegram
 ```
 
 Запускает локальную инфраструктуру для Telegram Mini App с tunnels и реальным Telegram `initData`.
-
-```bash
-npm run dev:browser -- active-text
-```
-
-Запускает локальную инфраструктуру для браузера без tunnels и включает выбранный dev-сценарий.
 
 ```bash
 npm run dev:stop
@@ -272,8 +221,7 @@ pnpm build
 - Общие типы держать в `src/types`.
 - Серверные проверки Telegram `initData`, лимитов и подписок должны оставаться в Edge Functions.
 - Edge Functions работают в Deno runtime и исключены из корневого frontend `tsconfig.json`.
-- После изменения Edge Functions или server env нужно перезапустить активный dev-режим:
-  `npm run dev:telegram` или `npm run dev:browser -- <scenario>`.
+- После изменения Edge Functions или server env нужно перезапустить `npm run dev:telegram`.
 - После существенных изменений стоит запускать минимум `pnpm lint`.
 
 ## Документация проекта
@@ -289,5 +237,5 @@ pnpm build
 - `notes/materials-and-reading-history.md` — раздел `Мои материалы` и история прочитанных текстов.
 - `notes/subscriptions.md` — MVP-модель подписок.
 - `notes/home-progress-and-toast.md` — прогресс главного экрана и toast-сообщения.
-- `notes/dev-mode-dx.md` — локальные режимы запуска и browser dev-сценарии.
+- `notes/dev-mode-dx.md` — локальный Telegram-режим разработки и ограничения DX.
 - `notes/production-readiness.md` — что нужно пересмотреть перед production.
