@@ -8,9 +8,10 @@
 - Попытка генерации списывается до запроса к OpenRouter, а неуспешная попытка помечается в `reading_generation_attempts.status = 'failed'`.
 - `reading_generation_attempts` хранит безопасные metadata: provider/model, prompt version, model chain, target/validation ranges, output word count, fallback flag, duration, failure stage, error code и sanitized error message.
 - Полный prompt, raw provider response, полный generated text, Telegram `initData`, secrets и stack trace не пишутся в attempt metadata.
+- Retention policy для AI attempt metadata зафиксирована в `notes/ai-observability-diagnostics.md`: operational diagnostics window `90` дней.
+- Scheduled cleanup выполняется через `pg_cron` job `cleanup_ai_generation_attempts`.
 - Перед production стоит:
   - добавить correlation/request id, если появится backend-сессия
-  - определить retention policy для AI attempt metadata
   - добавить dashboard/alerting по `failure_stage`, latency и provider/model error rate
 
 ## 2) Edge Functions shared server helper

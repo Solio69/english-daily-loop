@@ -121,4 +121,4 @@ OpenRouter-модели проходят allowlist в `ai-pipeline.ts`.
 - добавить Deno/Edge Functions checks в CI
 - добавить automated tests на AI output validation
 - добавить отдельные red-team cases для prompt injection и prompt leakage
-- добавить retention/privacy policy для AI logs и provider diagnostics
+- включить scheduled cleanup для `reading_generation_attempts` по retention policy из `notes/ai-observability-diagnostics.md`

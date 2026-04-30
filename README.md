@@ -82,6 +82,8 @@ Telegram Mini App для ежедневной практики английск�
 
 `public.reading_generation_attempts` хранит безопасные metadata AI-попыток: prompt version, model chain, target/validation ranges, output word count, fallback flag, duration, failure stage и sanitized error details. Полный prompt, raw provider response, полный generated text, Telegram `initData`, secrets и stack trace в attempt metadata не пишутся.
 
+AI attempt metadata хранится `90` дней; scheduled cleanup выполняется server-side через `pg_cron` job `cleanup_ai_generation_attempts`.
+
 Критичные операции, где важна защита от параллельных запросов, вынесены в Postgres RPC:
 
 - `public.claim_reading_generation_attempt(...)` — проверяет дневной лимит и создает attempt одним DB-действием.
@@ -249,6 +251,7 @@ pnpm build
 - `notes/security-threat-model.md` — модель угроз MVP и чеклист security-аудита.
 - `notes/security-audit-2026-04-30.md` — результат проверки базового security-контура.
 - `notes/ai-pipeline-security.md` — security-модель AI-пайплайна генерации текста.
+- `notes/ai-observability-diagnostics.md` — retention policy и SQL-диагностика AI-попыток.
 - `notes/text-generation-pipeline.md` — AI-пайплайн генерации текста.
 - `notes/reading-generation-limits.md` — дневные попытки и активный текст.
 - `notes/materials-and-reading-history.md` — раздел `Мои материалы` и история прочитанных текстов.
