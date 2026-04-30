@@ -37,6 +37,7 @@
 - `VITE_SUPABASE_ANON_KEY`
 - `VITE_SUPABASE_URL` (будет автоматически обновляться скриптом `dev:telegram`)
 - `OPENROUTER_API_KEY`
+- `VITE_DEV_TOOLS_ENABLED` и `DEV_TOOLS_ENABLED`, если нужна локальная панель dev tools
 
 Важно: не коммитить `.env.local` в git.
 
@@ -64,7 +65,7 @@
 
 5. Смотреть логи в этом же терминале:
 
-- `[frontend]` — Vite
+- `[frontend]` — Vite preview со свежей production-like сборкой
 - `[edge]` — Supabase Edge Functions
 - `[api]` — Supabase API
 - `[db]` — Postgres
@@ -75,13 +76,29 @@
 Скрипт `scripts/dev-stack.mjs`:
 
 1. Поднимает локальный Supabase (`npx supabase start`).
-2. Запускает frontend (`pnpm dev`).
-3. Запускает Edge Functions (`npx supabase functions serve ...`).
-4. Поднимает 2 HTTPS tunnel:
-   - frontend: `localhost:3000`
-   - API: `localhost:55421`
-5. Автоматически обновляет `VITE_SUPABASE_URL` в `.env.local` значением API tunnel URL.
-6. Печатает `STARTUP SUMMARY` с короткой инструкцией.
+2. Запускает Edge Functions (`npx supabase functions serve ...`).
+3. Поднимает HTTPS tunnel для Supabase API (`localhost:55421`).
+4. Автоматически обновляет `VITE_SUPABASE_URL` в `.env.local` значением API tunnel URL.
+5. Собирает frontend (`pnpm build`).
+6. Запускает frontend через Vite preview (`pnpm preview:telegram`) на `localhost:3000`.
+7. Поднимает HTTPS tunnel для frontend (`localhost:3000`).
+8. Печатает `STARTUP SUMMARY` с короткой инструкцией.
+
+Локальные tunnel targets:
+
+- frontend: `localhost:3000`
+- API: `localhost:55421`
+
+Frontend собирается после получения API tunnel URL, чтобы production-like bundle использовал актуальный публичный адрес Supabase API.
+
+Локальная панель dev tools доступна при двух включенных переменных:
+
+```env
+VITE_DEV_TOOLS_ENABLED="true"
+DEV_TOOLS_ENABLED="true"
+```
+
+`VITE_DEV_TOOLS_ENABLED` показывает панель в интерфейсе, `DEV_TOOLS_ENABLED` разрешает Edge Function менять локальную БД.
 
 ## 5. Как понять, что Telegram-авторизация прошла
 
@@ -101,7 +118,7 @@
 
 1. Пустая страница или не тот frontend URL
 
-   Причина: уже запущен другой Vite на `3000`, новый ушел на `3001`, а tunnel смотрит на `3000`.
+   Причина: уже запущен другой frontend-процесс на `3000`, а tunnel смотрит на этот порт.
 
    Что делать: остановить лишние dev-процессы и запустить `npm run dev:telegram` заново.
 

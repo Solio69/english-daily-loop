@@ -22,6 +22,7 @@ export const edgeFunctionNames = [
   "save-user-settings",
   "activate-subscription",
   "complete-reading-text",
+  "dev-tools",
   "get-reading-state",
   "get-reading-history",
   "generate-reading-text",

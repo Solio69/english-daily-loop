@@ -1,11 +1,12 @@
 ﻿import { BookOpen, Clock, Loader2, Sparkles } from "lucide-react";
 import React, { useEffect, useEffectEvent, useState } from "react";
 import { Button } from "../components/Button";
-import { generateReadingText, getReadingState } from "../services/readingService";
+import {
+  generateReadingText,
+  getReadingState,
+} from "../services/readingService";
 import { ReadingHomeStatus } from "../types/homeProgress";
 import { ReadingText } from "../types/reading";
-
-const IS_DEV = import.meta.env.DEV;
 
 const getModelLabel = (model?: string): string | null => {
   if (!model) return null;
@@ -44,8 +45,7 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
   const [text, setText] = useState<ReadingText | null>(null);
   const [dailyLimit, setDailyLimit] = useState(10);
   const [remainingAttempts, setRemainingAttempts] = useState(0);
-  const [isReadingCompletedToday, setIsReadingCompletedToday] =
-    useState(false);
+  const [isReadingCompletedToday, setIsReadingCompletedToday] = useState(false);
   const [selectedWord, setSelectedWord] = useState<{
     word: string;
     index: number;
@@ -260,7 +260,7 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
             <h3 className="font-medium text-gray-900 dark:text-white">
               {text.title}
             </h3>
-            {IS_DEV && text.source && (
+            {text.source && (
               <span
                 className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide ${
                   text.source === "ai"
@@ -302,8 +302,8 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
 
       {text && !loading && (
         <Button
-          variant="outline"
-          className="w-full dark:border-gray-700 dark:text-gray-200"
+          variant="accent"
+          className="w-full"
           onClick={handleDone}
           disabled={isFinishing}
         >

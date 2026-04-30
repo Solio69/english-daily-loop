@@ -1,7 +1,14 @@
-﻿import { ChevronLeft } from "lucide-react";
-import React, { useState } from "react";
+import { ChevronLeft } from "lucide-react";
+import React, { Suspense, lazy, useState } from "react";
 import { Button } from "../components/Button";
+import type { DevToolAction } from "../services/devToolsService";
 import { SaveUserSettingsInput, UserSettings } from "../types/user";
+
+const DevToolsPanel = lazy(() =>
+  import("../components/DevToolsPanel").then((module) => ({
+    default: module.DevToolsPanel,
+  })),
+);
 
 type SettingsScreenProps = {
   onBack: () => void;
@@ -9,6 +16,9 @@ type SettingsScreenProps = {
   initialSettings?: UserSettings | null;
   isSaving?: boolean;
   isFirstSetup?: boolean;
+  showDevTools?: boolean;
+  runningDevToolAction?: DevToolAction | null;
+  onRunDevToolAction?: (action: DevToolAction) => void;
 };
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({
@@ -17,10 +27,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   initialSettings,
   isSaving = false,
   isFirstSetup = false,
+  showDevTools = false,
+  runningDevToolAction = null,
+  onRunDevToolAction,
 }) => {
   const shouldUseStickySave = !isFirstSetup;
-  const optionButtonClass =
-    "h-12 text-sm font-medium transition-colors";
+  const optionButtonClass = "h-12 text-sm font-medium transition-colors";
   const LEVEL_OPTIONS: UserSettings["englishLevel"][] = [
     "A1",
     "A2",
@@ -67,7 +79,21 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       )}
 
       <div className="space-y-5 pt-6">
-        {/* Text Level */}
+        {showDevTools && onRunDevToolAction && (
+          <Suspense
+            fallback={
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200">
+                Загружаем dev tools...
+              </div>
+            }
+          >
+            <DevToolsPanel
+              runningAction={runningDevToolAction}
+              onRunAction={onRunDevToolAction}
+            />
+          </Suspense>
+        )}
+
         <section>
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
             Уровень текста
@@ -89,7 +115,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </div>
         </section>
 
-        {/* Reading Time */}
         <section>
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
             Время чтения
@@ -111,7 +136,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </div>
         </section>
 
-        {/* Exercise Time */}
         <section>
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
             Время упражнений

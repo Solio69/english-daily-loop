@@ -56,6 +56,7 @@ Telegram Mini App для ежедневной практики английск�
 - `generate-reading-text` — атомарно списывает попытку, вызывает OpenRouter, валидирует ответ модели и сохраняет активный текст.
 - `complete-reading-text` — транзакционно завершает дневное чтение, сохраняет snapshot текста в историю, удаляет активный текст и обновляет streak.
 - `get-reading-history` — возвращает историю прочитанных текстов текущего пользователя с cursor-пагинацией.
+- `dev-tools` — локальные dev-действия для текущего Telegram-пользователя; работает только при `DEV_TOOLS_ENABLED="true"`.
 
 Все чувствительные операции выполняются на сервере. `TELEGRAM_BOT_TOKEN`, `SUPABASE_SERVICE_ROLE_KEY` и `OPENROUTER_API_KEY` нельзя использовать в клиентском коде.
 
@@ -102,8 +103,10 @@ Telegram Mini App для ежедневной практики английск�
 ```env
 VITE_SUPABASE_URL="http://127.0.0.1:55421"
 VITE_SUPABASE_ANON_KEY="YOUR_SUPABASE_ANON_KEY"
+VITE_DEV_TOOLS_ENABLED="false"
 OPENROUTER_API_KEY="YOUR_OPENROUTER_API_KEY"
 TELEGRAM_BOT_TOKEN="YOUR_TELEGRAM_BOT_TOKEN"
+DEV_TOOLS_ENABLED="false"
 ```
 
 Опциональные переменные для выбора OpenRouter-моделей:
@@ -140,13 +143,16 @@ npm run dev:telegram
 `dev:telegram` делает следующее:
 
 - запускает локальный Supabase;
-- запускает Vite frontend на `localhost:3000`;
 - запускает Edge Functions;
-- поднимает tunnel для frontend;
 - поднимает tunnel для Supabase API;
 - автоматически обновляет `VITE_SUPABASE_URL` в `.env.local`;
+- собирает frontend через `pnpm build`;
+- запускает frontend через Vite preview на `localhost:3000`;
+- поднимает tunnel для frontend;
 - показывает логи frontend, Edge Functions, DB и API;
 - печатает `STARTUP SUMMARY` с URL для BotFather.
+
+Frontend собирается после получения API tunnel URL, поэтому Telegram открывает production-like bundle с актуальным `VITE_SUPABASE_URL`.
 
 Если в summary указано `Frontend restart required: YES`, останови процесс через `Ctrl + C` и запусти `npm run dev:telegram` еще раз.
 
@@ -189,13 +195,13 @@ npm run dev:stop
 pnpm dev
 ```
 
-Запускает только frontend.
+Запускает только frontend через Vite dev server. Для проверки Telegram Mini App используется `npm run dev:telegram`.
 
 ```bash
 npm run dev:telegram
 ```
 
-Запускает локальную инфраструктуру для Telegram Mini App с tunnels и реальным Telegram `initData`.
+Запускает локальную инфраструктуру для Telegram Mini App с tunnels, production-like frontend bundle и реальным Telegram `initData`.
 
 ```bash
 npm run dev:stop
@@ -221,7 +227,8 @@ pnpm build
 - Общие типы держать в `src/types`.
 - Серверные проверки Telegram `initData`, лимитов и подписок должны оставаться в Edge Functions.
 - Edge Functions работают в Deno runtime и исключены из корневого frontend `tsconfig.json`.
-- После изменения Edge Functions или server env нужно перезапустить `npm run dev:telegram`.
+- Локальная панель dev tools показывается только при `VITE_DEV_TOOLS_ENABLED="true"`, а изменения БД выполняются только при server env `DEV_TOOLS_ENABLED="true"`.
+- После изменения frontend-кода, Edge Functions или server env нужно перезапустить `npm run dev:telegram`.
 - После существенных изменений стоит запускать минимум `pnpm lint`.
 
 ## Документация проекта

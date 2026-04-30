@@ -10,7 +10,7 @@ import {
 } from "./dev/config.mjs";
 import { syncEnvValues } from "./dev/env.mjs";
 import { color, useColor, withColor } from "./dev/logging.mjs";
-import { spawnLabeled, stopChildProcess } from "./dev/process.mjs";
+import { runOnce, spawnLabeled, stopChildProcess } from "./dev/process.mjs";
 import {
   getSupabaseContainers,
   startSupabase,
@@ -23,8 +23,14 @@ const tunnelUrls = {
   frontend: null,
   api: null,
 };
+const tunnelUrlWaiters = {
+  frontend: [],
+  api: [],
+};
 let startupSummaryPrinted = false;
 let frontendRestartRequired = false;
+let frontendBundleBuilt = false;
+let frontendStarted = false;
 
 // TODO: Local Telegram infra helper; keep API tunnel sync limited to local .env.local updates.
 function syncApiUrlToEnv(apiUrl) {
@@ -33,14 +39,19 @@ function syncApiUrlToEnv(apiUrl) {
   });
 
   if (changed) {
-    frontendRestartRequired = true;
-    process.stdout.write("[env] frontend restart required for new API URL.\n");
+    if (frontendBundleBuilt) {
+      frontendRestartRequired = true;
+      process.stdout.write("[env] frontend restart required for new API URL.\n");
+    } else {
+      process.stdout.write("[env] VITE_SUPABASE_URL updated before frontend build.\n");
+    }
   }
 }
 
 function maybePrintStartupSummary() {
   if (startupSummaryPrinted) return;
   if (!tunnelUrls.frontend || !tunnelUrls.api) return;
+  if (!frontendStarted) return;
   startupSummaryPrinted = true;
 
   const checklistLine = "================ STARTUP SUMMARY ================";
@@ -115,21 +126,48 @@ function handleTunnelUrl(kind, url) {
   if (kind === "frontend" && !tunnelUrls.frontend) {
     tunnelUrls.frontend = url;
     highlightTunnelUrl("frontend", url);
+    for (const resolve of tunnelUrlWaiters.frontend) {
+      resolve(url);
+    }
+    tunnelUrlWaiters.frontend = [];
   }
   if (kind === "api" && !tunnelUrls.api) {
     tunnelUrls.api = url;
     highlightTunnelUrl("api", url);
+    for (const resolve of tunnelUrlWaiters.api) {
+      resolve(url);
+    }
+    tunnelUrlWaiters.api = [];
   }
+}
+
+function waitForTunnelUrl(kind) {
+  if (tunnelUrls[kind]) {
+    return Promise.resolve(tunnelUrls[kind]);
+  }
+
+  return new Promise((resolve) => {
+    tunnelUrlWaiters[kind].push(resolve);
+  });
 }
 
 function prepareEnv() {
   process.stdout.write("Preparing Telegram dev mode...\n");
 }
 
+// TODO: Local Telegram WebView is served from a production-like bundle to avoid Vite dev client stalls through quick tunnels.
+async function buildFrontend() {
+  process.stdout.write("[frontend-build] building frontend bundle for Telegram...\n");
+  await runOnce(commands.pnpm, ["build"], "frontend build");
+  frontendBundleBuilt = true;
+}
+
 // TODO: Local frontend stays on port 3000 because the Telegram tunnel targets that port.
 function startFrontend() {
-  const frontend = spawnLabeled(commands.pnpm, ["dev"], "frontend");
+  const frontend = spawnLabeled(commands.pnpm, ["preview:telegram"], "frontend");
   children.push(frontend);
+  frontendStarted = true;
+  maybePrintStartupSummary();
   frontend.on("exit", (code) => {
     if (shuttingDown) {
       return;
@@ -167,48 +205,50 @@ function startEdgeFunctions() {
   });
 }
 
+function startTunnel(kind, target, label) {
+  const tunnel = spawnLabeled(
+    cloudflaredExecutable,
+    ["tunnel", "--url", target],
+    label,
+  );
+  attachTunnelUrlExtractor(tunnel, kind, handleTunnelUrl);
+  children.push(tunnel);
+  tunnel.on("exit", (code) => {
+    if (!shuttingDown) {
+      process.stderr.write(
+        `[${label}] exited with code ${code ?? "unknown"}, continuing...\n`,
+      );
+    }
+  });
+}
+
 // TODO: Local Telegram-only tunnel orchestration; keep non-Telegram auth bypass out of this stack.
-function startTunnels() {
+function startApiTunnel() {
   if (existsSync(cloudflaredExecutable)) {
     process.stdout.write(
-      "[tunnel] starting frontend tunnel (localhost:3000) and api tunnel (localhost:55421)...\n",
+      "[tunnel] starting api tunnel (localhost:55421)...\n",
     );
-
-    const frontendTunnel = spawnLabeled(
-      cloudflaredExecutable,
-      ["tunnel", "--url", localFrontendTunnelTarget],
-      "tunnel-frontend",
-    );
-    attachTunnelUrlExtractor(frontendTunnel, "frontend", handleTunnelUrl);
-    children.push(frontendTunnel);
-    frontendTunnel.on("exit", (code) => {
-      if (!shuttingDown) {
-        process.stderr.write(
-          `[tunnel-frontend] exited with code ${code ?? "unknown"}, continuing...\n`,
-        );
-      }
-    });
-
-    const apiTunnel = spawnLabeled(
-      cloudflaredExecutable,
-      ["tunnel", "--url", localApiTunnelTarget],
-      "tunnel-api",
-    );
-    attachTunnelUrlExtractor(apiTunnel, "api", handleTunnelUrl);
-    children.push(apiTunnel);
-    apiTunnel.on("exit", (code) => {
-      if (!shuttingDown) {
-        process.stderr.write(
-          `[tunnel-api] exited with code ${code ?? "unknown"}, continuing...\n`,
-        );
-      }
-    });
-    return;
+    startTunnel("api", localApiTunnelTarget, "tunnel-api");
+    return true;
   }
 
   process.stdout.write(
-    `[tunnel] ${cloudflaredExecutable} not found, skipping tunnel auto-start\n`,
+    `[tunnel] ${cloudflaredExecutable} not found, skipping api tunnel auto-start\n`,
   );
+  return false;
+}
+
+function startFrontendTunnel() {
+  if (existsSync(cloudflaredExecutable)) {
+    process.stdout.write("[tunnel] starting frontend tunnel (localhost:3000)...\n");
+    startTunnel("frontend", localFrontendTunnelTarget, "tunnel-frontend");
+    return true;
+  }
+
+  process.stdout.write(
+    `[tunnel] ${cloudflaredExecutable} not found, skipping frontend tunnel auto-start\n`,
+  );
+  return false;
 }
 
 async function startContainerLogs() {
@@ -269,9 +309,14 @@ function shutdown() {
 async function main() {
   prepareEnv();
   await startSupabase();
-  startFrontend();
   startEdgeFunctions();
-  startTunnels();
+  const apiTunnelStarted = startApiTunnel();
+  if (apiTunnelStarted) {
+    await waitForTunnelUrl("api");
+  }
+  await buildFrontend();
+  startFrontend();
+  startFrontendTunnel();
   await startContainerLogs();
 
   process.on("SIGINT", shutdown);

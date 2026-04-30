@@ -66,6 +66,12 @@ Frontend policies для этих таблиц не добавлены. Дост
 - активирует или планирует MVP-подписку через RPC `activate_mvp_subscription`
 - возвращает актуальный subscription summary
 
+`dev-tools`:
+- валидирует Telegram `initData`
+- работает только при server env `DEV_TOOLS_ENABLED="true"`
+- выполняет локальные reset-действия для текущего Telegram-пользователя
+- не принимает произвольный SQL, а использует фиксированный список actions
+
 ## 5) Transactional RPC
 `public.claim_reading_generation_attempt(...)`:
 - берет transaction-level advisory lock на `user_id + attempt_date`

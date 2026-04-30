@@ -16,19 +16,23 @@ npm run dev:telegram
 Что делает:
 
 - запускает локальный Supabase;
-- запускает Vite frontend;
 - запускает Supabase Edge Functions;
-- запускает Cloudflare tunnels для frontend и Supabase API;
+- запускает Cloudflare tunnel для Supabase API;
 - обновляет `VITE_SUPABASE_URL` в `.env.local` на API tunnel URL;
+- собирает frontend через `pnpm build`;
+- запускает frontend через Vite preview на `localhost:3000`;
+- запускает Cloudflare tunnel для frontend;
 - печатает URL для BotFather и краткий startup summary.
 
 Этот режим использует настоящий Telegram `initData` и реального Telegram-пользователя. Это ближе к production-поведению и не смешивает разработку с браузерными dev-пользователями.
+
+Frontend собирается после получения API tunnel URL. После изменений frontend-кода, Edge Functions или server env локальный Telegram-режим нужно перезапустить.
 
 ## 3) Данные и сценарии
 
 Локальный seed содержит базового dev-пользователя и моковые тексты. Переключение пользовательских сценариев через подмену Telegram-пользователя не используется.
 
-Для будущей проверки состояний одного Telegram-пользователя лучше добавить отдельные dev admin reset tools: серверные команды/функции, которые будут менять состояние текущего локального пользователя в БД без `supabase db reset`.
+Для проверки состояний одного Telegram-пользователя используется локальная панель dev tools. Она вызывает Edge Function `dev-tools` и меняет состояние текущего пользователя в БД без `supabase db reset`.
 
 ## 4) Когда нужен reset локальной БД
 
@@ -51,3 +55,6 @@ npx supabase migration up
 - Telegram `initData` проверяется только на сервере в Edge Functions.
 - `TELEGRAM_BOT_TOKEN`, `OPENROUTER_API_KEY` и `SUPABASE_SERVICE_ROLE_KEY` остаются только в `.env.local` и не попадают во frontend-код или git.
 - Локальный Telegram-режим не подменяет пользователя и не обходит серверную авторизацию.
+- Панель dev tools показывается только при `VITE_DEV_TOOLS_ENABLED="true"`.
+- Edge Function `dev-tools` выполняет локальные reset-действия только при server env `DEV_TOOLS_ENABLED="true"`.
+- Доступные dev actions: сброс попыток генерации за сегодня, удаление сегодняшнего completion вместе с текстами из истории, сброс подписок текущего Telegram-пользователя.

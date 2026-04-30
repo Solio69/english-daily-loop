@@ -13,6 +13,7 @@ import { ReadingScreen } from "./screens/ReadingScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { SubscriptionScreen } from "./screens/SubscriptionScreen";
 import { VocabularyScreen } from "./screens/VocabularyScreen";
+import type { DevToolAction } from "./services/devToolsService";
 import { completeReadingText } from "./services/readingService";
 import { activateSubscription } from "./services/subscriptionService";
 import {
@@ -46,6 +47,8 @@ export default function App() {
     useState<MaterialsTab>("texts");
   const [activatingPlan, setActivatingPlan] =
     useState<SubscriptionPlanType | null>(null);
+  const [runningDevToolAction, setRunningDevToolAction] =
+    useState<DevToolAction | null>(null);
   const [toastText, setToastText] = useState<string | null>(null);
   const [toastTone, setToastTone] = useState<ToastTone>("default");
 
@@ -58,6 +61,7 @@ export default function App() {
   const readingStatus = appUser?.homeProgress.reading.status ?? "not_started";
   const shouldForceSettings = !isSettingsCompleted;
   const shouldForceReading = isSettingsCompleted && !isFirstTextCompleted;
+  const showDevTools = import.meta.env.VITE_DEV_TOOLS_ENABLED === "true";
 
   const getLessonProgressFromReadingStatus = (
     status: ReadingHomeStatus,
@@ -170,6 +174,26 @@ export default function App() {
       );
     } finally {
       setActivatingPlan(null);
+    }
+  };
+
+  const handleRunDevToolAction = async (action: DevToolAction) => {
+    setRunningDevToolAction(action);
+    try {
+      const { runDevToolAction } = await import("./services/devToolsService");
+      await runDevToolAction(action);
+      const refreshedUser = await getCurrentAppUser();
+      setAppUser(refreshedUser);
+      showToast("Dev-действие выполнено.", "success");
+    } catch (error) {
+      showToast(
+        error instanceof Error
+          ? error.message
+          : "Не удалось выполнить dev-действие.",
+        "error",
+      );
+    } finally {
+      setRunningDevToolAction(null);
     }
   };
 
@@ -316,6 +340,9 @@ export default function App() {
             initialSettings={appUser?.settings}
             isSaving={isSavingSettings}
             isFirstSetup={!isSettingsCompleted}
+            showDevTools={showDevTools}
+            runningDevToolAction={runningDevToolAction}
+            onRunDevToolAction={handleRunDevToolAction}
           />
         );
       case "subscription":

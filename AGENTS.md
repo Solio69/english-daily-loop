@@ -10,7 +10,7 @@
 - Целевой продукт: Telegram Mini App.
 - Вектор по данным: Supabase (Postgres).
 - Локальная инфраструктура уже настроена: Docker + WSL + Supabase local.
-- Локальный Telegram-запуск: `npm run dev:telegram` (frontend + Supabase + Edge Functions + Cloudflare tunnels + логи DB/API + startup summary + автообновление `VITE_SUPABASE_URL` в `.env.local`).
+- Локальный Telegram-запуск: `npm run dev:telegram` (Supabase + Edge Functions + API tunnel + автообновление `VITE_SUPABASE_URL` в `.env.local` + frontend build + Vite preview + frontend tunnel + логи DB/API + startup summary).
 - Отдельного backend-сервера (Express) сейчас нет; backend-слой представлен Supabase API + Edge Functions.
 - Папка `tools/` используется для локальных утилит запуска (например, `cloudflared.exe`) и не коммитится.
 
@@ -129,6 +129,11 @@
   - чтение завершенных текстов текущего пользователя из `user_completed_reading_texts`
   - cursor-пагинация через `limit` и `cursor`
   - единый контракт ответа (`ok/data` или `ok/error`).
+- Локальные dev tools реализованы через Edge Function `supabase/functions/dev-tools/index.ts`:
+  - серверная валидация `Telegram initData`
+  - обязательный server env gate `DEV_TOOLS_ENABLED="true"`
+  - actions: `reset_generation_attempts`, `delete_today_reading_completion`, `reset_subscriptions`
+  - frontend-панель показывается только при `VITE_DEV_TOOLS_ENABLED="true"`.
 - Текущие MVP-лимиты подписок:
   - free: `3` генерации текста в день, словарь до `30` слов
   - paid: `10` генераций текста в день, словарь до `300` слов.
@@ -155,7 +160,7 @@
 - Счетчик с иконкой огонька на главной использует `streakDays`, который сервер считает как серию подряд идущих завершений чтения по timezone `Europe/Moscow`.
 - Если генерация упала, новая попытка уже списана, новый текст не сохраняется, а ранее активный текст остается доступен после завершения состояния загрузки.
 - После неуспешной генерации экран чтения повторно запрашивает `get-reading-state`, чтобы синхронизировать активный текст и оставшиеся попытки с сервером.
-- В dev-режиме экран чтения показывает источник текста (`AI` + модель) через metadata `ReadingText.source/generation`.
+- Экран чтения показывает источник текста (`AI` + модель или `DB`) через metadata `ReadingText.source/generation`.
 - Настройка времени чтения влияет на размер AI-текста:
   - `3` мин: `120-180` слов, `max_tokens: 450`
   - `5` мин: `220-320` слов, `max_tokens: 750`
@@ -171,11 +176,11 @@
 - `npm run dev:telegram` автоматически поднимает frontend/API туннели и печатает `STARTUP SUMMARY` с двумя URL:
   - `BotFather /setmenubutton URL` = FRONTEND TUNNEL URL
   - `.env.local VITE_SUPABASE_URL` = SUPABASE API TUNNEL URL.
-- `npm run dev:telegram` запускает production-like локальный режим для Telegram: Supabase + frontend + Edge Functions + Cloudflare tunnels.
+- `npm run dev:telegram` запускает production-like локальный режим для Telegram: Supabase + Edge Functions + API tunnel + frontend build + Vite preview + frontend tunnel.
 - Новые миграции без пересоздания БД применяются через `npx supabase migration up`; полный `npx supabase db reset` пересоздает локальную БД и удаляет текущие локальные данные.
-- `npm run dev:telegram` поднимает Edge Functions `auth-telegram`, `save-user-settings`, `activate-subscription`, `complete-reading-text`, `get-reading-state`, `get-reading-history` и `generate-reading-text`.
+- `npm run dev:telegram` поднимает Edge Functions `auth-telegram`, `save-user-settings`, `activate-subscription`, `complete-reading-text`, `dev-tools`, `get-reading-state`, `get-reading-history` и `generate-reading-text`.
 - Логи в dev-режимах цветные по источнику (`[frontend]`, `[edge]`, `[db]`, `[api]`, `[tunnel-*]`), HTTP-методы и статус-коды дополнительно подсвечиваются.
-- `// TODO:` после изменения кода Edge Functions или server env для OpenRouter (`OPENROUTER_MODEL_*`, `OPENROUTER_API_KEY`) перезапускать активный dev-режим, чтобы локальная среда подхватила актуальную версию функций и env.
+- `// TODO:` после изменения frontend-кода, кода Edge Functions или server env для OpenRouter (`OPENROUTER_MODEL_*`, `OPENROUTER_API_KEY`) перезапускать активный dev-режим, чтобы локальная среда подхватила актуальную версию функций, env и frontend bundle.
 - Если в summary указано `Frontend restart required: YES`, нужно перезапустить `npm run dev:telegram`.
 - Для локального Telegram-старта использовать `npm run dev:telegram`, для остановки Supabase: `npm run dev:stop`.
 
