@@ -13,6 +13,7 @@ import {
   successResponse,
 } from "../_shared/server.ts";
 import {
+  AiGenerationError,
   DEFAULT_FALLBACK_MODEL,
   DEFAULT_PRIMARY_MODEL,
   DEFAULT_TERTIARY_MODEL,
@@ -20,6 +21,7 @@ import {
   READING_TEXT_PROMPT_VERSION,
   generateReadingTextWithOpenRouter,
   getOpenRouterModelChain,
+  type AiFailureStage,
   type EnglishLevel,
   type ReadingGenerationConfig,
   type ReadingMinutes,
@@ -39,6 +41,20 @@ type UserReadingSettings = {
   appUserId: string;
   englishLevel: EnglishLevel;
   dailyReadingMinutes: ReadingMinutes;
+};
+
+type AttemptMetadata = {
+  promptVersion: string;
+  modelChain: string[];
+  targetLevel: EnglishLevel;
+  readingMinutes: ReadingMinutes;
+  targetWordMin: number;
+  targetWordMax: number;
+  validationWordMin: number;
+  validationWordMax: number;
+  maxTokens: number;
+  fallbackUsed: boolean | null;
+  outputWordCount: number | null;
 };
 
 type ClaimGenerationAttemptResult =
@@ -103,6 +119,60 @@ const getReadingGenerationConfig = (
     validationWordMax: Math.ceil(config.wordMax * 1.2),
   };
 };
+
+const sanitizeAttemptErrorMessage = (message: string): string =>
+  message
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 300);
+
+const getFailureStage = (error: unknown): AiFailureStage => {
+  if (error instanceof AiGenerationError) {
+    return error.stage;
+  }
+
+  if (error instanceof AppError && error.code === "ACTIVE_TEXT_SAVE_FAILED") {
+    return "db_save";
+  }
+
+  return "unknown";
+};
+
+const buildAttemptMetadata = (
+  models: string[],
+  targetLevel: EnglishLevel,
+  readingMinutes: ReadingMinutes,
+  config: ReadingGenerationConfig,
+): AttemptMetadata => ({
+  promptVersion: READING_TEXT_PROMPT_VERSION,
+  modelChain: models,
+  targetLevel,
+  readingMinutes,
+  targetWordMin: config.wordMin,
+  targetWordMax: config.wordMax,
+  validationWordMin: config.validationWordMin,
+  validationWordMax: config.validationWordMax,
+  maxTokens: config.maxTokens,
+  fallbackUsed: null,
+  outputWordCount: null,
+});
+
+const toAttemptUpdatePayload = (
+  metadata: AttemptMetadata,
+): Record<string, unknown> => ({
+  prompt_version: metadata.promptVersion,
+  model_chain: metadata.modelChain,
+  target_level: metadata.targetLevel,
+  reading_minutes: metadata.readingMinutes,
+  target_word_min: metadata.targetWordMin,
+  target_word_max: metadata.targetWordMax,
+  validation_word_min: metadata.validationWordMin,
+  validation_word_max: metadata.validationWordMax,
+  max_tokens: metadata.maxTokens,
+  fallback_used: metadata.fallbackUsed,
+  output_word_count: metadata.outputWordCount,
+});
 
 const getMoscowDate = (): string => {
   const parts = new Intl.DateTimeFormat("en", {
@@ -248,9 +318,11 @@ Deno.serve(async (req: Request) => {
     return corsResponse;
   }
 
+  const requestStartedAt = Date.now();
   let startedAttempt:
     | { supabase: ReturnType<typeof createClient>; attemptId: string }
     | null = null;
+  let attemptMetadata: AttemptMetadata | null = null;
 
   try {
     assertPostRequest(req);
@@ -342,6 +414,12 @@ Deno.serve(async (req: Request) => {
 
     const targetLevel = settings.englishLevel;
     const config = getReadingGenerationConfig(settings.dailyReadingMinutes);
+    attemptMetadata = buildAttemptMetadata(
+      models,
+      targetLevel,
+      settings.dailyReadingMinutes,
+      config,
+    );
 
     console.log("[generate-reading-text] start", {
       telegramUserId: tgUser.id,
@@ -361,6 +439,19 @@ Deno.serve(async (req: Request) => {
       models,
     });
 
+    const { error: metadataUpdateError } = await supabase
+      .from("reading_generation_attempts")
+      .update(toAttemptUpdatePayload(attemptMetadata))
+      .eq("id", startedAttempt.attemptId);
+
+    if (metadataUpdateError) {
+      console.error("[generate-reading-text] failed to update attempt metadata", {
+        appUserId: settings.appUserId,
+        attemptId: startedAttempt.attemptId,
+        error: metadataUpdateError.message,
+      });
+    }
+
     const generated = await generateReadingTextWithOpenRouter({
       apiKey: env.OPENROUTER_API_KEY,
       models,
@@ -370,6 +461,9 @@ Deno.serve(async (req: Request) => {
     });
 
     const fallbackUsed = generated.usedModel !== models[0];
+    attemptMetadata.fallbackUsed = fallbackUsed;
+    attemptMetadata.outputWordCount = generated.validation.wordCount;
+
     const { error: activeTextError } = await supabase
       .from("user_active_reading_texts")
       .upsert(
@@ -399,9 +493,12 @@ Deno.serve(async (req: Request) => {
     const { error: attemptUpdateError } = await supabase
       .from("reading_generation_attempts")
       .update({
+        ...toAttemptUpdatePayload(attemptMetadata),
         status: "succeeded",
         provider: OPENROUTER_PROVIDER,
         model: generated.usedModel,
+        duration_ms: Date.now() - requestStartedAt,
+        failure_stage: null,
         error_code: null,
         error_message: null,
       })
@@ -439,12 +536,16 @@ Deno.serve(async (req: Request) => {
         error instanceof AppError ? error.code : "TEXT_GENERATION_FAILED";
       const message =
         error instanceof Error ? error.message : "Unknown generation error.";
+      const failureStage = getFailureStage(error);
       const { error: updateError } = await startedAttempt.supabase
         .from("reading_generation_attempts")
         .update({
+          ...(attemptMetadata ? toAttemptUpdatePayload(attemptMetadata) : {}),
           status: "failed",
+          duration_ms: Date.now() - requestStartedAt,
+          failure_stage: failureStage,
           error_code: code,
-          error_message: message,
+          error_message: sanitizeAttemptErrorMessage(message),
         })
         .eq("id", startedAttempt.attemptId);
 

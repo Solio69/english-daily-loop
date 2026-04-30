@@ -80,6 +80,8 @@ Telegram Mini App для ежедневной практики английск�
 
 Доступ к чувствительным пользовательским данным идет через Edge Functions. На пользовательских, reading-state, completion/history и subscription таблицах включен RLS. Для `anon` и `authenticated` явно закрыт прямой доступ к защищенным таблицам и server-only RPC; серверные операции выполняются через Edge Functions с `SUPABASE_SERVICE_ROLE_KEY`. Клиент не пишет напрямую в пользовательские, reading и subscription таблицы.
 
+`public.reading_generation_attempts` хранит безопасные metadata AI-попыток: prompt version, model chain, target/validation ranges, output word count, fallback flag, duration, failure stage и sanitized error details. Полный prompt, raw provider response, полный generated text, Telegram `initData`, secrets и stack trace в attempt metadata не пишутся.
+
 Критичные операции, где важна защита от параллельных запросов, вынесены в Postgres RPC:
 
 - `public.claim_reading_generation_attempt(...)` — проверяет дневной лимит и создает attempt одним DB-действием.

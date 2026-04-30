@@ -83,9 +83,42 @@ OpenRouter-модели проходят allowlist в `ai-pipeline.ts`.
 - новый активный текст не сохраняется
 - ранее активный текст остается доступным пользователю
 
-## 7) Что остается production-задачей
+## 7) Observability и политика хранения
+`public.reading_generation_attempts` хранит безопасные metadata попытки:
+- `prompt_version`
+- `model_chain`
+- `target_level`
+- `reading_minutes`
+- target/validation word ranges
+- `max_tokens`
+- `output_word_count`
+- `fallback_used`
+- `duration_ms`
+- `failure_stage`
+- `error_code`
+- sanitized `error_message`
+
+В attempt metadata не хранятся:
+- полный prompt
+- raw provider response
+- полный сгенерированный текст
+- Telegram `initData`
+- Telegram user payload
+- server env secrets
+- stack trace
+
+Допустимые `failure_stage`:
+- `provider_request`
+- `provider_response`
+- `output_validation`
+- `db_save`
+- `unknown`
+
+`error_message` используется только для короткой server-side диагностики. Значение нормализуется,
+обрезается до 300 символов и не должно содержать prompt, raw response, секреты или stack trace.
+
+## 8) Что остается production-задачей
 - добавить Deno/Edge Functions checks в CI
 - добавить automated tests на AI output validation
 - добавить отдельные red-team cases для prompt injection и prompt leakage
-- решить, нужно ли хранить `prompt_version` и validation metadata в БД
 - добавить retention/privacy policy для AI logs и provider diagnostics

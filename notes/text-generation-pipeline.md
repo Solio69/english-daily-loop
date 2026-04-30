@@ -46,9 +46,10 @@ Supabase Edge Function, базой и внешней AI-моделью.
 13. Вызывает OpenRouter с `models` parameter и приоритетным списком free-моделей.
 14. Если router-level fallback не помог или ответ пришел с невалидным JSON/длиной/content pattern, приложение исключает использованную модель и пробует следующую.
 15. Валидирует JSON-ответ модели как недоверенный output.
-16. При успехе сохраняет/перезаписывает `public.user_active_reading_texts`.
-17. Помечает попытку как `succeeded`; при ошибке после списания помечает как `failed`.
-18. Возвращает единый контракт:
+16. Записывает безопасные observability metadata в `public.reading_generation_attempts`.
+17. При успехе сохраняет/перезаписывает `public.user_active_reading_texts`.
+18. Помечает попытку как `succeeded`; при ошибке после списания помечает как `failed`.
+19. Возвращает единый контракт:
 - успех: `{ ok: true, data: { text, generation, dailyLimit, usedAttempts, remainingAttempts } }`
 - ошибка: `{ ok: false, error: { code, message } }`
 
@@ -77,6 +78,7 @@ Server env:
 - OpenRouter делает router-level failover для provider/infra ошибок
 - если успешный ответ пришел, но не прошел app-level валидацию JSON, длины или content safety, Edge Function исключает использованную модель и повторяет запрос по оставшемуся списку
 - timeout запроса к OpenRouter: `45` секунд
+- `reading_generation_attempts` хранит metadata попытки: `prompt_version`, `model_chain`, target/validation word ranges, `max_tokens`, `output_word_count`, `fallback_used`, `duration_ms`, `failure_stage`, `error_code`, sanitized `error_message`
 
 `// TODO:` после изменения server env для OpenRouter или кода `generate-reading-text` перезапускать `npm run dev:telegram`, чтобы локальная среда подняла актуальную версию Edge Function
 
@@ -143,6 +145,7 @@ Server env:
 - попытка списывается независимо от успеха генерации
 - при новой успешной генерации активный текст перезаписывается
 - при ошибке генерации активный текст не меняется
+- attempt metadata не хранит полный prompt, raw provider response, полный сгенерированный текст, Telegram `initData`, server env secrets или stack trace
 - после завершения чтения активный текст сохраняется в историю, удаляется из active-состояния, а генерация на текущий день блокируется
 - `users.first_text_completed_at` используется только для онбординга
 - статус карточки урока на главной определяется сервером через `homeProgress.lesson`
@@ -154,7 +157,7 @@ Server env:
 - Валидация длины работает по простому подсчету слов через whitespace.
 - Дневной лимит генерации списывается атомарно через RPC.
 - Завершение чтения выполняется транзакционно через RPC.
-- `promptVersion` возвращается в ответе генерации и логируется на сервере, но не хранится в отдельной колонке БД.
+- `promptVersion` возвращается в ответе генерации, логируется на сервере и хранится в `reading_generation_attempts.prompt_version`.
 
 Возможные следующие шаги:
 - добавить retry только для ошибок длины, чтобы модель могла перегенерировать текст

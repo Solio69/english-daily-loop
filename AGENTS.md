@@ -65,6 +65,7 @@
 - В `public.user_settings` есть настройки `english_level`, `daily_exercise_minutes`, `daily_reading_minutes`.
 - На пользовательских, reading-state, completion/history и subscription таблицах включен RLS; frontend не пишет в защищенные таблицы напрямую, операции проходят через Edge Functions с `SUPABASE_SERVICE_ROLE_KEY`.
 - Миграция `supabase/migrations/20260430120000_harden_public_api_permissions.sql` явно закрывает прямой доступ `anon`/`authenticated` к защищенным таблицам, закрывает legacy RPC `get_random_reading_text` для клиента и оставляет server-only доступ через `service_role`.
+- Миграция `supabase/migrations/20260430173000_add_ai_generation_observability.sql` добавляет безопасные metadata-поля AI-попыток в `public.reading_generation_attempts`: prompt version, model chain, target/validation ranges, output word count, fallback flag, duration и failure stage.
 - В проекте есть базовые миграции и сиды для локальной разработки (dev user + моковые тексты).
 - Миграция `supabase/migrations/20260424113000_drop_daily_review_words_from_user_settings.sql` удаляет устаревшее поле `daily_review_words` из `public.user_settings`.
 - Миграция `supabase/migrations/20260427165000_enable_rls_for_users_and_settings.sql` включает RLS для `public.users` и `public.user_settings`.
@@ -117,6 +118,7 @@
   - генерация через OpenRouter `models` parameter с цепочкой free-моделей `primary -> fallback -> tertiary`
   - динамический `max_tokens` и диапазон слов по времени чтения
   - output validation проверяет JSON, title/body, `estimatedMinutes`, `level`, длину с допуском примерно `±20%` и базовые content-safety patterns
+  - observability AI-попыток хранится в `reading_generation_attempts` как metadata без полного prompt, raw provider response, полного generated text, Telegram `initData`, secrets и stack trace
   - timeout запроса к OpenRouter: `45` секунд
   - сохранение последнего успешного непрочитанного текста в `user_active_reading_texts`
   - единый контракт ответа (`ok/data` или `ok/error`).

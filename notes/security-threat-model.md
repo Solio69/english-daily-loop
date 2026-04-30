@@ -94,6 +94,7 @@ Edge Functions:
 - Dev tools должны быть закрыты server env флагом, а не только frontend UI-флагом.
 - Ошибки клиенту возвращаются без секретов, stack trace и SQL/provider details.
 - Логи не должны содержать секреты, полный `initData` или чувствительные ключи.
+- AI observability хранит только metadata попытки; полный prompt, raw provider response, полный generated text и stack trace не пишутся в `reading_generation_attempts`.
 
 ## 6) Abuse cases для проверки
 - Пользователь подменяет `telegram_user_id` или `user_id` в body.
@@ -108,6 +109,7 @@ Edge Functions:
 - AI-provider возвращает невалидный JSON, неправильную длину текста или ошибку.
 - AI-provider возвращает HTML/script, markdown code fence, prompt leakage или модель вне allowlist.
 - Ошибка OpenRouter не должна повреждать текущий активный текст.
+- Ошибка OpenRouter не должна записывать в БД raw provider response, полный prompt или stack trace.
 - Секреты не должны попадать в frontend bundle, git, ответы API или логи.
 
 ## 7) Чеклист дальнейшего аудита

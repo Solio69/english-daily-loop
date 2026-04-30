@@ -23,6 +23,22 @@ export type GeneratedReadingText = {
   };
 };
 
+export type AiFailureStage =
+  | "provider_request"
+  | "provider_response"
+  | "output_validation"
+  | "db_save"
+  | "unknown";
+
+export class AiGenerationError extends Error {
+  stage: AiFailureStage;
+
+  constructor(stage: AiFailureStage, message: string) {
+    super(message);
+    this.stage = stage;
+  }
+}
+
 type OpenRouterChoice = {
   message?: {
     content?: string | Array<{ type?: string; text?: string }>;
@@ -284,19 +300,23 @@ const requestOpenRouter = async (
         (error.name === "AbortError" ||
           error.message.includes("signal has been aborted"))
       ) {
-        throw new Error(
+        throw new AiGenerationError(
+          "provider_request",
           "AI-модели не ответили вовремя. Попробуй еще раз чуть позже.",
         );
       }
 
-      throw error;
+      const message =
+        error instanceof Error ? error.message : "Unknown provider request error.";
+      throw new AiGenerationError("provider_request", message);
     }
 
     let payload: OpenRouterResponse;
     try {
       payload = (await response.json()) as OpenRouterResponse;
     } catch {
-      throw new Error(
+      throw new AiGenerationError(
+        "provider_response",
         `OpenRouter returned invalid JSON with status ${response.status}.`,
       );
     }
@@ -305,17 +325,23 @@ const requestOpenRouter = async (
       const details =
         payload.error?.message ??
         `OpenRouter request failed with status ${response.status}.`;
-      throw new Error(details);
+      throw new AiGenerationError("provider_response", details);
     }
 
     const content = extractOpenRouterContent(payload);
     if (!content) {
-      throw new Error("OpenRouter returned empty content.");
+      throw new AiGenerationError(
+        "provider_response",
+        "OpenRouter returned empty content.",
+      );
     }
 
     const usedModel = payload.model?.trim() || models[0];
     if (!ALLOWED_OPENROUTER_MODELS.has(usedModel)) {
-      throw new Error("OpenRouter returned an unsupported model.");
+      throw new AiGenerationError(
+        "provider_response",
+        "OpenRouter returned an unsupported model.",
+      );
     }
 
     return {
@@ -351,12 +377,15 @@ export const generateReadingTextWithOpenRouter = async ({
     } catch (error) {
       lastErrorMessage =
         error instanceof Error ? error.message : "Unknown generation error.";
+      const stage =
+        error instanceof AiGenerationError ? error.stage : "provider_request";
       console.error("[generate-reading-text] model routing failed", {
         models: remainingModels,
         promptVersion: READING_TEXT_PROMPT_VERSION,
+        stage,
         error: lastErrorMessage,
       });
-      throw new Error(lastErrorMessage);
+      throw new AiGenerationError(stage, lastErrorMessage);
     }
 
     try {
@@ -378,11 +407,12 @@ export const generateReadingTextWithOpenRouter = async ({
         usedModel: routed.usedModel,
         candidateModels: remainingModels,
         promptVersion: READING_TEXT_PROMPT_VERSION,
+        stage: "output_validation",
         error: lastErrorMessage,
       });
       remainingModels = excludeModel(remainingModels, routed.usedModel);
     }
   }
 
-  throw new Error(lastErrorMessage);
+  throw new AiGenerationError("output_validation", lastErrorMessage);
 };
