@@ -120,5 +120,4 @@ OpenRouter-модели проходят allowlist в `ai-pipeline.ts`.
 ## 8) Что остается production-задачей
 - добавить Deno/Edge Functions checks в CI
 - добавить automated tests на AI output validation
-- добавить отдельные red-team cases для prompt injection и prompt leakage
-- включить scheduled cleanup для `reading_generation_attempts` по retention policy из `notes/ai-observability-diagnostics.md`
+- добавить dashboard/alerting по AI diagnostics из `notes/ai-observability-diagnostics.md`

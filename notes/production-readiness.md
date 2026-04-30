@@ -10,6 +10,7 @@
 - Полный prompt, raw provider response, полный generated text, Telegram `initData`, secrets и stack trace не пишутся в attempt metadata.
 - Retention policy для AI attempt metadata зафиксирована в `notes/ai-observability-diagnostics.md`: operational diagnostics window `90` дней.
 - Scheduled cleanup выполняется через `pg_cron` job `cleanup_ai_generation_attempts`.
+- Ручные adversarial-проверки AI-пайплайна зафиксированы в `notes/ai-red-team-checklist.md`.
 - Перед production стоит:
   - добавить correlation/request id, если появится backend-сессия
   - добавить dashboard/alerting по `failure_stage`, latency и provider/model error rate

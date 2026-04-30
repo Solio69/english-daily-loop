@@ -252,6 +252,7 @@ pnpm build
 - `notes/security-audit-2026-04-30.md` — результат проверки базового security-контура.
 - `notes/ai-pipeline-security.md` — security-модель AI-пайплайна генерации текста.
 - `notes/ai-observability-diagnostics.md` — retention policy и SQL-диагностика AI-попыток.
+- `notes/ai-red-team-checklist.md` — ручные adversarial-проверки AI-пайплайна.
 - `notes/text-generation-pipeline.md` — AI-пайплайн генерации текста.
 - `notes/reading-generation-limits.md` — дневные попытки и активный текст.
 - `notes/materials-and-reading-history.md` — раздел `Мои материалы` и история прочитанных текстов.

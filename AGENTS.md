@@ -197,4 +197,5 @@
 - Security-контекст зафиксирован в `notes/security-threat-model.md`, результат проверки базового контура — в `notes/security-audit-2026-04-30.md`.
 - Security-модель AI-пайплайна зафиксирована в `notes/ai-pipeline-security.md`.
 - Retention policy и SQL-диагностика AI-попыток зафиксированы в `notes/ai-observability-diagnostics.md`.
+- Ручной AI red-team checklist зафиксирован в `notes/ai-red-team-checklist.md`.
 
