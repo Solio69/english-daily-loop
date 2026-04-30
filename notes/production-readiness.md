@@ -15,11 +15,11 @@
   - причина ошибки генерации
   - correlation/request id, если появится backend-сессия
 
-## 2) Telegram initData validation reuse
-- `auth-telegram`, `save-user-settings`, `activate-subscription`, `generate-reading-text`, `get-reading-state`, `complete-reading-text`, `get-reading-history` и `dev-tools` имеют похожую серверную проверку `initData`.
-- Для MVP это нормально.
+## 2) Edge Functions shared server helper
+- Общая server-инфраструктура Edge Functions находится в `supabase/functions/_shared/server.ts`.
+- Helper покрывает CORS, POST guard, JSON parsing, чтение env, Telegram `initData` validation, `AppError` и единый формат JSON-ответов.
 - Чувствительные функции возвращают Telegram validation как `401 AUTH_VALIDATION_FAILED`; неожиданные внутренние ошибки возвращаются как `5xx` с безопасным сообщением для клиента, а технические детали остаются в server logs.
-- Перед production стоит вынести общую проверку в общий модуль для Edge Functions.
+- Перед production стоит добавить CI-проверку Edge Functions в Deno runtime и smoke tests на auth/error-контракты, чтобы общий helper не расходился с контрактами frontend.
 
 ## 3) DB fallback length
 - AI-текст учитывает `daily_reading_minutes`.

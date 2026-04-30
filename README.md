@@ -61,6 +61,8 @@ Telegram Mini App для ежедневной практики английск�
 
 Все чувствительные операции выполняются на сервере. `TELEGRAM_BOT_TOKEN`, `SUPABASE_SERVICE_ROLE_KEY` и `OPENROUTER_API_KEY` нельзя использовать в клиентском коде. Неожиданные внутренние ошибки Edge Functions логируются на сервере, а клиент получает безопасный код и сообщение без SQL/provider details.
 
+Общая server-инфраструктура Edge Functions находится в `supabase/functions/_shared/server.ts`: CORS, POST guard, JSON parsing, чтение env, Telegram `initData` validation, `AppError` и единый формат JSON-ответов. Бизнес-логика лимитов, подписок, чтения и генерации остается в конкретных Edge Functions.
+
 ## Данные
 
 Ключевые таблицы:
@@ -227,6 +229,7 @@ pnpm build
 - Новую работу с данными лучше выносить в `src/services`, а не напрямую в UI-компоненты.
 - Общие типы держать в `src/types`.
 - Серверные проверки Telegram `initData`, лимитов и подписок должны оставаться в Edge Functions.
+- Общую инфраструктуру Edge Functions нужно переиспользовать из `supabase/functions/_shared/server.ts`, а доменные проверки держать рядом с бизнес-операцией конкретной функции.
 - Server-only таблицы и RPC должны оставаться закрытыми для `anon` и `authenticated`; новые чувствительные операции нужно добавлять через Edge Functions и миграции прав доступа.
 - Edge Functions работают в Deno runtime и исключены из корневого frontend `tsconfig.json`.
 - Локальная панель dev tools показывается только при `VITE_DEV_TOOLS_ENABLED="true"`, а изменения БД выполняются только при server env `DEV_TOOLS_ENABLED="true"`.

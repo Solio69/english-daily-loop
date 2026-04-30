@@ -18,6 +18,11 @@ security/business-решения.
 
 Эти действия выполняются в Supabase Edge Functions с серверными секретами.
 
+Общая server-инфраструктура Edge Functions находится в `supabase/functions/_shared/server.ts`.
+Там живут CORS, POST guard, JSON parsing, env helpers, Telegram `initData` validation,
+безопасные JSON-ответы и `AppError`. Бизнес-валидация остается в конкретных функциях:
+лимиты, подписки, чтение, completion и AI-пайплайн проверяются рядом с соответствующей операцией.
+
 ## 3) RLS и grants
 RLS включен для:
 - `public.users`
@@ -63,6 +68,12 @@ subscription таблицам, а также к server-only RPC. Доступ и
 - списывает попытку через RPC `claim_reading_generation_attempt`
 - сохраняет активный AI-текст при успешной генерации
 - возвращает клиенту безопасное сообщение для неожиданных AI/provider ошибок
+
+`get-reading-state`:
+- валидирует Telegram `initData`
+- возвращает активный текст, дневной лимит, использованные/оставшиеся попытки и флаг завершения чтения за день
+- считает дневной цикл по timezone `Europe/Moscow`
+- возвращает клиенту безопасное сообщение для неожиданных внутренних ошибок
 
 `complete-reading-text`:
 - валидирует Telegram `initData`

@@ -1,11 +1,20 @@
 // @ts-nocheck
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
+import {
+  AppError,
+  assertPostRequest,
+  errorResponse,
+  fail,
+  getOptionalEnv,
+  getRequiredEnv,
+  getTelegramUserFromBody,
+  handleCorsPreflight,
+  parseJsonBody,
+  successResponse,
+} from "../_shared/server.ts";
 
 type EnglishLevel = "A1" | "A2" | "B1" | "B2";
 type ReadingMinutes = 3 | 5 | 10 | 15;
-type TelegramUser = {
-  id: number;
-};
 type UserRow = {
   id: string;
   telegram_user_id: number;
@@ -59,13 +68,6 @@ type ClaimGenerationAttemptResult =
       remainingAttempts: number;
     };
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
-
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_PRIMARY_MODEL = "openai/gpt-oss-20b:free";
 const DEFAULT_FALLBACK_MODEL = "google/gemma-3-12b-it:free";
@@ -73,11 +75,9 @@ const DEFAULT_TERTIARY_MODEL = "qwen/qwen3.6-plus:free";
 const MODEL_TIMEOUT_MS = 45_000;
 const AI_ERROR_MESSAGE =
   "Не удалось сгенерировать текст. Попробуй еще раз позже.";
-const MAX_AUTH_AGE_SECONDS = 24 * 60 * 60;
 const FREE_DAILY_GENERATION_LIMIT = 3;
 const PAID_DAILY_GENERATION_LIMIT = 10;
 const MOSCOW_TIME_ZONE = "Europe/Moscow";
-const textEncoder = new TextEncoder();
 const READING_CONFIG_BY_MINUTES: Record<
   ReadingMinutes,
   Omit<ReadingGenerationConfig, "validationWordMin" | "validationWordMax">
@@ -87,36 +87,6 @@ const READING_CONFIG_BY_MINUTES: Record<
   10: { wordMin: 450, wordMax: 650, maxTokens: 1300 },
   15: { wordMin: 700, wordMax: 950, maxTokens: 1900 },
 };
-
-class AppError extends Error {
-  status: number;
-  code: string;
-
-  constructor(status: number, code: string, message: string) {
-    super(message);
-    this.status = status;
-    this.code = code;
-  }
-}
-
-const fail = (status: number, code: string, message: string): never => {
-  throw new AppError(status, code, message);
-};
-
-const jsonResponse = (status: number, payload: unknown): Response =>
-  new Response(JSON.stringify(payload), {
-    status,
-    headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-  });
-
-const successResponse = (status: number, data: unknown): Response =>
-  jsonResponse(status, { ok: true, data });
-
-const errorResponse = (
-  status: number,
-  code: string,
-  message: string,
-): Response => jsonResponse(status, { ok: false, error: { code, message } });
 
 const parseEnglishLevel = (value: unknown): EnglishLevel => {
   if (value === "A1" || value === "A2" || value === "B1" || value === "B2") {
@@ -253,132 +223,6 @@ const stripCodeFence = (raw: string): string => {
     .replace(/^```(?:json)?/i, "")
     .replace(/```$/i, "")
     .trim();
-};
-
-const toBufferSource = (value: Uint8Array): BufferSource => {
-  const view = new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
-  return view as BufferSource;
-};
-
-const toHex = (bytes: Uint8Array): string =>
-  Array.from(bytes)
-    .map((item) => item.toString(16).padStart(2, "0"))
-    .join("");
-
-const timingSafeEqual = (a: string, b: string): boolean => {
-  if (a.length !== b.length) return false;
-  let mismatch = 0;
-  for (let i = 0; i < a.length; i += 1) {
-    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return mismatch === 0;
-};
-
-const hmacSha256 = async (
-  key: Uint8Array,
-  data: string,
-): Promise<Uint8Array> => {
-  const cryptoKey = await crypto.subtle.importKey(
-    "raw",
-    toBufferSource(key),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const signature = await crypto.subtle.sign(
-    "HMAC",
-    cryptoKey,
-    toBufferSource(textEncoder.encode(data)),
-  );
-  return new Uint8Array(signature);
-};
-
-const buildDataCheckString = (params: URLSearchParams): string => {
-  const pairs: string[] = [];
-  for (const [key, value] of params.entries()) {
-    if (key === "hash") continue;
-    pairs.push(`${key}=${value}`);
-  }
-  pairs.sort((a, b) => a.localeCompare(b));
-  return pairs.join("\n");
-};
-
-const parseInitData = (
-  rawInitData: string,
-): { params: URLSearchParams; user: TelegramUser } => {
-  const params = new URLSearchParams(rawInitData);
-  const userRaw = params.get("user");
-  if (!userRaw) {
-    fail(401, "AUTH_VALIDATION_FAILED", "Field user is missing in initData.");
-  }
-
-  let user: TelegramUser;
-  try {
-    user = JSON.parse(userRaw) as TelegramUser;
-  } catch {
-    fail(
-      401,
-      "AUTH_VALIDATION_FAILED",
-      "Field user in initData has invalid JSON.",
-    );
-  }
-
-  if (!user.id) {
-    fail(
-      401,
-      "AUTH_VALIDATION_FAILED",
-      "telegram user id is missing in initData.",
-    );
-  }
-
-  return { params, user };
-};
-
-const validateTelegramInitData = async (
-  rawInitData: string,
-  botToken: string,
-): Promise<TelegramUser> => {
-  const { params, user } = parseInitData(rawInitData);
-  const receivedHash = params.get("hash");
-  if (!receivedHash) {
-    fail(401, "AUTH_VALIDATION_FAILED", "hash is missing in initData.");
-  }
-
-  const authDateRaw = params.get("auth_date");
-  if (!authDateRaw) {
-    fail(401, "AUTH_VALIDATION_FAILED", "auth_date is missing in initData.");
-  }
-
-  const authDate = Number(authDateRaw);
-  if (!Number.isFinite(authDate)) {
-    fail(401, "AUTH_VALIDATION_FAILED", "auth_date in initData is invalid.");
-  }
-
-  const now = Math.floor(Date.now() / 1000);
-  if (now - authDate > MAX_AUTH_AGE_SECONDS) {
-    fail(
-      401,
-      "AUTH_VALIDATION_FAILED",
-      "Telegram initData is too old. Reopen the Mini App.",
-    );
-  }
-
-  const dataCheckString = buildDataCheckString(params);
-  const secretKey = await hmacSha256(
-    textEncoder.encode("WebAppData"),
-    botToken,
-  );
-  const expectedHash = toHex(await hmacSha256(secretKey, dataCheckString));
-
-  if (!timingSafeEqual(expectedHash, receivedHash.toLowerCase())) {
-    fail(
-      401,
-      "AUTH_VALIDATION_FAILED",
-      "Telegram initData signature is not valid.",
-    );
-  }
-
-  return user;
 };
 
 const getUserReadingSettingsFromDb = async (
@@ -636,12 +480,9 @@ const generateWithFallback = async (
 };
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: CORS_HEADERS });
-  }
-
-  if (req.method !== "POST") {
-    return errorResponse(405, "METHOD_NOT_ALLOWED", "Method Not Allowed");
+  const corsResponse = handleCorsPreflight(req);
+  if (corsResponse) {
+    return corsResponse;
   }
 
   let startedAttempt:
@@ -649,44 +490,34 @@ Deno.serve(async (req: Request) => {
     | null = null;
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")?.trim();
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.trim();
-    const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN")?.trim();
-    const openRouterApiKey = Deno.env.get("OPENROUTER_API_KEY")?.trim();
+    assertPostRequest(req);
+
+    const env = getRequiredEnv([
+      "SUPABASE_URL",
+      "SUPABASE_SERVICE_ROLE_KEY",
+      "TELEGRAM_BOT_TOKEN",
+      "OPENROUTER_API_KEY",
+    ]);
     const primaryModel =
-      Deno.env.get("OPENROUTER_MODEL_PRIMARY")?.trim() || DEFAULT_PRIMARY_MODEL;
+      getOptionalEnv("OPENROUTER_MODEL_PRIMARY") || DEFAULT_PRIMARY_MODEL;
     const fallbackModel =
-      Deno.env.get("OPENROUTER_MODEL_FALLBACK")?.trim() ||
-      DEFAULT_FALLBACK_MODEL;
+      getOptionalEnv("OPENROUTER_MODEL_FALLBACK") || DEFAULT_FALLBACK_MODEL;
     const tertiaryModel =
-      Deno.env.get("OPENROUTER_MODEL_TERTIARY")?.trim() ||
-      DEFAULT_TERTIARY_MODEL;
+      getOptionalEnv("OPENROUTER_MODEL_TERTIARY") || DEFAULT_TERTIARY_MODEL;
 
-    if (!supabaseUrl || !serviceRoleKey || !botToken || !openRouterApiKey) {
-      return errorResponse(
-        500,
-        "SERVER_ENV_MISCONFIGURED",
-        "Server env vars are not configured.",
-      );
-    }
+    const body = await parseJsonBody<{ initData?: unknown }>(req);
 
-    let body: { initData?: unknown };
-    try {
-      body = (await req.json()) as { initData?: unknown };
-    } catch {
-      fail(400, "INVALID_JSON", "Request body must be valid JSON.");
-    }
-
-    const initData =
-      typeof body?.initData === "string" ? body.initData.trim() : "";
-    if (!initData) {
-      fail(400, "INIT_DATA_REQUIRED", "initData is required.");
-    }
-
-    const tgUser = await validateTelegramInitData(initData, botToken);
-    const supabase = createClient(supabaseUrl, serviceRoleKey, {
-      auth: { persistSession: false },
-    });
+    const tgUser = await getTelegramUserFromBody(
+      body,
+      env.TELEGRAM_BOT_TOKEN,
+    );
+    const supabase = createClient(
+      env.SUPABASE_URL,
+      env.SUPABASE_SERVICE_ROLE_KEY,
+      {
+        auth: { persistSession: false },
+      },
+    );
     const settings = await getUserReadingSettingsFromDb(supabase, tgUser.id);
     const today = getMoscowDate();
     const dailyLimit = await getDailyGenerationLimit(
@@ -762,7 +593,7 @@ Deno.serve(async (req: Request) => {
     const generated = await generateWithFallback(
       models,
       prompt,
-      openRouterApiKey,
+      env.OPENROUTER_API_KEY,
       targetLevel,
       settings.dailyReadingMinutes,
       config,

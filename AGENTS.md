@@ -73,6 +73,8 @@
   - `public.complete_daily_reading_text(...)` — завершение чтения, completion, удаление active text и онбординг-флаг
   - `public.activate_mvp_subscription(...)` — активация MVP-подписки с advisory lock по пользователю.
 - Корневой `tsconfig.json` исключает `supabase/functions`, потому что Edge Functions работают в Deno-рантайме и не должны проверяться frontend `tsc`.
+- Общая server-инфраструктура Edge Functions находится в `supabase/functions/_shared/server.ts`: CORS, POST guard, JSON parsing, env helpers, Telegram `initData` validation, безопасные JSON-ответы и `AppError`.
+- Edge Functions `auth-telegram`, `save-user-settings`, `activate-subscription`, `complete-reading-text`, `dev-tools`, `get-reading-state`, `get-reading-history` и `generate-reading-text` используют общий helper для Telegram auth/error/env/http слоя; бизнес-валидация остается внутри конкретных функций.
 - Telegram auth реализована через Edge Function `supabase/functions/auth-telegram/index.ts`:
   - серверная валидация `initData` (подпись + `auth_date`)
   - идемпотентный `find-or-create/upsert` пользователя по `telegram_user_id`
