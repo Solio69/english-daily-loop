@@ -18,15 +18,26 @@ security/business-решения.
 
 Эти действия выполняются в Supabase Edge Functions с серверными секретами.
 
-## 3) RLS
+## 3) RLS и grants
 RLS включен для:
 - `public.users`
 - `public.user_settings`
+- `public.reading_generation_attempts`
+- `public.user_active_reading_texts`
+- `public.user_daily_reading_completions`
+- `public.user_completed_reading_texts`
+- `public.user_subscriptions`
 
-Миграция:
+Миграции:
 - `supabase/migrations/20260427165000_enable_rls_for_users_and_settings.sql`
+- `supabase/migrations/20260423120000_add_reading_generation_limits.sql`
+- `supabase/migrations/20260423133000_create_user_subscriptions.sql`
+- `supabase/migrations/20260427181000_create_user_completed_reading_texts.sql`
+- `supabase/migrations/20260430120000_harden_public_api_permissions.sql`
 
-Frontend policies для этих таблиц не добавлены. Доступ идет через Edge Functions с
+Frontend policies для защищенных таблиц не добавлены. Для `anon` и `authenticated`
+явно закрыт прямой доступ к пользовательским, reading-state, completion/history и
+subscription таблицам, а также к server-only RPC. Доступ идет через Edge Functions с
 `SUPABASE_SERVICE_ROLE_KEY`. Это сохраняет простую MVP-модель: пользовательская сессия
 подтверждается Telegram `initData`, а не Supabase Auth session.
 
@@ -36,6 +47,7 @@ Frontend policies для этих таблиц не добавлены. Дост
 - создает или находит пользователя по `telegram_user_id`
 - возвращает `settings`, `subscription`, `homeProgress` и `streakDays`
 - разделяет ошибки Telegram validation и внутренние DB/server ошибки
+- возвращает клиенту безопасное сообщение для неожиданных внутренних ошибок
 
 `save-user-settings`:
 - валидирует Telegram `initData`
@@ -43,34 +55,40 @@ Frontend policies для этих таблиц не добавлены. Дост
 - сохраняет `english_level`, `daily_exercise_minutes`, `daily_reading_minutes`
 - заполняет `users.settings_completed_at`, если настройки сохраняются впервые
 - возвращает актуальное состояние пользователя для frontend
+- возвращает клиенту безопасное сообщение для неожиданных внутренних ошибок
 
 `generate-reading-text`:
 - валидирует Telegram `initData`
 - проверяет настройки, подписку и дневной completion
 - списывает попытку через RPC `claim_reading_generation_attempt`
 - сохраняет активный AI-текст при успешной генерации
+- возвращает клиенту безопасное сообщение для неожиданных AI/provider ошибок
 
 `complete-reading-text`:
 - валидирует Telegram `initData`
 - завершает дневное чтение через RPC `complete_daily_reading_text`
 - сохраняет snapshot прочитанного текста в `user_completed_reading_texts`
 - возвращает актуальный `streakDays`
+- возвращает клиенту безопасное сообщение для неожиданных внутренних ошибок
 
 `get-reading-history`:
 - валидирует Telegram `initData`
 - возвращает историю прочитанных текстов текущего пользователя
 - использует cursor-пагинацию, чтобы история могла расти без offset-запросов
+- возвращает клиенту безопасное сообщение для неожиданных внутренних ошибок
 
 `activate-subscription`:
 - валидирует Telegram `initData`
 - активирует или планирует MVP-подписку через RPC `activate_mvp_subscription`
 - возвращает актуальный subscription summary
+- возвращает клиенту безопасное сообщение для неожиданных внутренних ошибок
 
 `dev-tools`:
 - валидирует Telegram `initData`
 - работает только при server env `DEV_TOOLS_ENABLED="true"`
 - выполняет локальные reset-действия для текущего Telegram-пользователя
 - не принимает произвольный SQL, а использует фиксированный список actions
+- возвращает клиенту безопасное сообщение для неожиданных внутренних ошибок
 
 ## 5) Transactional RPC
 `public.claim_reading_generation_attempt(...)`:

@@ -38,6 +38,8 @@ const CORS_HEADERS = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+const INTERNAL_ERROR_MESSAGE =
+  "Внутренняя ошибка сервера. Попробуй еще раз позже.";
 const MAX_AUTH_AGE_SECONDS = 24 * 60 * 60;
 const MOSCOW_TIME_ZONE = "Europe/Moscow";
 const FREE_LIMITS = {
@@ -491,7 +493,9 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
 
     if (findError) {
-      console.error("find user error", findError);
+      console.error("[auth-telegram] failed to find user", {
+        error: findError.message,
+      });
       fail(500, "USER_FIND_FAILED", "Failed to find user.");
     }
 
@@ -517,7 +521,9 @@ Deno.serve(async (req: Request) => {
         .single();
 
       if (createError || !createdUser) {
-        console.error("create user error", createError);
+        console.error("[auth-telegram] failed to create user", {
+          error: createError?.message,
+        });
         fail(500, "USER_CREATE_FAILED", "Failed to create user.");
       }
 
@@ -566,7 +572,7 @@ Deno.serve(async (req: Request) => {
     const message =
       error instanceof Error ? error.message : "Unknown auth error.";
     console.error("[auth-telegram] auth failed", { message });
-    return errorResponse(500, "AUTH_TELEGRAM_FAILED", message);
+    return errorResponse(500, "AUTH_TELEGRAM_FAILED", INTERNAL_ERROR_MESSAGE);
   }
 });
 

@@ -71,6 +71,8 @@ const DEFAULT_PRIMARY_MODEL = "openai/gpt-oss-20b:free";
 const DEFAULT_FALLBACK_MODEL = "google/gemma-3-12b-it:free";
 const DEFAULT_TERTIARY_MODEL = "qwen/qwen3.6-plus:free";
 const MODEL_TIMEOUT_MS = 45_000;
+const AI_ERROR_MESSAGE =
+  "Не удалось сгенерировать текст. Попробуй еще раз позже.";
 const MAX_AUTH_AGE_SECONDS = 24 * 60 * 60;
 const FREE_DAILY_GENERATION_LIMIT = 3;
 const PAID_DAILY_GENERATION_LIMIT = 10;
@@ -307,18 +309,26 @@ const parseInitData = (
   const params = new URLSearchParams(rawInitData);
   const userRaw = params.get("user");
   if (!userRaw) {
-    fail(400, "INIT_DATA_INVALID", "Field user is missing in initData.");
+    fail(401, "AUTH_VALIDATION_FAILED", "Field user is missing in initData.");
   }
 
   let user: TelegramUser;
   try {
     user = JSON.parse(userRaw) as TelegramUser;
   } catch {
-    fail(400, "INIT_DATA_INVALID", "Field user in initData has invalid JSON.");
+    fail(
+      401,
+      "AUTH_VALIDATION_FAILED",
+      "Field user in initData has invalid JSON.",
+    );
   }
 
   if (!user.id) {
-    fail(400, "INIT_DATA_INVALID", "telegram user id is missing in initData.");
+    fail(
+      401,
+      "AUTH_VALIDATION_FAILED",
+      "telegram user id is missing in initData.",
+    );
   }
 
   return { params, user };
@@ -331,17 +341,17 @@ const validateTelegramInitData = async (
   const { params, user } = parseInitData(rawInitData);
   const receivedHash = params.get("hash");
   if (!receivedHash) {
-    fail(400, "INIT_DATA_INVALID", "hash is missing in initData.");
+    fail(401, "AUTH_VALIDATION_FAILED", "hash is missing in initData.");
   }
 
   const authDateRaw = params.get("auth_date");
   if (!authDateRaw) {
-    fail(400, "INIT_DATA_INVALID", "auth_date is missing in initData.");
+    fail(401, "AUTH_VALIDATION_FAILED", "auth_date is missing in initData.");
   }
 
   const authDate = Number(authDateRaw);
   if (!Number.isFinite(authDate)) {
-    fail(400, "INIT_DATA_INVALID", "auth_date in initData is invalid.");
+    fail(401, "AUTH_VALIDATION_FAILED", "auth_date in initData is invalid.");
   }
 
   const now = Math.floor(Date.now() / 1000);
@@ -856,6 +866,6 @@ Deno.serve(async (req: Request) => {
     const message =
       error instanceof Error ? error.message : "Unknown generation error.";
     console.error("[generate-reading-text] failed", { message });
-    return errorResponse(502, "TEXT_GENERATION_FAILED", message);
+    return errorResponse(502, "TEXT_GENERATION_FAILED", AI_ERROR_MESSAGE);
   }
 });

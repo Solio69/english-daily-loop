@@ -16,9 +16,9 @@
   - correlation/request id, если появится backend-сессия
 
 ## 2) Telegram initData validation reuse
-- `auth-telegram`, `generate-reading-text`, `get-reading-state`, `complete-reading-text` и `get-reading-history` сейчас имеют похожую серверную проверку `initData`.
+- `auth-telegram`, `save-user-settings`, `activate-subscription`, `generate-reading-text`, `get-reading-state`, `complete-reading-text`, `get-reading-history` и `dev-tools` имеют похожую серверную проверку `initData`.
 - Для MVP это нормально.
-- `auth-telegram` разделяет ошибки validation и внутренние DB/server ошибки: Telegram validation возвращается как `401 AUTH_VALIDATION_FAILED`, а внутренние сбои как `5xx`.
+- Чувствительные функции возвращают Telegram validation как `401 AUTH_VALIDATION_FAILED`; неожиданные внутренние ошибки возвращаются как `5xx` с безопасным сообщением для клиента, а технические детали остаются в server logs.
 - Перед production стоит вынести общую проверку в общий модуль для Edge Functions.
 
 ## 3) DB fallback length
@@ -61,7 +61,15 @@
 - Frontend может видеть только `VITE_*` переменные.
 - Перед production проверить, что реальные секреты не попали в git history и логи.
 
-## 8) MVP subscriptions
+## 8) Database API hardening
+- Защищенные таблицы доступны через Edge Functions с `SUPABASE_SERVICE_ROLE_KEY`.
+- Для `anon` и `authenticated` закрыт прямой доступ к пользовательским, reading-state,
+  completion/history и subscription таблицам.
+- Критичные RPC доступны только `service_role`.
+- Перед production стоит добавить automated smoke checks на прямой anon-доступ к таблицам
+  и server-only RPC.
+
+## 9) MVP subscriptions
 - Активация MVP-подписки выполняется транзакционно через RPC `activate_mvp_subscription`.
 - RPC использует advisory lock на пользователя, чтобы параллельные запросы оформления не создавали дубли active/scheduled подписок.
 - Перед production при подключении реальных платежей нужно будет связать эту операцию с платежным provider event/webhook и идемпотентным payment id.

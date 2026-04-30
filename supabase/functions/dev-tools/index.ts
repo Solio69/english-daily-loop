@@ -22,6 +22,8 @@ const CORS_HEADERS = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+const INTERNAL_ERROR_MESSAGE =
+  "Внутренняя ошибка сервера. Попробуй еще раз позже.";
 const MAX_AUTH_AGE_SECONDS = 24 * 60 * 60;
 const MOSCOW_TIME_ZONE = "Europe/Moscow";
 const textEncoder = new TextEncoder();
@@ -384,6 +386,6 @@ Deno.serve(async (req: Request) => {
     const message =
       error instanceof Error ? error.message : "Unknown dev tools error.";
     console.error("[dev-tools] failed", { message });
-    return errorResponse(500, "DEV_TOOLS_FAILED", message);
+    return errorResponse(500, "DEV_TOOLS_FAILED", INTERNAL_ERROR_MESSAGE);
   }
 });

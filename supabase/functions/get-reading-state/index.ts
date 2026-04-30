@@ -29,6 +29,8 @@ const CORS_HEADERS = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+const INTERNAL_ERROR_MESSAGE =
+  "Внутренняя ошибка сервера. Попробуй еще раз позже.";
 const MAX_AUTH_AGE_SECONDS = 24 * 60 * 60;
 const FREE_DAILY_GENERATION_LIMIT = 3;
 const PAID_DAILY_GENERATION_LIMIT = 10;
@@ -368,6 +370,6 @@ Deno.serve(async (req: Request) => {
     const message =
       error instanceof Error ? error.message : "Unknown reading state error.";
     console.error("[get-reading-state] failed", { message });
-    return errorResponse(500, "READING_STATE_FAILED", message);
+    return errorResponse(500, "READING_STATE_FAILED", INTERNAL_ERROR_MESSAGE);
   }
 });

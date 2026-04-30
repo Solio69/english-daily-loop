@@ -14,6 +14,7 @@ Telegram Mini App для ежедневной практики английск�
 - Завершение дневного чтения и streak по дням.
 - Раздел `Мои материалы` с историей прочитанных текстов и местом под будущий словарь.
 - MVP-подписки: `free` и `paid` тарифное состояние без реальных платежей.
+- Базовый security-контур: server-side Telegram auth, RLS/grants hardening, защищенные секреты и безопасные ошибки Edge Functions.
 - Локальный Telegram-запуск через `npm run dev:telegram`.
 
 ## Стек
@@ -58,7 +59,7 @@ Telegram Mini App для ежедневной практики английск�
 - `get-reading-history` — возвращает историю прочитанных текстов текущего пользователя с cursor-пагинацией.
 - `dev-tools` — локальные dev-действия для текущего Telegram-пользователя; работает только при `DEV_TOOLS_ENABLED="true"`.
 
-Все чувствительные операции выполняются на сервере. `TELEGRAM_BOT_TOKEN`, `SUPABASE_SERVICE_ROLE_KEY` и `OPENROUTER_API_KEY` нельзя использовать в клиентском коде.
+Все чувствительные операции выполняются на сервере. `TELEGRAM_BOT_TOKEN`, `SUPABASE_SERVICE_ROLE_KEY` и `OPENROUTER_API_KEY` нельзя использовать в клиентском коде. Неожиданные внутренние ошибки Edge Functions логируются на сервере, а клиент получает безопасный код и сообщение без SQL/provider details.
 
 ## Данные
 
@@ -75,7 +76,7 @@ Telegram Mini App для ежедневной практики английск�
 
 Дневной цикл считается по timezone `Europe/Moscow`.
 
-Доступ к чувствительным пользовательским данным идет через Edge Functions. На `public.users` и `public.user_settings` включен RLS, а сохранение настроек выполняется через `save-user-settings`. Клиент не пишет напрямую в пользовательские, reading и subscription таблицы.
+Доступ к чувствительным пользовательским данным идет через Edge Functions. На пользовательских, reading-state, completion/history и subscription таблицах включен RLS. Для `anon` и `authenticated` явно закрыт прямой доступ к защищенным таблицам и server-only RPC; серверные операции выполняются через Edge Functions с `SUPABASE_SERVICE_ROLE_KEY`. Клиент не пишет напрямую в пользовательские, reading и subscription таблицы.
 
 Критичные операции, где важна защита от параллельных запросов, вынесены в Postgres RPC:
 
@@ -226,6 +227,7 @@ pnpm build
 - Новую работу с данными лучше выносить в `src/services`, а не напрямую в UI-компоненты.
 - Общие типы держать в `src/types`.
 - Серверные проверки Telegram `initData`, лимитов и подписок должны оставаться в Edge Functions.
+- Server-only таблицы и RPC должны оставаться закрытыми для `anon` и `authenticated`; новые чувствительные операции нужно добавлять через Edge Functions и миграции прав доступа.
 - Edge Functions работают в Deno runtime и исключены из корневого frontend `tsconfig.json`.
 - Локальная панель dev tools показывается только при `VITE_DEV_TOOLS_ENABLED="true"`, а изменения БД выполняются только при server env `DEV_TOOLS_ENABLED="true"`.
 - После изменения frontend-кода, Edge Functions или server env нужно перезапустить `npm run dev:telegram`.
@@ -239,6 +241,8 @@ pnpm build
 - `GIT_POLICY.md` — строгая политика Git для AI-агентов.
 - `LOCAL_TELEGRAM_RUN.md` — подробный локальный запуск внутри Telegram.
 - `notes/server-side-data-guards.md` — серверные границы доступа, RLS и транзакционные RPC.
+- `notes/security-threat-model.md` — модель угроз MVP и чеклист security-аудита.
+- `notes/security-audit-2026-04-30.md` — результат проверки базового security-контура.
 - `notes/text-generation-pipeline.md` — AI-пайплайн генерации текста.
 - `notes/reading-generation-limits.md` — дневные попытки и активный текст.
 - `notes/materials-and-reading-history.md` — раздел `Мои материалы` и история прочитанных текстов.

@@ -34,6 +34,8 @@ const CORS_HEADERS = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+const INTERNAL_ERROR_MESSAGE =
+  "Внутренняя ошибка сервера. Попробуй еще раз позже.";
 const MAX_AUTH_AGE_SECONDS = 24 * 60 * 60;
 const DEFAULT_PAGE_LIMIT = 10;
 const MAX_PAGE_LIMIT = 30;
@@ -341,6 +343,6 @@ Deno.serve(async (req: Request) => {
     const message =
       error instanceof Error ? error.message : "Unknown reading history error.";
     console.error("[get-reading-history] failed", { message });
-    return errorResponse(500, "READING_HISTORY_FAILED", message);
+    return errorResponse(500, "READING_HISTORY_FAILED", INTERNAL_ERROR_MESSAGE);
   }
 });

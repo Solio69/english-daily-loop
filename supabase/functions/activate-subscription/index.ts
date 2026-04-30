@@ -40,6 +40,8 @@ const CORS_HEADERS = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+const INTERNAL_ERROR_MESSAGE =
+  "Внутренняя ошибка сервера. Попробуй еще раз позже.";
 const MAX_AUTH_AGE_SECONDS = 24 * 60 * 60;
 const FREE_LIMITS = {
   dailyReadingGenerations: 3,
@@ -382,6 +384,10 @@ Deno.serve(async (req: Request) => {
     const message =
       error instanceof Error ? error.message : "Unknown subscription error.";
     console.error("[activate-subscription] failed", { message });
-    return errorResponse(500, "SUBSCRIPTION_ACTIVATION_FAILED", message);
+    return errorResponse(
+      500,
+      "SUBSCRIPTION_ACTIVATION_FAILED",
+      INTERNAL_ERROR_MESSAGE,
+    );
   }
 });

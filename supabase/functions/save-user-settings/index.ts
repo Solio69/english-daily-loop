@@ -36,6 +36,8 @@ const CORS_HEADERS = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+const INTERNAL_ERROR_MESSAGE =
+  "Внутренняя ошибка сервера. Попробуй еще раз позже.";
 const MAX_AUTH_AGE_SECONDS = 24 * 60 * 60;
 const MOSCOW_TIME_ZONE = "Europe/Moscow";
 const FREE_LIMITS = {
@@ -515,6 +517,6 @@ Deno.serve(async (req: Request) => {
     const message =
       error instanceof Error ? error.message : "Unknown settings save error.";
     console.error("[save-user-settings] failed", { message });
-    return errorResponse(500, "SETTINGS_SAVE_FAILED", message);
+    return errorResponse(500, "SETTINGS_SAVE_FAILED", INTERNAL_ERROR_MESSAGE);
   }
 });

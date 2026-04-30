@@ -154,5 +154,7 @@ DEV_TOOLS_ENABLED="true"
 - Никогда не отправлять в чат и не коммитить:
   - `TELEGRAM_BOT_TOKEN`
   - `SUPABASE_SERVICE_ROLE_KEY`
+  - `OPENROUTER_API_KEY`
   - любые секреты из `.env.local`
 - Все проверки `initData` делать только на сервере в Edge Functions, не в клиенте.
+- Локальная dev tools панель может отображаться по `VITE_DEV_TOOLS_ENABLED`, но действия с БД разрешает только server env `DEV_TOOLS_ENABLED`.
