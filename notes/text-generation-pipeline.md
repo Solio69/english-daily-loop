@@ -26,6 +26,7 @@ Supabase Edge Function, базой и внешней AI-моделью.
 ## 3) Серверная функция
 Файл:
 - `supabase/functions/generate-reading-text/index.ts`
+- `supabase/functions/generate-reading-text/ai-pipeline.ts`
 
 Функция делает:
 1. Принимает `initData` из Telegram Mini App.
@@ -39,13 +40,15 @@ Supabase Edge Function, базой и внешней AI-моделью.
 7. Проверяет, нет ли дневного завершения в `public.user_daily_reading_completions`.
 8. Атомарно проверяет дневной лимит и записывает попытку со статусом `started` через RPC `claim_reading_generation_attempt`.
 9. Если лимит не исчерпан, продолжает генерацию; если исчерпан, возвращает `429`.
-10. Строит промпт для OpenRouter.
-11. Вызывает OpenRouter с `models` parameter и приоритетным списком free-моделей.
-12. Если router-level fallback не помог или ответ пришел с невалидным JSON/длиной, приложение исключает использованную модель и пробует следующую.
-13. Валидирует JSON-ответ модели.
-14. При успехе сохраняет/перезаписывает `public.user_active_reading_texts`.
-15. Помечает попытку как `succeeded`; при ошибке после списания помечает как `failed`.
-16. Возвращает единый контракт:
+10. Проверяет OpenRouter model chain через allowlist.
+11. Передает генерацию в `ai-pipeline.ts`.
+12. AI-пайплайн строит prompt messages с `promptVersion`.
+13. Вызывает OpenRouter с `models` parameter и приоритетным списком free-моделей.
+14. Если router-level fallback не помог или ответ пришел с невалидным JSON/длиной/content pattern, приложение исключает использованную модель и пробует следующую.
+15. Валидирует JSON-ответ модели как недоверенный output.
+16. При успехе сохраняет/перезаписывает `public.user_active_reading_texts`.
+17. Помечает попытку как `succeeded`; при ошибке после списания помечает как `failed`.
+18. Возвращает единый контракт:
 - успех: `{ ok: true, data: { text, generation, dailyLimit, usedAttempts, remainingAttempts } }`
 - ошибка: `{ ok: false, error: { code, message } }`
 
@@ -68,9 +71,11 @@ Server env:
 - tertiary: `qwen/qwen3.6-plus:free`
 
 Текущая стратегия:
+- prompt version: `reading-text-v1`
+- OpenRouter model chain проходит allowlist в `ai-pipeline.ts`
 - на запрос отправляется массив моделей через OpenRouter `models` parameter
 - OpenRouter делает router-level failover для provider/infra ошибок
-- если успешный ответ пришел, но не прошел app-level валидацию JSON или длины, Edge Function исключает использованную модель и повторяет запрос по оставшемуся списку
+- если успешный ответ пришел, но не прошел app-level валидацию JSON, длины или content safety, Edge Function исключает использованную модель и повторяет запрос по оставшемуся списку
 - timeout запроса к OpenRouter: `45` секунд
 
 `// TODO:` после изменения server env для OpenRouter или кода `generate-reading-text` перезапускать `npm run dev:telegram`, чтобы локальная среда подняла актуальную версию Edge Function
@@ -91,10 +96,11 @@ Server env:
 
 Валидация:
 - модель должна вернуть JSON
-- `title` должен быть непустой строкой
+- `title` должен быть строкой, 3-8 слов, до 80 символов
 - `body` должен попадать в диапазон слов с допуском примерно `±20%`
-- `estimatedMinutes` в ответе приложения принудительно равен настройке пользователя
-- `level` в ответе приложения принудительно равен уровню пользователя
+- `estimatedMinutes` в ответе модели должен совпадать с настройкой пользователя
+- `level` в ответе модели должен совпадать с уровнем пользователя
+- `title` и `body` не должны содержать markdown code fences, HTML/script patterns, `javascript:` и явные признаки prompt leakage
 
 ## 6) Frontend service
 Файл:
@@ -148,7 +154,9 @@ Server env:
 - Валидация длины работает по простому подсчету слов через whitespace.
 - Дневной лимит генерации списывается атомарно через RPC.
 - Завершение чтения выполняется транзакционно через RPC.
+- `promptVersion` возвращается в ответе генерации и логируется на сервере, но не хранится в отдельной колонке БД.
 
 Возможные следующие шаги:
 - добавить retry только для ошибок длины, чтобы модель могла перегенерировать текст
-- вынести общую Telegram initData validation из Edge Functions в общий модуль, если функций станет больше
+- добавить Deno/Edge Functions checks в CI
+- добавить automated tests на AI output validation и model allowlist

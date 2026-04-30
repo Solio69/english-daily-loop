@@ -14,6 +14,7 @@ type GenerateReadingTextFunctionSuccess = {
       provider: string;
       model: string;
       fallbackUsed: boolean;
+      promptVersion?: string;
     };
     dailyLimit: number;
     usedAttempts: number;

@@ -111,9 +111,12 @@
   - чтение `english_level` и `daily_reading_minutes` из `user_settings`
   - проверка дневного завершения чтения по `user_daily_reading_completions`
   - атомарная проверка дневного лимита и списание попытки через RPC `claim_reading_generation_attempt`
+  - prompt/provider/output слой находится в `supabase/functions/generate-reading-text/ai-pipeline.ts`
+  - текущий prompt version: `reading-text-v1`
+  - OpenRouter model chain проходит server-side allowlist до списания попытки
   - генерация через OpenRouter `models` parameter с цепочкой free-моделей `primary -> fallback -> tertiary`
   - динамический `max_tokens` и диапазон слов по времени чтения
-  - валидация длины с допуском примерно `±20%`
+  - output validation проверяет JSON, title/body, `estimatedMinutes`, `level`, длину с допуском примерно `±20%` и базовые content-safety patterns
   - timeout запроса к OpenRouter: `45` секунд
   - сохранение последнего успешного непрочитанного текста в `user_active_reading_texts`
   - единый контракт ответа (`ok/data` или `ok/error`).
@@ -189,4 +192,5 @@
 - Если в summary указано `Frontend restart required: YES`, нужно перезапустить `npm run dev:telegram`.
 - Для локального Telegram-старта использовать `npm run dev:telegram`, для остановки Supabase: `npm run dev:stop`.
 - Security-контекст зафиксирован в `notes/security-threat-model.md`, результат проверки базового контура — в `notes/security-audit-2026-04-30.md`.
+- Security-модель AI-пайплайна зафиксирована в `notes/ai-pipeline-security.md`.
 

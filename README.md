@@ -246,6 +246,7 @@ pnpm build
 - `notes/server-side-data-guards.md` — серверные границы доступа, RLS и транзакционные RPC.
 - `notes/security-threat-model.md` — модель угроз MVP и чеклист security-аудита.
 - `notes/security-audit-2026-04-30.md` — результат проверки базового security-контура.
+- `notes/ai-pipeline-security.md` — security-модель AI-пайплайна генерации текста.
 - `notes/text-generation-pipeline.md` — AI-пайплайн генерации текста.
 - `notes/reading-generation-limits.md` — дневные попытки и активный текст.
 - `notes/materials-and-reading-history.md` — раздел `Мои материалы` и история прочитанных текстов.

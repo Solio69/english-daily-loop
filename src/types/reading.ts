@@ -11,6 +11,7 @@ export type ReadingText = {
     provider: string;
     model: string;
     fallbackUsed: boolean;
+    promptVersion?: string;
   };
 };
 
