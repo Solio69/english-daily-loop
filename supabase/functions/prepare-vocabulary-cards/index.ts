@@ -218,6 +218,16 @@ Deno.serve(async (req: Request) => {
       fail(500, "VOCABULARY_COUNT_FAILED", "Failed to count approval words.");
     }
 
+    console.info("[prepare-vocabulary-cards] batch preparation completed", {
+      appUserId: appUser.id,
+      requestedCount: words.length,
+      generatedValidCount: cardsById.size,
+      preparedCount,
+      failedCount,
+      remainingPendingCount,
+      needsApprovalCount: needsApprovalCount ?? 0,
+    });
+
     return successResponse(200, {
       preparedCount,
       failedCount,

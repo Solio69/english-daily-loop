@@ -88,9 +88,19 @@ export const useVocabularyMaterials = (
     setErrorText(null);
 
     try {
-      await prepareVocabularyCards();
+      const result = await prepareVocabularyCards();
       await refreshVocabularyData();
-    } catch {
+
+      if (result.preparedCount === 0 && result.failedCount > 0) {
+        setErrorText(
+          "Не удалось подготовить карточки. Попробуй еще раз позже.",
+        );
+      }
+    } catch (error) {
+      const prepareErrorMessage =
+        error instanceof Error
+          ? error.message
+          : "Не удалось подготовить карточки.";
       try {
         await refreshVocabularyData();
       } catch (refreshError) {
@@ -99,7 +109,10 @@ export const useVocabularyMaterials = (
             ? refreshError.message
             : "Не удалось обновить состояние словаря.",
         );
+        return;
       }
+
+      setErrorText(prepareErrorMessage);
     } finally {
       setIsPreparingCards(false);
     }

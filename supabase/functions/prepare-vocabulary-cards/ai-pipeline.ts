@@ -258,39 +258,54 @@ const parseCardBatchJson = (
     throw new VocabularyAiError("Batch JSON has invalid cards.");
   }
 
-  if (parsed.cards.length !== expectedIds.size) {
-    throw new VocabularyAiError("Batch JSON card count is invalid.");
+  const seenIds = new Set<string>();
+  const validCards: VocabularyCardBatchItem[] = [];
+
+  for (const item of parsed.cards) {
+    try {
+      if (!item || typeof item !== "object") {
+        throw new VocabularyAiError("Batch card is invalid.");
+      }
+
+      const rawItem = item as { id?: unknown; word?: unknown };
+      if (typeof rawItem.id !== "string" || !expectedIds.has(rawItem.id)) {
+        throw new VocabularyAiError("Batch card id is invalid.");
+      }
+      if (seenIds.has(rawItem.id)) {
+        throw new VocabularyAiError("Batch card id is duplicated.");
+      }
+
+      if (typeof rawItem.word !== "string") {
+        throw new VocabularyAiError("Batch card word is invalid.");
+      }
+
+      const lemma = normalizeVocabularyWord(rawItem.word);
+      if (!/^[a-z][a-z'-]{0,39}$/.test(lemma)) {
+        throw new VocabularyAiError("Batch card word is invalid.");
+      }
+
+      const card = {
+        ...parseCardJson(JSON.stringify(item), lemma, level),
+        id: rawItem.id,
+      };
+
+      seenIds.add(rawItem.id);
+      validCards.push(card);
+    } catch (error) {
+      console.warn("[prepare-vocabulary-cards] skipped invalid generated card", {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unknown card validation error.",
+      });
+    }
   }
 
-  const seenIds = new Set<string>();
-  return parsed.cards.map((item) => {
-    if (!item || typeof item !== "object") {
-      throw new VocabularyAiError("Batch card is invalid.");
-    }
+  if (validCards.length === 0) {
+    throw new VocabularyAiError("Batch JSON has no valid cards.");
+  }
 
-    const rawItem = item as { id?: unknown; word?: unknown };
-    if (typeof rawItem.id !== "string" || !expectedIds.has(rawItem.id)) {
-      throw new VocabularyAiError("Batch card id is invalid.");
-    }
-    if (seenIds.has(rawItem.id)) {
-      throw new VocabularyAiError("Batch card id is duplicated.");
-    }
-    seenIds.add(rawItem.id);
-
-    if (typeof rawItem.word !== "string") {
-      throw new VocabularyAiError("Batch card word is invalid.");
-    }
-
-    const lemma = normalizeVocabularyWord(rawItem.word);
-    if (!/^[a-z][a-z'-]{0,39}$/.test(lemma)) {
-      throw new VocabularyAiError("Batch card word is invalid.");
-    }
-
-    return {
-      ...parseCardJson(JSON.stringify(item), lemma, level),
-      id: rawItem.id,
-    };
-  });
+  return validCards;
 };
 
 export const generateVocabularyCardsBatch = async ({
