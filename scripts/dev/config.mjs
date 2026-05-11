@@ -17,7 +17,9 @@ export const cloudflaredExecutable = isWindows
   ? ".\\tools\\cloudflared.exe"
   : "./tools/cloudflared";
 
+// TODO: Keep this list in sync with Supabase Edge Functions required by local Telegram flows.
 export const edgeFunctionNames = [
+  "approve-vocabulary-card",
   "auth-telegram",
   "save-user-settings",
   "activate-subscription",
@@ -25,5 +27,9 @@ export const edgeFunctionNames = [
   "dev-tools",
   "get-reading-state",
   "get-reading-history",
+  "get-vocabulary-state",
+  "get-vocabulary-words",
   "generate-reading-text",
+  "prepare-vocabulary-cards",
+  "save-vocabulary-word",
 ];

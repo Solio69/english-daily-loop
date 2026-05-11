@@ -8,7 +8,9 @@
 ## 2) Архитектурные границы
 AI-пайплайн разделен на слои:
 - request guard в `supabase/functions/generate-reading-text/index.ts`
-- prompt/provider/output слой в `supabase/functions/generate-reading-text/ai-pipeline.ts`
+- prompt/output слой в `supabase/functions/generate-reading-text/ai-pipeline.ts`
+- общий OpenRouter client и model allowlist в `supabase/functions/_shared/openrouter.ts`
+- общие проверки AI-текста в `supabase/functions/_shared/ai-text.ts`
 - persistence boundary в таблице `public.user_active_reading_texts`
 - попытки и observability в `public.reading_generation_attempts`
 
@@ -53,7 +55,7 @@ Prompt считается частью кода:
 - меняется через code review
 - логируется по версии, а не полным текстом prompt
 
-OpenRouter-модели проходят allowlist в `ai-pipeline.ts`.
+OpenRouter-модели проходят allowlist в `supabase/functions/_shared/openrouter.ts`.
 Текущие разрешенные модели:
 - `openai/gpt-oss-20b:free`
 - `google/gemma-3-12b-it:free`

@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { Button } from "../components/Button";
+import { VocabularyTab } from "../components/vocabulary/VocabularyTab";
 import { getReadingHistory } from "../services/materialsService";
 import { CompletedReadingText, MaterialsTab } from "../types/materials";
 
@@ -23,14 +24,6 @@ const DATE_FORMATTER = new Intl.DateTimeFormat("ru-RU", {
   month: "long",
 });
 
-const formatCompletedDate = (value: string): string =>
-  DATE_FORMATTER.format(new Date(value));
-
-const getModelLabel = (model: string): string => {
-  const modelName = model.split("/").pop()?.replace(":free", "");
-  return modelName || model;
-};
-
 const TAB_STYLES: Record<MaterialsTab, { label: string; icon: typeof BookOpen }> =
   {
     texts: {
@@ -42,6 +35,14 @@ const TAB_STYLES: Record<MaterialsTab, { label: string; icon: typeof BookOpen }>
       icon: BookText,
     },
   };
+
+const formatCompletedDate = (value: string): string =>
+  DATE_FORMATTER.format(new Date(value));
+
+const getModelLabel = (model: string): string => {
+  const modelName = model.split("/").pop()?.replace(":free", "");
+  return modelName || model;
+};
 
 export const MaterialsScreen: React.FC<MaterialsScreenProps> = ({
   onBack,
@@ -269,18 +270,7 @@ export const MaterialsScreen: React.FC<MaterialsScreenProps> = ({
           )}
         </section>
       ) : (
-        <section className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6 text-center shadow-sm">
-          <BookText
-            size={34}
-            className="mx-auto mb-3 text-gray-300 dark:text-gray-600"
-          />
-          <h2 className="font-bold text-gray-900 dark:text-white">
-            Словарь появится здесь
-          </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Позже тут будут слова на повторении и их прогресс.
-          </p>
-        </section>
+        <VocabularyTab isActive={activeTab === "vocabulary"} />
       )}
     </div>
   );

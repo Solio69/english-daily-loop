@@ -24,9 +24,11 @@ Supabase Edge Function, базой и внешней AI-моделью.
 8. После нажатия "Завершить текст" фронт вызывает `complete-reading-text`; активный текст сохраняется в историю, удаляется из активного состояния, а генерация на текущий день блокируется.
 
 ## 3) Серверная функция
-Файл:
+Файлы:
 - `supabase/functions/generate-reading-text/index.ts`
 - `supabase/functions/generate-reading-text/ai-pipeline.ts`
+- `supabase/functions/_shared/openrouter.ts`
+- `supabase/functions/_shared/ai-text.ts`
 
 Функция делает:
 1. Принимает `initData` из Telegram Mini App.
@@ -73,7 +75,7 @@ Server env:
 
 Текущая стратегия:
 - prompt version: `reading-text-v1`
-- OpenRouter model chain проходит allowlist в `ai-pipeline.ts`
+- OpenRouter model chain проходит allowlist в `supabase/functions/_shared/openrouter.ts`
 - на запрос отправляется массив моделей через OpenRouter `models` parameter
 - OpenRouter делает router-level failover для provider/infra ошибок
 - если успешный ответ пришел, но не прошел app-level валидацию JSON, длины или content safety, Edge Function исключает использованную модель и повторяет запрос по оставшемуся списку

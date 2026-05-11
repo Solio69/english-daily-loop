@@ -463,12 +463,14 @@ Deno.serve(async (req: Request) => {
     const fallbackUsed = generated.usedModel !== models[0];
     attemptMetadata.fallbackUsed = fallbackUsed;
     attemptMetadata.outputWordCount = generated.validation.wordCount;
+    const readingTextId = crypto.randomUUID();
 
     const { error: activeTextError } = await supabase
       .from("user_active_reading_texts")
       .upsert(
         {
           user_id: settings.appUserId,
+          reading_text_id: readingTextId,
           title: generated.title,
           body: generated.body,
           level: generated.level,
@@ -514,7 +516,7 @@ Deno.serve(async (req: Request) => {
 
     return successResponse(200, {
       text: {
-        id: `active-${settings.appUserId}`,
+        id: readingTextId,
         title: generated.title,
         body: generated.body,
         level: generated.level,

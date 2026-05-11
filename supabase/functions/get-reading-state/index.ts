@@ -20,6 +20,7 @@ type UserRow = {
 
 type ActiveReadingTextRow = {
   user_id: string;
+  reading_text_id: string;
   title: string;
   body: string;
   level: string;
@@ -28,6 +29,10 @@ type ActiveReadingTextRow = {
   model: string;
   fallback_used: boolean;
   generated_at: string;
+};
+
+type VocabularyWordSourceRow = {
+  word_index: number;
 };
 
 const FREE_DAILY_GENERATION_LIMIT = 3;
@@ -151,7 +156,7 @@ Deno.serve(async (req: Request) => {
       supabase
         .from("user_active_reading_texts")
         .select(
-          "user_id, title, body, level, estimated_minutes, provider, model, fallback_used, generated_at",
+          "user_id, reading_text_id, title, body, level, estimated_minutes, provider, model, fallback_used, generated_at",
         )
         .eq("user_id", appUser.id)
         .maybeSingle(),
@@ -182,14 +187,45 @@ Deno.serve(async (req: Request) => {
     }
 
     const usedAttempts = attemptsCount ?? 0;
+    let savedWordIndexes: number[] = [];
+
+    if (activeTextRow) {
+      const { data: sourceRows, error: sourceError } = await supabase
+        .from("user_vocabulary_word_sources")
+        .select("word_index")
+        .eq("user_id", appUser.id)
+        .eq(
+          "reading_text_id",
+          (activeTextRow as ActiveReadingTextRow).reading_text_id,
+        );
+
+      if (sourceError) {
+        console.error("[get-reading-state] failed to load saved word sources", {
+          appUserId: appUser.id,
+          readingTextId: (activeTextRow as ActiveReadingTextRow).reading_text_id,
+          error: sourceError.message,
+        });
+        fail(500, "SAVED_WORDS_LOAD_FAILED", "Failed to load saved words.");
+      }
+
+      savedWordIndexes = Array.from(
+        new Set(
+          ((sourceRows ?? []) as VocabularyWordSourceRow[])
+            .map((row) => row.word_index)
+            .filter((index) => Number.isInteger(index) && index >= 0),
+        ),
+      );
+    }
+
     const activeText = activeTextRow
       ? {
-          id: `active-${(activeTextRow as ActiveReadingTextRow).user_id}`,
+          id: (activeTextRow as ActiveReadingTextRow).reading_text_id,
           title: (activeTextRow as ActiveReadingTextRow).title,
           body: (activeTextRow as ActiveReadingTextRow).body,
           level: (activeTextRow as ActiveReadingTextRow).level,
           estimatedMinutes: (activeTextRow as ActiveReadingTextRow)
             .estimated_minutes,
+          savedWordIndexes,
           source: "ai",
           generation: {
             provider: (activeTextRow as ActiveReadingTextRow).provider,

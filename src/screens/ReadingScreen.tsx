@@ -5,6 +5,7 @@ import {
   generateReadingText,
   getReadingState,
 } from "../services/readingService";
+import { saveVocabularyWord } from "../services/vocabularyService";
 import { ReadingHomeStatus } from "../types/homeProgress";
 import { ReadingText } from "../types/reading";
 
@@ -22,6 +23,13 @@ const resolveReadingStatus = (
   if (nextText) return "in_progress";
   return "not_started";
 };
+
+const normalizeSelectableWord = (value: string): string =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/^[^a-z]+/i, "")
+    .replace(/[^a-z]+$/i, "");
 
 type ReadingScreenProps = {
   onBack: () => void;
@@ -49,11 +57,14 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
   const [selectedWord, setSelectedWord] = useState<{
     word: string;
     index: number;
-    x: number;
-    y: number;
   } | null>(null);
   const [savedWords, setSavedWords] = useState<Set<number>>(new Set());
   const [errorText, setErrorText] = useState<string | null>(null);
+  const [wordFeedback, setWordFeedback] = useState<{
+    tone: "success" | "error";
+    message: string;
+  } | null>(null);
+  const [savingWordIndex, setSavingWordIndex] = useState<number | null>(null);
   const [isFinishing, setIsFinishing] = useState(false);
   const emitReadingStatusChange = useEffectEvent(
     (status: ReadingHomeStatus) => {
@@ -73,6 +84,9 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
         if (!isMounted) return;
 
         setText(state.activeText);
+        setSavedWords(new Set(state.activeText?.savedWordIndexes ?? []));
+        setSelectedWord(null);
+        setWordFeedback(null);
         setDailyLimit(state.dailyLimit);
         setRemainingAttempts(state.remainingAttempts);
         setIsReadingCompletedToday(state.isReadingCompletedToday);
@@ -107,6 +121,7 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
     setSavedWords(new Set());
     setSelectedWord(null);
     setErrorText(null);
+    setWordFeedback(null);
 
     try {
       const result = await generateReadingText();
@@ -124,6 +139,7 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
       try {
         const state = await getReadingState();
         setText(state.activeText);
+        setSavedWords(new Set(state.activeText?.savedWordIndexes ?? []));
         setDailyLimit(state.dailyLimit);
         setRemainingAttempts(state.remainingAttempts);
         setIsReadingCompletedToday(state.isReadingCompletedToday);
@@ -141,22 +157,46 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
   const handleWordClick = (
     word: string,
     index: number,
-    e: React.MouseEvent,
   ) => {
-    if (savedWords.has(index)) return;
-    const rect = (e.target as HTMLElement).getBoundingClientRect();
+    const normalizedWord = normalizeSelectableWord(word);
+    if (!normalizedWord || savedWords.has(index) || savingWordIndex !== null) {
+      return;
+    }
+
+    setWordFeedback(null);
     setSelectedWord({
-      word,
+      word: normalizedWord,
       index,
-      x: rect.left + rect.width / 2,
-      y: rect.top + window.scrollY,
     });
   };
 
-  const handleAddWord = () => {
-    if (selectedWord) {
-      setSavedWords((prev) => new Set(prev).add(selectedWord.index));
+  const handleAddWord = async () => {
+    if (!selectedWord || !text) return;
+
+    setSavingWordIndex(selectedWord.index);
+    setErrorText(null);
+    setWordFeedback(null);
+
+    try {
+      const result = await saveVocabularyWord({
+        readingTextId: text.id,
+        word: selectedWord.word,
+        wordIndex: selectedWord.index,
+      });
+
+      setSavedWords((prev) => new Set(prev).add(result.wordIndex));
       setSelectedWord(null);
+      setWordFeedback(null);
+    } catch (error) {
+      setWordFeedback({
+        tone: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Не удалось сохранить слово. Попробуй еще раз.",
+      });
+    } finally {
+      setSavingWordIndex(null);
     }
   };
 
@@ -169,6 +209,7 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
       setText(null);
       setSavedWords(new Set());
       setSelectedWord(null);
+      setWordFeedback(null);
       setIsReadingCompletedToday(true);
       setRemainingAttempts(0);
       emitReadingStatusChange("completed");
@@ -281,22 +322,73 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
               </span>
             )}
           </div>
-          <p className="text-gray-800 dark:text-gray-200 leading-relaxed text-lg">
-            {text.body.split(" ").map((word, i) => {
-              const cleanWord = word.replace(/[.,]/g, "");
+          <div className="text-gray-800 dark:text-gray-200 leading-relaxed text-lg">
+            {text.body.split(/\s+/).map((word, i) => {
+              const cleanWord = normalizeSelectableWord(word);
               const isSelected = selectedWord?.index === i;
               const isSaved = savedWords.has(i);
+              const isSaving = savingWordIndex === i;
               return (
-                <span
-                  key={i}
-                  onClick={(e) => handleWordClick(cleanWord, i, e)}
-                  className={`cursor-pointer rounded px-0.5 transition-colors ${isSelected ? "bg-blue-200 dark:bg-orange-900/40" : isSaved ? "bg-green-200 dark:bg-green-900/40" : "hover:bg-blue-100 dark:hover:bg-gray-700"}`}
-                >
-                  {word}{" "}
-                </span>
+                <React.Fragment key={i}>
+                  <span
+                    onClick={() => handleWordClick(cleanWord, i)}
+                    className={`cursor-pointer rounded px-0.5 transition-colors ${
+                      isSelected
+                        ? "bg-blue-200 dark:bg-orange-900/40"
+                        : isSaved
+                          ? "bg-green-200 dark:bg-green-900/40"
+                          : isSaving
+                            ? "bg-yellow-100 dark:bg-yellow-900/30"
+                            : "hover:bg-blue-100 dark:hover:bg-gray-700"
+                    }`}
+                  >
+                    {word}
+                  </span>{" "}
+                  {isSelected && (
+                    <span className="my-3 block rounded-xl border border-gray-200 bg-white p-3 text-base leading-normal shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                      <span className="block text-center text-sm font-medium text-gray-900 dark:text-gray-100">
+                        Добавить в словарь?
+                      </span>
+                      {wordFeedback && (
+                        <span
+                          className={`mt-2 block rounded-lg border px-2 py-1.5 text-xs leading-4 ${
+                            wordFeedback.tone === "success"
+                              ? "border-green-200 bg-green-50 text-green-700 dark:border-green-900/40 dark:bg-green-900/20 dark:text-green-300"
+                              : "border-red-200 bg-red-50 text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300"
+                          }`}
+                        >
+                          {wordFeedback.message}
+                        </span>
+                      )}
+                      <span className="mt-3 grid grid-cols-2 gap-2">
+                        <Button
+                          onClick={handleAddWord}
+                          disabled={
+                            savingWordIndex !== null
+                          }
+                          className="w-full min-w-0 whitespace-nowrap px-2 py-2 text-[13px] dark:bg-orange-500 dark:hover:bg-orange-600"
+                        >
+                          {savingWordIndex === selectedWord.index
+                            ? "Сохраняем..."
+                            : "Добавить"}
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            setSelectedWord(null);
+                            setWordFeedback(null);
+                          }}
+                          variant="outline"
+                          className="w-full min-w-0 whitespace-nowrap px-2 py-2 text-[13px] dark:border-gray-700 dark:text-gray-200"
+                        >
+                          Отмена
+                        </Button>
+                      </span>
+                    </span>
+                  )}
+                </React.Fragment>
               );
             })}
-          </p>
+          </div>
         </div>
       )}
 
@@ -311,37 +403,6 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
         </Button>
       )}
 
-      {selectedWord && (
-        <div
-          className="absolute bg-white dark:bg-gray-800 p-3 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 flex flex-col gap-2 z-50"
-          style={{
-            top:
-              selectedWord.y > window.innerHeight / 2 + window.scrollY
-                ? selectedWord.y - 110
-                : selectedWord.y + 30,
-            left: selectedWord.x - 70,
-          }}
-        >
-          <p className="text-xs text-center dark:text-gray-200">
-            Добавить в словарь?
-          </p>
-          <div className="flex gap-2">
-            <Button
-              onClick={handleAddWord}
-              className="flex-1 text-xs py-1 dark:bg-orange-500 dark:hover:bg-orange-600"
-            >
-              Добавить
-            </Button>
-            <Button
-              onClick={() => setSelectedWord(null)}
-              variant="outline"
-              className="flex-1 text-xs py-1 dark:border-gray-700 dark:text-gray-200"
-            >
-              Отмена
-            </Button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

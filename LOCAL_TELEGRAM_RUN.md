@@ -84,6 +84,22 @@
 7. Поднимает HTTPS tunnel для frontend (`localhost:3000`).
 8. Печатает `STARTUP SUMMARY` с короткой инструкцией.
 
+Локально поднимаются Edge Functions:
+
+- `approve-vocabulary-card`
+- `auth-telegram`
+- `save-user-settings`
+- `activate-subscription`
+- `complete-reading-text`
+- `dev-tools`
+- `get-reading-state`
+- `get-reading-history`
+- `get-vocabulary-state`
+- `get-vocabulary-words`
+- `generate-reading-text`
+- `prepare-vocabulary-cards`
+- `save-vocabulary-word`
+
 Локальные tunnel targets:
 
 - frontend: `localhost:3000`

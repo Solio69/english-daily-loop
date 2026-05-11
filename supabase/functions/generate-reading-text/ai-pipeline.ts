@@ -1,5 +1,26 @@
 /// <reference path="../deno-globals.d.ts" />
 
+import {
+  assertSafeText,
+  countWords,
+  normalizePlainText,
+  stripCodeFence,
+} from "../_shared/ai-text.ts";
+import {
+  OpenRouterError,
+  excludeModel,
+  requestOpenRouter,
+  type PromptMessage,
+} from "../_shared/openrouter.ts";
+
+export {
+  DEFAULT_FALLBACK_MODEL,
+  DEFAULT_PRIMARY_MODEL,
+  DEFAULT_TERTIARY_MODEL,
+  OPENROUTER_PROVIDER,
+  getOpenRouterModelChain,
+} from "../_shared/openrouter.ts";
+
 export type EnglishLevel = "A1" | "A2" | "B1" | "B2";
 export type ReadingMinutes = 3 | 5 | 10 | 15;
 
@@ -39,25 +60,6 @@ export class AiGenerationError extends Error {
   }
 }
 
-type OpenRouterChoice = {
-  message?: {
-    content?: string | Array<{ type?: string; text?: string }>;
-  };
-};
-
-type OpenRouterResponse = {
-  model?: string;
-  choices?: OpenRouterChoice[];
-  error?: {
-    message?: string;
-  };
-};
-
-type PromptMessage = {
-  role: "system" | "user";
-  content: string;
-};
-
 type GenerateReadingTextParams = {
   apiKey: string;
   models: string[];
@@ -66,105 +68,9 @@ type GenerateReadingTextParams = {
   config: ReadingGenerationConfig;
 };
 
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-export const OPENROUTER_PROVIDER = "openrouter";
 export const READING_TEXT_PROMPT_VERSION = "reading-text-v1";
-export const DEFAULT_PRIMARY_MODEL = "openai/gpt-oss-20b:free";
-export const DEFAULT_FALLBACK_MODEL = "google/gemma-3-12b-it:free";
-export const DEFAULT_TERTIARY_MODEL = "qwen/qwen3.6-plus:free";
 
 const MODEL_TIMEOUT_MS = 45_000;
-const ALLOWED_OPENROUTER_MODELS = new Set([
-  DEFAULT_PRIMARY_MODEL,
-  DEFAULT_FALLBACK_MODEL,
-  DEFAULT_TERTIARY_MODEL,
-]);
-const DISALLOWED_TEXT_PATTERNS = [
-  /<\s*script\b/i,
-  /<\s*iframe\b/i,
-  /\bjavascript\s*:/i,
-  /\bon(?:error|load|click)\s*=/i,
-  /```/,
-  /\bsystem prompt\b/i,
-  /\bdeveloper message\b/i,
-  /\bignore (?:all )?(?:previous|prior) instructions\b/i,
-];
-
-export const getOpenRouterModelChain = (...values: string[]): string[] => {
-  const models = Array.from(
-    new Set(values.map((item) => item.trim()).filter(Boolean)),
-  );
-
-  const unsupportedModels = models.filter(
-    (model) => !ALLOWED_OPENROUTER_MODELS.has(model),
-  );
-
-  if (unsupportedModels.length > 0) {
-    throw new Error(`Unsupported OpenRouter model: ${unsupportedModels[0]}`);
-  }
-
-  if (models.length === 0) {
-    throw new Error("OpenRouter model chain is empty.");
-  }
-
-  return models;
-};
-
-export const excludeModel = (
-  models: string[],
-  modelToExclude: string,
-): string[] => {
-  const filtered = models.filter((model) => model !== modelToExclude);
-  return filtered.length === models.length ? models.slice(1) : filtered;
-};
-
-const normalizePlainText = (value: string): string =>
-  value.replace(/\s+/g, " ").trim();
-
-const countWords = (value: string): number =>
-  normalizePlainText(value).split(/\s+/).filter(Boolean).length;
-
-const assertSafeGeneratedText = (field: string, value: string): void => {
-  const blockedPattern = DISALLOWED_TEXT_PATTERNS.find((pattern) =>
-    pattern.test(value),
-  );
-
-  if (blockedPattern) {
-    throw new Error(`Generated ${field} contains disallowed content.`);
-  }
-};
-
-const stripCodeFence = (raw: string): string => {
-  const trimmed = raw.trim();
-  if (!trimmed.startsWith("```")) {
-    return trimmed;
-  }
-
-  return trimmed
-    .replace(/^```(?:json)?/i, "")
-    .replace(/```$/i, "")
-    .trim();
-};
-
-const extractOpenRouterContent = (
-  payload: OpenRouterResponse,
-): string | null => {
-  const choice = payload.choices?.[0];
-  const content = choice?.message?.content;
-  if (!content) return null;
-
-  if (typeof content === "string") {
-    return content;
-  }
-
-  const joined = content
-    .filter((part) => part?.type === "text" && typeof part.text === "string")
-    .map((part) => part.text)
-    .join("\n")
-    .trim();
-
-  return joined || null;
-};
 
 const buildPromptMessages = (
   targetLevel: EnglishLevel,
@@ -244,8 +150,8 @@ const parseGeneratedJson = (
     throw new Error("Generated title length is invalid.");
   }
 
-  assertSafeGeneratedText("title", title);
-  assertSafeGeneratedText("body", body);
+  assertSafeText("Generated title", title);
+  assertSafeText("Generated body", body);
 
   const wordCount = countWords(body);
   if (
@@ -268,91 +174,6 @@ const parseGeneratedJson = (
   };
 };
 
-const requestOpenRouter = async (
-  models: string[],
-  messages: PromptMessage[],
-  apiKey: string,
-  maxTokens: number,
-): Promise<{ content: string; usedModel: string }> => {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS);
-
-  try {
-    let response: Response;
-    try {
-      response = await fetch(OPENROUTER_URL, {
-        method: "POST",
-        signal: controller.signal,
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          models,
-          temperature: 0.7,
-          max_tokens: maxTokens,
-          messages,
-        }),
-      });
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        (error.name === "AbortError" ||
-          error.message.includes("signal has been aborted"))
-      ) {
-        throw new AiGenerationError(
-          "provider_request",
-          "AI-модели не ответили вовремя. Попробуй еще раз чуть позже.",
-        );
-      }
-
-      const message =
-        error instanceof Error ? error.message : "Unknown provider request error.";
-      throw new AiGenerationError("provider_request", message);
-    }
-
-    let payload: OpenRouterResponse;
-    try {
-      payload = (await response.json()) as OpenRouterResponse;
-    } catch {
-      throw new AiGenerationError(
-        "provider_response",
-        `OpenRouter returned invalid JSON with status ${response.status}.`,
-      );
-    }
-
-    if (!response.ok) {
-      const details =
-        payload.error?.message ??
-        `OpenRouter request failed with status ${response.status}.`;
-      throw new AiGenerationError("provider_response", details);
-    }
-
-    const content = extractOpenRouterContent(payload);
-    if (!content) {
-      throw new AiGenerationError(
-        "provider_response",
-        "OpenRouter returned empty content.",
-      );
-    }
-
-    const usedModel = payload.model?.trim() || models[0];
-    if (!ALLOWED_OPENROUTER_MODELS.has(usedModel)) {
-      throw new AiGenerationError(
-        "provider_response",
-        "OpenRouter returned an unsupported model.",
-      );
-    }
-
-    return {
-      content,
-      usedModel,
-    };
-  } finally {
-    clearTimeout(timeoutId);
-  }
-};
-
 export const generateReadingTextWithOpenRouter = async ({
   apiKey,
   models,
@@ -368,17 +189,19 @@ export const generateReadingTextWithOpenRouter = async ({
     let routed: { content: string; usedModel: string };
 
     try {
-      routed = await requestOpenRouter(
-        remainingModels,
-        messages,
+      routed = await requestOpenRouter({
         apiKey,
-        config.maxTokens,
-      );
+        models: remainingModels,
+        messages,
+        maxTokens: config.maxTokens,
+        temperature: 0.7,
+        timeoutMs: MODEL_TIMEOUT_MS,
+      });
     } catch (error) {
       lastErrorMessage =
         error instanceof Error ? error.message : "Unknown generation error.";
       const stage =
-        error instanceof AiGenerationError ? error.stage : "provider_request";
+        error instanceof OpenRouterError ? error.stage : "provider_request";
       console.error("[generate-reading-text] model routing failed", {
         models: remainingModels,
         promptVersion: READING_TEXT_PROMPT_VERSION,

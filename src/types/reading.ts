@@ -6,6 +6,7 @@ export type ReadingText = {
   level: string;
   body: string;
   estimatedMinutes: number;
+  savedWordIndexes?: number[];
   source?: ReadingSource;
   generation?: {
     provider: string;

@@ -61,7 +61,7 @@
 
 ## Текущий статус (для будущих агентов)
 - Supabase local и Docker-окружение уже работают.
-- Уже подключены и используются таблицы `public.users`, `public.user_settings`, `public.reading_texts`, `public.reading_generation_attempts`, `public.user_active_reading_texts`, `public.user_daily_reading_completions`, `public.user_completed_reading_texts` и `public.user_subscriptions`.
+- Уже подключены и используются таблицы `public.users`, `public.user_settings`, `public.reading_texts`, `public.reading_generation_attempts`, `public.user_active_reading_texts`, `public.user_daily_reading_completions`, `public.user_completed_reading_texts`, `public.user_subscriptions`, `public.user_vocabulary_words` и `public.user_vocabulary_word_sources`.
 - В `public.user_settings` есть настройки `english_level`, `daily_exercise_minutes`, `daily_reading_minutes`.
 - На пользовательских, reading-state, completion/history и subscription таблицах включен RLS; frontend не пишет в защищенные таблицы напрямую, операции проходят через Edge Functions с `SUPABASE_SERVICE_ROLE_KEY`.
 - Миграция `supabase/migrations/20260430120000_harden_public_api_permissions.sql` явно закрывает прямой доступ `anon`/`authenticated` к защищенным таблицам, закрывает legacy RPC `get_random_reading_text` для клиента и оставляет server-only доступ через `service_role`.
@@ -74,9 +74,10 @@
   - `public.claim_reading_generation_attempt(...)` — атомарная проверка лимита и списание попытки генерации
   - `public.complete_daily_reading_text(...)` — завершение чтения, completion, удаление active text и онбординг-флаг
   - `public.activate_mvp_subscription(...)` — активация MVP-подписки с advisory lock по пользователю.
+  - `public.save_pending_vocabulary_word_with_source(...)` — атомарное сохранение pending-слова и source из активного текста с advisory lock по пользователю.
 - Корневой `tsconfig.json` исключает `supabase/functions`, потому что Edge Functions работают в Deno-рантайме и не должны проверяться frontend `tsc`.
 - Общая server-инфраструктура Edge Functions находится в `supabase/functions/_shared/server.ts`: CORS, POST guard, JSON parsing, env helpers, Telegram `initData` validation, безопасные JSON-ответы и `AppError`.
-- Edge Functions `auth-telegram`, `save-user-settings`, `activate-subscription`, `complete-reading-text`, `dev-tools`, `get-reading-state`, `get-reading-history` и `generate-reading-text` используют общий helper для Telegram auth/error/env/http слоя; бизнес-валидация остается внутри конкретных функций.
+- Edge Functions `auth-telegram`, `save-user-settings`, `activate-subscription`, `complete-reading-text`, `dev-tools`, `get-reading-state`, `get-reading-history`, `generate-reading-text`, `save-vocabulary-word`, `get-vocabulary-state`, `get-vocabulary-words`, `prepare-vocabulary-cards` и `approve-vocabulary-card` используют общий helper для Telegram auth/error/env/http слоя; бизнес-валидация остается внутри конкретных функций.
 - Telegram auth реализована через Edge Function `supabase/functions/auth-telegram/index.ts`:
   - серверная валидация `initData` (подпись + `auth_date`)
   - идемпотентный `find-or-create/upsert` пользователя по `telegram_user_id`
@@ -113,7 +114,9 @@
   - чтение `english_level` и `daily_reading_minutes` из `user_settings`
   - проверка дневного завершения чтения по `user_daily_reading_completions`
   - атомарная проверка дневного лимита и списание попытки через RPC `claim_reading_generation_attempt`
-  - prompt/provider/output слой находится в `supabase/functions/generate-reading-text/ai-pipeline.ts`
+  - prompt/output слой находится в `supabase/functions/generate-reading-text/ai-pipeline.ts`
+  - общий OpenRouter client/model allowlist находится в `supabase/functions/_shared/openrouter.ts`
+  - общие AI text helpers находятся в `supabase/functions/_shared/ai-text.ts`
   - текущий prompt version: `reading-text-v1`
   - OpenRouter model chain проходит server-side allowlist до списания попытки
   - генерация через OpenRouter `models` parameter с цепочкой free-моделей `primary -> fallback -> tertiary`
@@ -165,7 +168,14 @@
 - На фронте подписка вынесена в `src/services/subscriptionService.ts` и `src/screens/SubscriptionScreen.tsx`; клиент вызывает только `activate-subscription`, прямых записей подписки в БД с фронта нет.
 - Логика чтения вынесена в сервисный слой (`src/services/readingService.ts`), UI-компонент не содержит прямых запросов к БД.
 - `readingService` вызывает `get-reading-state`, `generate-reading-text` и `complete-reading-text`; текущий UI генерации не использует прямой RPC fallback `get_random_reading_text`.
-- `materialsService` вызывает `get-reading-history`; экран `Мои материалы` показывает завершенные тексты с табами `Тексты` и `Словарь`, таб словаря зарезервирован под будущие слова на повторении.
+- `materialsService` вызывает `get-reading-history`; экран `Мои материалы` показывает завершенные тексты с табами `Тексты` и `Словарь`, где доступны подготовка, подтверждение и просмотр карточек словаря.
+- Первый этап словаря реализован через `public.user_vocabulary_words`, `public.user_vocabulary_word_sources` и Edge Function `save-vocabulary-word`: слово добавляется только из активного текста без AI, сохраняется как `unlearned` + `card_status = pending`.
+- Карточки слов готовятся отдельно в табе `Словарь` через Edge Function `prepare-vocabulary-cards`, batch-ом до `5` pending-слов за запрос; AI-карточки получают `card_status = needs_approval`.
+- Prompt/output слой подготовки словарных карточек находится в `supabase/functions/prepare-vocabulary-cards/ai-pipeline.ts`; общий OpenRouter client/model allowlist переиспользуется из `supabase/functions/_shared/openrouter.ts`.
+- Пользователь подтверждает AI-карточку через Edge Function `approve-vocabulary-card`; только после этого карточка получает `card_status = ready` и попадает в основной список словаря.
+- Для связи слов с текстами активные и завершенные тексты имеют стабильный `reading_text_id`; при завершении чтения RPC `complete_daily_reading_text` переносит этот id из `user_active_reading_texts` в `user_completed_reading_texts`.
+- Сохранение pending-слова выполняется через RPC `save_pending_vocabulary_word_with_source` с advisory lock по пользователю; лимит словаря проверяется server-side по активной подписке (`free: 30`, `paid: 300`), прямых записей словаря с клиента нет.
+- AI-карточка слова хранит базовую форму, перевод, часть речи, данные глагола при необходимости и 3 английских примера по уровню пользователя; если AI упал или ответ невалиден при подготовке карточек, слово остается в `pending`.
 - На главной есть компактная карточка `Мои материалы`; плитка `Тексты` открывает экран материалов на табе текстов, плитка `Словарь` открывает таб словаря.
 - На главной карточка урока использует `homeProgress.lesson.status` и `homeProgress.lesson.currentStep`; пока daily lesson состоит только из чтения и ведет пользователя сразу на экран текста.
 - Счетчик с иконкой огонька на главной использует `streakDays`, который сервер считает как серию подряд идущих завершений чтения по timezone `Europe/Moscow`.
@@ -189,7 +199,7 @@
   - `.env.local VITE_SUPABASE_URL` = SUPABASE API TUNNEL URL.
 - `npm run dev:telegram` запускает production-like локальный режим для Telegram: Supabase + Edge Functions + API tunnel + frontend build + Vite preview + frontend tunnel.
 - Новые миграции без пересоздания БД применяются через `npx supabase migration up`; полный `npx supabase db reset` пересоздает локальную БД и удаляет текущие локальные данные.
-- `npm run dev:telegram` поднимает Edge Functions `auth-telegram`, `save-user-settings`, `activate-subscription`, `complete-reading-text`, `dev-tools`, `get-reading-state`, `get-reading-history` и `generate-reading-text`.
+- `npm run dev:telegram` поднимает Edge Functions `approve-vocabulary-card`, `auth-telegram`, `save-user-settings`, `activate-subscription`, `complete-reading-text`, `dev-tools`, `get-reading-state`, `get-reading-history`, `get-vocabulary-state`, `get-vocabulary-words`, `generate-reading-text`, `prepare-vocabulary-cards` и `save-vocabulary-word`.
 - Логи в dev-режимах цветные по источнику (`[frontend]`, `[edge]`, `[db]`, `[api]`, `[tunnel-*]`), HTTP-методы и статус-коды дополнительно подсвечиваются.
 - `// TODO:` после изменения frontend-кода, кода Edge Functions или server env для OpenRouter (`OPENROUTER_MODEL_*`, `OPENROUTER_API_KEY`) перезапускать активный dev-режим, чтобы локальная среда подхватила актуальную версию функций, env и frontend bundle.
 - Если в summary указано `Frontend restart required: YES`, нужно перезапустить `npm run dev:telegram`.
@@ -198,4 +208,5 @@
 - Security-модель AI-пайплайна зафиксирована в `notes/ai-pipeline-security.md`.
 - Retention policy и SQL-диагностика AI-попыток зафиксированы в `notes/ai-observability-diagnostics.md`.
 - Ручной AI red-team checklist зафиксирован в `notes/ai-red-team-checklist.md`.
+- Flow сохранения слов зафиксирован в `notes/vocabulary-save-flow.md`.
 
