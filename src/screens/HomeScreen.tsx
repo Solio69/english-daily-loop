@@ -9,9 +9,10 @@ import {
   Target,
   WalletCards,
 } from "lucide-react";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "../components/Button";
 import { ThemeToggle } from "../components/ThemeToggle";
+import { getVocabularyState } from "../services/vocabularyService";
 import {
   LessonCurrentStep,
   LessonHomeStatus,
@@ -19,6 +20,7 @@ import {
 } from "../types/homeProgress";
 import { MaterialsTab } from "../types/materials";
 import { SubscriptionSummary } from "../types/subscription";
+import { VocabularyState } from "../types/vocabulary";
 
 type HomeScreenProps = {
   onNavigate: (screen: string) => void;
@@ -59,6 +61,39 @@ const STATUS_STYLES: Record<
   },
 };
 
+const getVocabularyTileText = (
+  state: VocabularyState | null,
+  isLoading: boolean,
+): { text: string; isAttention: boolean } => {
+  if (isLoading) {
+    return { text: "Проверяем словарь", isAttention: false };
+  }
+
+  if (!state) {
+    return { text: "Словарь доступен", isAttention: false };
+  }
+
+  if (state.pendingCount > 0 && state.needsApprovalCount > 0) {
+    return {
+      text: `Добавить: ${state.pendingCount} Подтвердить: ${state.needsApprovalCount}`,
+      isAttention: true,
+    };
+  }
+
+  if (state.pendingCount > 0) {
+    return { text: `Добавить: ${state.pendingCount}`, isAttention: true };
+  }
+
+  if (state.needsApprovalCount > 0) {
+    return {
+      text: `Подтвердить: ${state.needsApprovalCount}`,
+      isAttention: true,
+    };
+  }
+
+  return { text: `В словаре: ${state.readyCount}`, isAttention: false };
+};
+
 export const HomeScreen: React.FC<HomeScreenProps> = ({
   onNavigate,
   onOpenLesson,
@@ -74,6 +109,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   exerciseMinutes,
   readingMinutes,
 }) => {
+  const [vocabularyState, setVocabularyState] =
+    useState<VocabularyState | null>(null);
+  const [isVocabularyStateLoading, setIsVocabularyStateLoading] =
+    useState(false);
+
   const isLessonCompleted = lessonStatus === "completed";
   const exerciseStatus: StatusState = isFirstSetup
     ? "not_started"
@@ -104,6 +144,43 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     : isLessonCompleted
       ? "done"
       : "not_started";
+  const vocabularyTile = getVocabularyTileText(
+    vocabularyState,
+    isVocabularyStateLoading,
+  );
+
+  useEffect(() => {
+    if (isFirstSetup) {
+      setVocabularyState(null);
+      return;
+    }
+
+    let isMounted = true;
+
+    const loadVocabularyState = async () => {
+      setIsVocabularyStateLoading(true);
+      try {
+        const state = await getVocabularyState();
+        if (isMounted) {
+          setVocabularyState(state);
+        }
+      } catch {
+        if (isMounted) {
+          setVocabularyState(null);
+        }
+      } finally {
+        if (isMounted) {
+          setIsVocabularyStateLoading(false);
+        }
+      }
+    };
+
+    loadVocabularyState();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isFirstSetup]);
 
   return (
     <div className="px-4 py-3 space-y-4">
@@ -312,8 +389,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     <BookText size={16} className="text-green-500 dark:text-orange-300" />
                     <span className="text-sm font-semibold">Словарь</span>
                   </div>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Скоро
+                  <p
+                    className={`mt-1 text-xs ${
+                      vocabularyTile.isAttention
+                        ? "font-semibold text-orange-500 dark:text-orange-300"
+                        : "text-gray-500 dark:text-gray-400"
+                    }`}
+                  >
+                    {vocabularyTile.text}
                   </p>
                 </button>
               </div>
