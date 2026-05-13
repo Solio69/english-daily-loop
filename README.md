@@ -16,6 +16,7 @@ Telegram Mini App для ежедневной практики английск�
 - Первый этап словаря: быстрое добавление слова из активного текста и отдельная AI-подготовка карточек в словаре.
 - Mobile-first главная страница с full-bleed Telegram layout, compact bottom navigation, glass UI и дизайн-токенами.
 - Дневной прогресс на главной показывает шаги `Текст` и `Повторение`; повторение слов остается частью MVP-цикла.
+- Единые app-level toast-сообщения показываются снизу над bottom navigation и используют тоны `default`, `onboarding`, `success`, `error`.
 - MVP-подписки: `free` и `paid` тарифное состояние без реальных платежей.
 - Базовый security-контур: server-side Telegram auth, RLS/grants hardening, защищенные секреты и безопасные ошибки Edge Functions.
 - Локальный Telegram-запуск через `npm run dev:telegram`.

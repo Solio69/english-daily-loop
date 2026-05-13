@@ -164,6 +164,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       : readingStatus === "in_progress"
         ? "in_progress"
         : "not_started";
+  const isReadingChipActive = readingStatus === "in_progress";
   const isPaid = subscription?.tier === "paid";
   const SubscriptionIcon = isPaid ? Crown : WalletCards;
   const displayName = userName ?? "Пользователь";
@@ -242,19 +243,29 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 className={`glass-control flex h-9 items-center gap-1 rounded-[15px] px-2 text-[11px] font-semibold leading-none transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] ${
                   isPaid
                     ? "text-[var(--primary)]"
-                    : "text-[var(--accent-coral)]"
+                    : "text-[var(--accent-warm)]"
                 }`}
               >
-                <SubscriptionIcon className="shrink-0" size={13} />
+                <SubscriptionIcon className="shrink-0" size={15} />
                 <span>{isPaid ? "Подписка" : "Купить"}</span>
               </button>
               <button
                 type="button"
                 aria-label="Открыть настройки"
                 onClick={() => onNavigate("settings")}
-                className="glass-control grid size-9 shrink-0 place-items-center rounded-[15px] text-[var(--primary)] transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+                className={`glass-control relative z-10 grid size-9 shrink-0 place-items-center overflow-visible rounded-full transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] ${
+                  isFirstSetup
+                    ? "border-[var(--accent-warm)] bg-[var(--accent-warm-soft)] text-[var(--accent-warm)] shadow-warm-glow"
+                    : "text-[var(--primary)]"
+                }`}
               >
-                <Settings size={18} />
+                {isFirstSetup && (
+                  <span
+                    aria-hidden="true"
+                    className="onboarding-settings-wave pointer-events-none absolute inset-0 rounded-full"
+                  />
+                )}
+                <Settings className="relative z-10" size={18} />
               </button>
               <ThemeToggle />
             </div>
@@ -298,11 +309,17 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
           <div className="my-2 h-px bg-[var(--border)]" />
 
-          <div className="grid grid-cols-[1fr_5rem_1fr] min-[390px]:grid-cols-[1fr_6rem_1fr] min-[480px]:grid-cols-[1fr_5rem_1fr]">
-            <span className="rounded-[12px] border border-[var(--accent-warm)] bg-[var(--accent-warm-soft)] px-2 py-1 text-center text-[10px] font-semibold text-[var(--accent-warm)] shadow-warm-glow">
+          <div className="grid grid-cols-[1fr_5rem_1fr] gap-2 min-[390px]:grid-cols-[1fr_6rem_1fr] min-[480px]:grid-cols-[1fr_5rem_1fr]">
+            <span
+              className={`mx-auto w-28 rounded-[12px] border px-2 py-1 text-center text-[10px] backdrop-blur-[24px] min-[480px]:w-24 ${
+                isReadingChipActive
+                  ? "border-[var(--accent-warm)] bg-[var(--accent-warm-soft)] font-semibold text-[var(--accent-warm)] shadow-warm-glow"
+                : "border-[var(--border)] bg-[var(--surface)] font-medium text-[var(--text-secondary)]"
+              }`}
+            >
               {readingMinutes ?? 3}м Текст
             </span>
-            <span className="col-start-3 rounded-[12px] border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-center text-[10px] font-medium text-[var(--text-secondary)] backdrop-blur-[24px]">
+            <span className="col-start-3 mx-auto w-28 rounded-[12px] border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-center text-[10px] font-medium text-[var(--text-secondary)] backdrop-blur-[24px] min-[480px]:w-24">
               30 слов
             </span>
           </div>
@@ -315,7 +332,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             Перед первым уроком
           </h2>
           <div className="space-y-2">
-            <p className="font-heading text-[20px] font-bold leading-tight text-[var(--text-primary)]">
+            <p className="font-heading text-base font-semibold leading-5 text-[var(--accent-warm)]">
               Заполни настройки перед стартом.
             </p>
             <p className="text-sm leading-5 text-[var(--text-secondary)]">
@@ -324,7 +341,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </p>
             <Button
               onClick={() => onNavigate("settings")}
-              className="w-full min-[390px]:w-auto"
+              className="w-full"
             >
               Открыть настройки
             </Button>

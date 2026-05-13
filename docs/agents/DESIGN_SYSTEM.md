@@ -64,6 +64,7 @@
 - `.shadow-primary-glow`
 - `.shadow-coral-glow`
 - `.shadow-warm-glow`
+- `.onboarding-settings-wave` - wide two-phase warm onboarding wave for the settings button on first setup.
 
 ## Typography
 
@@ -130,7 +131,10 @@ Rules:
 - Header controls must be the same height.
 - Current header controls height: `h-9` / `size-9`.
 - Subscription button shows full `Подписка`.
-- Settings and theme are icon-only controls with `aria-label`.
+- Free subscription button label `Купить` uses `--accent-warm`; paid subscription state uses `--primary`.
+- Subscription button icon: `15px`.
+- Settings and theme are circular icon-only controls with `aria-label`.
+- During first setup, settings button uses `--accent-warm`, `--accent-warm-soft`, `shadow-warm-glow`, and `.onboarding-settings-wave`.
 - Streak is not in header; it lives in the progress card header.
 
 ## Cards
@@ -166,11 +170,13 @@ Progress steps:
 Chips:
 
 - 2 columns.
-- chip grid uses `grid-cols-[1fr_5rem_1fr]`; the middle column matches the connector width between progress icons.
-- on `390px+` chip grid uses `grid-cols-[1fr_6rem_1fr]`.
-- outer chip edges align with the full horizontal divider; inner chip edges align with the connector edges.
+- chip grid uses the same column geometry as progress icons: `grid-cols-[1fr_5rem_1fr]`; on `390px+` -> `grid-cols-[1fr_6rem_1fr]`.
+- second chip starts at column 3.
+- chip width: `112px`; on desktop/wide preview `96px`.
+- chip centers align with progress icon centers.
 - compact height: `py-1`.
-- current reading time uses warm accent.
+- reading time chip uses warm accent only when `readingStatus === "in_progress"`.
+- before reading starts and after completion, reading time chip uses neutral glass state.
 - review/vocabulary chip uses neutral glass state until repeat flow is implemented.
 
 ## Lesson Card
@@ -188,6 +194,13 @@ Content:
   - `min-h-9`
   - `text-xs`
   - coral background via shared `Button`.
+
+## First Setup Card
+
+- Header: `Перед первым уроком`, same section label style as other home blocks.
+- Lead text `Заполни настройки перед стартом.`: `16px`, `font-semibold`, normal sentence case, `--accent-warm`.
+- Body text: `14px`, `leading-5`, `--text-secondary`.
+- CTA `Открыть настройки`: full-width shared `Button`, coral background, `font-heading`, `14px`, `font-semibold`.
 
 ## Materials Card
 
@@ -241,6 +254,34 @@ Nav item:
 - text: `9px`; на `390px+` используется `10px`.
 - text must stay inside its button; use `truncate`.
 - active item uses `bg-[var(--primary-soft)] text-[var(--primary)] shadow-primary-glow`.
+
+## Toast
+
+Position:
+
+- fixed bottom overlay above bottom nav: `bottom-[calc(env(safe-area-inset-bottom)+5.75rem)]`, centered.
+- mobile width: `w-[calc(100%-2rem)]`, `max-w-[430px]`.
+- desktop/wide preview: `max-w-[390px]`.
+
+Base:
+
+- glass surface via `glass-control`.
+- min height: `72px`.
+- rounded `[20px]`.
+- padding: `px-4 py-4`.
+- text: `15px`, `leading-5`, `font-medium`.
+- icon left: `20px`.
+
+Tones:
+
+- `default`: neutral border/text tokens.
+- `onboarding`: `--accent-warm`, `--accent-warm-soft`, `shadow-warm-glow`.
+- `success`: `--primary`, `--primary-soft`, `shadow-primary-glow`.
+- `error`: `#DD3D4C` border/text with soft transparent background.
+
+Onboarding copy:
+
+- Use `Открой настройки, чтобы продолжить.` for attempts to access locked flows before settings are completed.
 
 ## Accessibility
 

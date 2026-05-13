@@ -254,10 +254,7 @@ export default function App() {
       target !== "settings" &&
       target !== "subscription"
     ) {
-      showToast(
-        "Сначала открой настройки, чтобы начать дневной план.",
-        "onboarding",
-      );
+      showToast("Открой настройки, чтобы продолжить.", "onboarding");
       return;
     }
     setCurrentScreen(target);

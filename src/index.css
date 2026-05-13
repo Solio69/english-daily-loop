@@ -51,12 +51,14 @@
 
 html {
   min-height: 100%;
+  overflow-x: hidden;
   background: var(--background);
 }
 
 body {
   min-height: 100%;
   margin: 0;
+  overflow-x: hidden;
   background:
     radial-gradient(circle at 20% 0%, rgba(96, 180, 255, 0.22), transparent 34%),
     radial-gradient(circle at 80% 20%, rgba(255, 180, 110, 0.16), transparent 30%),
@@ -74,6 +76,7 @@ textarea {
 
 #root {
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 @layer utilities {
@@ -148,5 +151,46 @@ textarea {
     box-shadow:
       0 0 28px rgba(255, 209, 122, 0.34),
       inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+
+  .onboarding-settings-wave {
+    animation: onboarding-settings-wave 2.2s ease-out infinite;
+    border: 1px solid var(--accent-warm);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-warm) 58%, transparent);
+    transform-origin: center;
+    will-change: opacity, transform, box-shadow;
+  }
+
+  .onboarding-settings-wave::after {
+    animation: onboarding-settings-wave 2.2s ease-out infinite;
+    animation-delay: 0.7s;
+    border: 1px solid var(--accent-warm);
+    border-radius: inherit;
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-warm) 42%, transparent);
+    content: "";
+    inset: 0;
+    position: absolute;
+    transform-origin: center;
+    will-change: opacity, transform, box-shadow;
+  }
+}
+
+@keyframes onboarding-settings-wave {
+  0% {
+    opacity: 0.95;
+    transform: scale(1);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-warm) 58%, transparent);
+  }
+
+  70% {
+    opacity: 0;
+    transform: scale(2.8);
+    box-shadow: 0 0 0 36px color-mix(in srgb, var(--accent-warm) 0%, transparent);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(2.8);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-warm) 0%, transparent);
   }
 }
