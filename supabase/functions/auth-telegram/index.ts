@@ -24,7 +24,6 @@ type UserRow = {
 
 type UserSettingsRow = {
   english_level: "A1" | "A2" | "B1" | "B2";
-  daily_exercise_minutes: number;
   daily_reading_minutes: number;
 };
 
@@ -93,7 +92,6 @@ const mapSettings = (row: UserSettingsRow | null) =>
   row
     ? {
         englishLevel: row.english_level,
-        dailyExerciseMinutes: row.daily_exercise_minutes,
         dailyReadingMinutes: row.daily_reading_minutes,
       }
     : null;
@@ -104,9 +102,7 @@ const getUserSettings = async (
 ) => {
   const { data, error } = await supabase
     .from("user_settings")
-    .select(
-      "english_level, daily_exercise_minutes, daily_reading_minutes",
-    )
+    .select("english_level, daily_reading_minutes")
     .eq("user_id", userId)
     .maybeSingle();
 

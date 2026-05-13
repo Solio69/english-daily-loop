@@ -3,7 +3,6 @@ export interface User {
   name: string;
   level: 'A1' | 'A2' | 'B1';
   streak: number;
-  exercisesCompleted: number;
   readingMinutes: number;
   wordsInStudy: number;
 }
@@ -14,15 +13,6 @@ export interface Lesson {
   level: 'A1' | 'A2' | 'B1';
   grammarFocus: string;
   completed: boolean;
-}
-
-export interface Exercise {
-  id: string;
-  lessonId: string;
-  type: 'shuffle' | 'translate';
-  prompt: string;
-  correctAnswer: string;
-  options?: string[];
 }
 
 export interface ReadingText {

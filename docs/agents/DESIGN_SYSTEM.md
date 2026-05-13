@@ -83,7 +83,7 @@ Fonts:
 - Lesson body text: `14px`, `leading-5`.
 - Materials tile title `Тексты` / `Словарь`: `16px`.
 - Materials tile secondary text: `14px`, `leading-5`.
-- Bottom nav label: `9px`, from `390px` -> `10px`.
+- Bottom nav label: `9px`; на `390px+` используется `10px`.
 
 ## Layout
 
@@ -153,19 +153,25 @@ Header:
 
 - left: `Прогресс за день`
 - right: streak pill with `Flame`
+- streak pill text: `14px`, icon: `15px`.
 
 Progress steps:
 
+- 2 steps on home: `Текст` and `Повторение`.
 - icon container: `size-9`; на `390px+` используется `size-10`.
-- label: `12px`.
-- status text: `11px`.
-- connectors: compact horizontal lines.
+- label: `16px`.
+- status text: `14px`, `leading-5`.
+- connector width: `80px`; на `390px+` используется `96px`.
 
 Chips:
 
-- 3 columns.
+- 2 columns.
+- chip grid uses `grid-cols-[1fr_5rem_1fr]`; the middle column matches the connector width between progress icons.
+- on `390px+` chip grid uses `grid-cols-[1fr_6rem_1fr]`.
+- outer chip edges align with the full horizontal divider; inner chip edges align with the connector edges.
 - compact height: `py-1`.
 - current reading time uses warm accent.
+- review/vocabulary chip uses neutral glass state until repeat flow is implemented.
 
 ## Lesson Card
 
@@ -221,7 +227,7 @@ Nav capsule:
 
 ```tsx
 <nav className="
-  mx-auto grid max-w-[430px] grid-cols-4
+  mx-auto grid max-w-[430px] grid-cols-3
   rounded-[22px] border border-[var(--border)]
   bg-[var(--surface-strong)] p-1.5
   shadow-primary-glow backdrop-blur-[24px]

@@ -6,7 +6,6 @@
 import { useEffect, useState } from "react";
 import { Layout } from "./components/Layout";
 import { Toast, ToastTone } from "./components/Toast";
-import { ExercisesScreen } from "./screens/ExercisesScreen";
 import { HomeScreen } from "./screens/HomeScreen";
 import { MaterialsScreen } from "./screens/MaterialsScreen";
 import { ReadingScreen } from "./screens/ReadingScreen";
@@ -31,7 +30,6 @@ import { AppUser, SaveUserSettingsInput } from "./types/user";
 
 type ScreenId =
   | "home"
-  | "exercises"
   | "reading"
   | "vocabulary"
   | "materials"
@@ -299,14 +297,7 @@ export default function App() {
             readingStatus={readingStatus}
             isFirstSetup={shouldForceSettings}
             subscription={appUser?.subscription}
-            exerciseMinutes={appUser?.settings?.dailyExerciseMinutes ?? null}
             readingMinutes={appUser?.settings?.dailyReadingMinutes ?? null}
-          />
-        );
-      case "exercises":
-        return (
-          <ExercisesScreen
-            onBack={() => setCurrentScreen("home")}
           />
         );
       case "reading":
@@ -368,7 +359,6 @@ export default function App() {
             readingStatus={readingStatus}
             isFirstSetup={shouldForceSettings}
             subscription={appUser?.subscription}
-            exerciseMinutes={appUser?.settings?.dailyExerciseMinutes ?? null}
             readingMinutes={appUser?.settings?.dailyReadingMinutes ?? null}
           />
         );
@@ -376,9 +366,9 @@ export default function App() {
   };
 
   const disabledNavItems = shouldForceSettings
-    ? ["home", "exercises", "reading", "vocabulary"]
+    ? ["reading", "vocabulary"]
     : shouldForceReading
-      ? ["exercises", "vocabulary"]
+      ? ["vocabulary"]
       : [];
   const showBottomNav = currentScreen !== "settings" || isSettingsCompleted;
 

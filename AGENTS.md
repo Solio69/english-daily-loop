@@ -66,13 +66,14 @@
 ## Текущий статус (для будущих агентов)
 - Supabase local и Docker-окружение уже работают.
 - Уже подключены и используются таблицы `public.users`, `public.user_settings`, `public.reading_texts`, `public.reading_generation_attempts`, `public.user_active_reading_texts`, `public.user_daily_reading_completions`, `public.user_completed_reading_texts`, `public.user_subscriptions`, `public.user_vocabulary_words` и `public.user_vocabulary_word_sources`.
-- В `public.user_settings` есть настройки `english_level`, `daily_exercise_minutes`, `daily_reading_minutes`.
+- В `public.user_settings` есть настройки `english_level`, `daily_reading_minutes`.
 - На пользовательских, reading-state, completion/history и subscription таблицах включен RLS; frontend не пишет в защищенные таблицы напрямую, операции проходят через Edge Functions с `SUPABASE_SERVICE_ROLE_KEY`.
 - Миграция `supabase/migrations/20260430120000_harden_public_api_permissions.sql` явно закрывает прямой доступ `anon`/`authenticated` к защищенным таблицам, закрывает legacy RPC `get_random_reading_text` для клиента и оставляет server-only доступ через `service_role`.
 - Миграция `supabase/migrations/20260430173000_add_ai_generation_observability.sql` добавляет безопасные metadata-поля AI-попыток в `public.reading_generation_attempts`: prompt version, model chain, target/validation ranges, output word count, fallback flag, duration и failure stage.
 - Миграция `supabase/migrations/20260430190000_schedule_ai_attempt_cleanup.sql` включает `pg_cron` и создает scheduled cleanup job `cleanup_ai_generation_attempts` для удаления AI attempt metadata старше `90` дней.
 - В проекте есть базовые миграции и сиды для локальной разработки (dev user + моковые тексты).
 - Миграция `supabase/migrations/20260424113000_drop_daily_review_words_from_user_settings.sql` удаляет устаревшее поле `daily_review_words` из `public.user_settings`.
+- Миграция `supabase/migrations/20260513120000_drop_daily_exercise_minutes_from_user_settings.sql` удаляет поле `daily_exercise_minutes` из `public.user_settings`.
 - Миграция `supabase/migrations/20260427165000_enable_rls_for_users_and_settings.sql` включает RLS для `public.users` и `public.user_settings`.
 - Серверные транзакционные операции вынесены в Postgres RPC:
   - `public.claim_reading_generation_attempt(...)` — атомарная проверка лимита и списание попытки генерации
@@ -95,7 +96,7 @@
   - единый контракт ответа (`ok/data` или `ok/error`).
 - Сохранение настроек пользователя реализовано через Edge Function `supabase/functions/save-user-settings/index.ts`:
   - серверная валидация `Telegram initData`
-  - валидация `english_level`, `daily_exercise_minutes`, `daily_reading_minutes`
+  - валидация `english_level`, `daily_reading_minutes`
   - upsert в `public.user_settings`
   - заполнение `users.settings_completed_at`, если настройки сохраняются впервые
   - возврат актуальных `settings`, `subscription`, `homeProgress` и `streakDays`.
@@ -169,7 +170,8 @@
 - На фронте подключен Telegram WebApp SDK (`index.html`) и типы `window.Telegram.WebApp` (`src/types/telegram-webapp.d.ts`).
 - UI-слой использует Tailwind CSS 4 через Vite plugin, дизайн-токены в `src/index.css`, локальные шрифты `@fontsource/inter` и `@fontsource/manrope`, иконки `lucide-react`.
 - Базовый `Layout` сделан full-bleed под Telegram Mini App: без внешнего app shell, с `100dvh`, CSS-переменными темы и фиксированной нижней навигацией.
-- Главная страница реализована как compact mobile-first экран: header с приветствием, кнопками подписки/настроек/темы, карточкой дневного прогресса со streak, карточкой плана на сегодня и карточкой `Мои материалы`.
+- Главная страница реализована как compact mobile-first экран: header с приветствием, кнопками подписки/настроек/темы, карточкой дневного прогресса `Текст` + `Повторение` со streak, карточкой плана на сегодня и карточкой `Мои материалы`.
+- Нижняя навигация содержит 3 пункта: `Главная`, `Текст`, `Слова`.
 - Bootstrap пользователя в `src/services/userService.ts` авторизуется через `auth-telegram` по Telegram `initData`; `AppUser` содержит `subscription`, `homeProgress` и `streakDays`.
 - `src/services/userService.ts` сохраняет настройки через `save-user-settings`; прямых записей в `users` и `user_settings` с клиента нет.
 - На фронте подписка вынесена в `src/services/subscriptionService.ts` и `src/screens/SubscriptionScreen.tsx`; клиент вызывает только `activate-subscription`, прямых записей подписки в БД с фронта нет.
@@ -196,8 +198,8 @@
   - `15` мин: `700-950` слов, `max_tokens: 1900`.
 - При bootstrap настройки пользователя должны приходить с backend, если `settings_completed_at` уже заполнен.
 - `users.first_text_completed_at` используется только для онбординга; ежедневный факт прочтения хранится отдельно в `user_daily_reading_completions`.
-- Экран настроек содержит уровень английского, время упражнений и время чтения; на главной третья плашка пока зафиксирована как `30 слов` для демо.
-- В состоянии "настройки сохранены, но первый текст еще не прочитан" разделы `Упражнения` и `Слова` заблокированы, но `Главная` и `Текст` доступны.
+- Экран настроек содержит уровень английского и время чтения; на главной плашка повторения пока зафиксирована как `30 слов` для демо.
+- В состоянии "настройки сохранены, но первый текст еще не прочитан" раздел `Слова` заблокирован, но `Главная` и `Текст` доступны.
 - После нажатия "Завершить текст" генерация в текущий день блокируется, активный текст удаляется; новый дневной цикл открывается после `00:00` по `Europe/Moscow`.
 - Верхние toast-сообщения вынесены в единый компонент `src/components/Toast.tsx` с тонами `default`, `onboarding`, `success`, `error`.
 - `vite.config.ts` разрешает внешние tunnel host'ы (`.trycloudflare.com`, `.loca.lt`) для запуска Mini App через Telegram.

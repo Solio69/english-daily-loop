@@ -57,7 +57,7 @@ subscription таблицам, а также к server-only RPC. Доступ и
 `save-user-settings`:
 - валидирует Telegram `initData`
 - проверяет значения настроек
-- сохраняет `english_level`, `daily_exercise_minutes`, `daily_reading_minutes`
+- сохраняет `english_level`, `daily_reading_minutes`
 - заполняет `users.settings_completed_at`, если настройки сохраняются впервые
 - возвращает актуальное состояние пользователя для frontend
 - возвращает клиенту безопасное сообщение для неожиданных внутренних ошибок

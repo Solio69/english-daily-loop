@@ -42,7 +42,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [level, setLevel] = useState<UserSettings["englishLevel"]>(
     initialSettings?.englishLevel ?? "A1",
   );
-  const [time, setTime] = useState(initialSettings?.dailyExerciseMinutes ?? 5);
   const [readingTime, setReadingTime] = useState(
     initialSettings?.dailyReadingMinutes ?? 3,
   );
@@ -50,7 +49,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const handleSave = async () => {
     await onSave({
       englishLevel: level,
-      dailyExerciseMinutes: time,
       dailyReadingMinutes: readingTime,
     });
   };
@@ -126,27 +124,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 onClick={() => setReadingTime(value)}
                 className={`rounded-xl ${optionButtonClass} ${
                   readingTime === value
-                    ? "bg-green-500 text-white"
-                    : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
-                }`}
-              >
-                {value}m
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section>
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-            Время упражнений
-          </h2>
-          <div className="grid grid-cols-4 gap-2">
-            {[5, 10, 15, 20].map((value) => (
-              <button
-                key={value}
-                onClick={() => setTime(value)}
-                className={`rounded-xl ${optionButtonClass} ${
-                  time === value
                     ? "bg-green-500 text-white"
                     : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
                 }`}

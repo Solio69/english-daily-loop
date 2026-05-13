@@ -34,7 +34,6 @@ type HomeScreenProps = {
   readingStatus?: ReadingHomeStatus;
   isFirstSetup?: boolean;
   subscription?: SubscriptionSummary;
-  exerciseMinutes?: number | null;
   readingMinutes?: number | null;
 };
 
@@ -89,11 +88,11 @@ const ProgressStep: React.FC<ProgressStepProps> = ({
       >
         <Icon size={17} strokeWidth={2.3} />
       </div>
-      <p className="mt-1.5 truncate font-heading text-[12px] font-semibold text-[var(--text-primary)]">
+      <p className="mt-1.5 truncate font-heading text-base font-semibold text-[var(--text-primary)]">
         {label}
       </p>
       <p
-        className={`mt-0.5 text-[11px] font-medium leading-tight ${style.text}`}
+        className={`mt-0.5 text-sm font-medium leading-5 ${style.text}`}
       >
         {style.label}
       </p>
@@ -151,7 +150,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   readingStatus = "not_started",
   isFirstSetup = false,
   subscription,
-  exerciseMinutes,
   readingMinutes,
 }) => {
   const [vocabularyState, setVocabularyState] =
@@ -160,11 +158,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     useState(false);
 
   const isLessonCompleted = lessonStatus === "completed";
-  const exerciseStatus: StatusState = isFirstSetup
-    ? "not_started"
-    : isLessonCompleted
-      ? "done"
-      : "not_started";
   const readingProgressStatus: StatusState =
     readingStatus === "completed"
       ? "done"
@@ -186,11 +179,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       : lessonStatus === "in_progress"
         ? "Урок начат. Продолжай следующий шаг."
         : "Начни сегодняшний урок.";
-  const reviewStatus: StatusState = isFirstSetup
-    ? "not_started"
-    : isLessonCompleted
-      ? "done"
-      : "not_started";
+  const reviewStatus: StatusState = "not_started";
   const vocabularyTile = getVocabularyTileText(
     vocabularyState,
     isVocabularyStateLoading,
@@ -287,38 +276,33 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <h2 className="font-heading text-base font-semibold uppercase tracking-[0.11em] text-[var(--primary)]">
               Прогресс за день
             </h2>
-            <div className="glass-control flex min-h-8 shrink-0 items-center gap-1 rounded-[14px] px-2 text-[11px] font-semibold leading-none text-[var(--accent-warm)] shadow-warm-glow">
-              <Flame size={13} />
+            <div className="glass-control flex min-h-8 shrink-0 items-center gap-1.5 rounded-[14px] px-2.5 text-sm font-semibold leading-none text-[var(--accent-warm)] shadow-warm-glow">
+              <Flame size={15} />
               {streakDays}
             </div>
           </div>
 
-          <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-start gap-1.5 min-[390px]:gap-2">
-            <ProgressStep
-              icon={CheckCircle2}
-              label="Упр."
-              status={exerciseStatus}
-            />
-            <div className="mt-4 h-px w-4 bg-[var(--border-strong)] min-[390px]:w-7 min-[480px]:w-5" />
+          <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2">
             <ProgressStep
               icon={Clock}
               label="Текст"
               status={readingProgressStatus}
             />
-            <div className="mt-4 h-px w-4 bg-[var(--border-strong)] min-[390px]:w-7 min-[480px]:w-5" />
-            <ProgressStep icon={Target} label="Повтор." status={reviewStatus} />
+            <div className="mt-4 h-px w-20 bg-[var(--border-strong)] min-[390px]:w-24 min-[480px]:w-20" />
+            <ProgressStep
+              icon={Target}
+              label="Повторение"
+              status={reviewStatus}
+            />
           </div>
 
           <div className="my-2 h-px bg-[var(--border)]" />
 
-          <div className="grid grid-cols-3 gap-2 min-[390px]:gap-3 min-[480px]:gap-2">
-            <span className="rounded-[12px] border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-center text-[10px] font-medium text-[var(--text-secondary)] backdrop-blur-[24px]">
-              {exerciseMinutes ?? 5}м Упр
-            </span>
+          <div className="grid grid-cols-[1fr_5rem_1fr] min-[390px]:grid-cols-[1fr_6rem_1fr] min-[480px]:grid-cols-[1fr_5rem_1fr]">
             <span className="rounded-[12px] border border-[var(--accent-warm)] bg-[var(--accent-warm-soft)] px-2 py-1 text-center text-[10px] font-semibold text-[var(--accent-warm)] shadow-warm-glow">
               {readingMinutes ?? 3}м Текст
             </span>
-            <span className="rounded-[12px] border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-center text-[10px] font-medium text-[var(--text-secondary)] backdrop-blur-[24px]">
+            <span className="col-start-3 rounded-[12px] border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-center text-[10px] font-medium text-[var(--text-secondary)] backdrop-blur-[24px]">
               30 слов
             </span>
           </div>
@@ -363,7 +347,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 </p>
               </div>
               {isLessonCompleted ? (
-                <div className="glass-control flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-[16px] px-3 text-xs font-semibold text-[var(--primary)] shadow-primary-glow">
+                <div className="glass-control flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-[16px] px-3 text-sm font-semibold leading-5 text-[var(--primary)] shadow-primary-glow">
                   <CheckCircle2 size={15} />
                   <span>Завершено</span>
                 </div>

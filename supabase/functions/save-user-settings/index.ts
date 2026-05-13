@@ -26,7 +26,6 @@ type UserRow = {
 
 type UserSettingsRow = {
   english_level: EnglishLevel;
-  daily_exercise_minutes: number;
   daily_reading_minutes: DailyReadingMinutes;
 };
 
@@ -55,14 +54,6 @@ const parseEnglishLevel = (value: unknown): EnglishLevel => {
   fail(400, "INVALID_SETTINGS", "English level is invalid.");
 };
 
-const parseDailyExerciseMinutes = (value: unknown): number => {
-  if (Number.isInteger(value) && value >= 5 && value <= 60) {
-    return value;
-  }
-
-  fail(400, "INVALID_SETTINGS", "Daily exercise minutes value is invalid.");
-};
-
 const parseDailyReadingMinutes = (value: unknown): DailyReadingMinutes => {
   if (value === 3 || value === 5 || value === 10 || value === 15) {
     return value;
@@ -83,7 +74,6 @@ const mapSubscription = (row: SubscriptionRow | null) =>
 
 const mapSettings = (row: UserSettingsRow) => ({
   englishLevel: row.english_level,
-  dailyExerciseMinutes: row.daily_exercise_minutes,
   dailyReadingMinutes: row.daily_reading_minutes,
 });
 
@@ -220,7 +210,6 @@ Deno.serve(async (req: Request) => {
       initData?: unknown;
       settings?: {
         englishLevel?: unknown;
-        dailyExerciseMinutes?: unknown;
         dailyReadingMinutes?: unknown;
       };
     }>(req);
@@ -231,9 +220,6 @@ Deno.serve(async (req: Request) => {
     }
 
     const englishLevel = parseEnglishLevel(settings.englishLevel);
-    const dailyExerciseMinutes = parseDailyExerciseMinutes(
-      settings.dailyExerciseMinutes,
-    );
     const dailyReadingMinutes = parseDailyReadingMinutes(
       settings.dailyReadingMinutes,
     );
@@ -281,14 +267,11 @@ Deno.serve(async (req: Request) => {
         {
           user_id: appUser.id,
           english_level: englishLevel,
-          daily_exercise_minutes: dailyExerciseMinutes,
           daily_reading_minutes: dailyReadingMinutes,
         },
         { onConflict: "user_id" },
       )
-      .select(
-        "english_level, daily_exercise_minutes, daily_reading_minutes",
-      )
+      .select("english_level, daily_reading_minutes")
       .single();
 
     if (upsertError || !settingsRow) {

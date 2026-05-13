@@ -8,7 +8,7 @@ export type LessonHomeStatus =
   | "in_progress"
   | "completed";
 
-export type LessonCurrentStep = "reading" | "exercises" | "vocabulary" | null;
+export type LessonCurrentStep = "reading" | "vocabulary" | null;
 
 export type HomeProgress = {
   lesson: {

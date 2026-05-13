@@ -1,5 +1,5 @@
 ﻿import React from 'react';
-import { Home, BookOpen, BookText, BrainCircuit } from 'lucide-react';
+import { Home, BookOpen, BookText } from 'lucide-react';
 
 interface NavItem {
   id: string;
@@ -9,7 +9,6 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { id: 'home', label: 'Главная', icon: Home },
-  { id: 'exercises', label: 'Упражнения', icon: BrainCircuit },
   { id: 'reading', label: 'Текст', icon: BookOpen },
   { id: 'vocabulary', label: 'Слова', icon: BookText },
 ];
@@ -24,7 +23,7 @@ type BottomNavProps = {
 export const BottomNav: React.FC<BottomNavProps> = ({ active, onChange, disabledItems = [], onDisabledClick }) => {
   return (
     <div className="fixed inset-x-0 bottom-0 z-20 px-2 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-1.5">
-      <nav className="mx-auto grid max-w-[430px] grid-cols-4 rounded-[22px] border border-[var(--border)] bg-[var(--surface-strong)] p-1.5 shadow-primary-glow backdrop-blur-[24px] min-[480px]:max-w-[390px]">
+      <nav className="mx-auto grid max-w-[430px] grid-cols-3 rounded-[22px] border border-[var(--border)] bg-[var(--surface-strong)] p-1.5 shadow-primary-glow backdrop-blur-[24px] min-[480px]:max-w-[390px]">
         {navItems.map((item) => {
           const isDisabled = disabledItems.includes(item.id);
           const isActive = active === item.id;
