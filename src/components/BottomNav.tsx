@@ -23,22 +23,31 @@ type BottomNavProps = {
 
 export const BottomNav: React.FC<BottomNavProps> = ({ active, onChange, disabledItems = [], onDisabledClick }) => {
   return (
-    <div className="fixed bottom-0 left-0 right-0 mx-auto max-w-md bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 pb-safe pt-2 px-2 flex justify-around items-center h-16">
-      {navItems.map((item) => {
-        const isDisabled = disabledItems.includes(item.id);
-        return (
-          <button
-            key={item.id}
-            onClick={() => (isDisabled ? onDisabledClick?.(item.id) : onChange(item.id))}
-            className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${
-              active === item.id ? 'text-blue-600 dark:text-orange-500' : 'text-gray-500 dark:text-gray-500'
-            } ${isDisabled ? 'opacity-40' : ''}`}
+    <div className="fixed inset-x-0 bottom-0 z-20 px-2 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-1.5">
+      <nav className="mx-auto grid max-w-[430px] grid-cols-4 rounded-[22px] border border-[var(--border)] bg-[var(--surface-strong)] p-1.5 shadow-primary-glow backdrop-blur-[24px] min-[480px]:max-w-[390px]">
+        {navItems.map((item) => {
+          const isDisabled = disabledItems.includes(item.id);
+          const isActive = active === item.id;
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              aria-label={item.label}
+              aria-current={isActive ? "page" : undefined}
+              onClick={() => (isDisabled ? onDisabledClick?.(item.id) : onChange(item.id))}
+              className={`flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-[18px] px-0.5 py-1.5 text-[9px] font-semibold leading-none transition active:scale-[0.98] min-[390px]:text-[10px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] ${
+                isActive
+                  ? 'bg-[var(--primary-soft)] text-[var(--primary)] shadow-primary-glow'
+                  : 'text-[var(--text-muted)] hover:bg-[var(--surface)]'
+              } ${isDisabled ? 'opacity-40' : ''}`}
           >
-            <item.icon size={24} />
-            <span className="text-[10px] font-medium">{item.label}</span>
+            <Icon size={19} strokeWidth={2.2} />
+            <span className="block max-w-full truncate">{item.label}</span>
           </button>
-        );
-      })}
+          );
+        })}
+      </nav>
     </div>
   );
 };

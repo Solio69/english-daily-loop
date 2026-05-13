@@ -7,10 +7,11 @@ export const ThemeToggle: React.FC = () => {
 
   return (
     <button
+      aria-label={theme === 'light' ? 'Включить темную тему' : 'Включить светлую тему'}
       onClick={toggleTheme}
-      className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
+      className="glass-control grid size-9 shrink-0 place-items-center rounded-[15px] text-[var(--primary)] transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
     >
-      {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+      {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
     </button>
   );
 };

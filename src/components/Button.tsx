@@ -5,12 +5,17 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 export const Button: React.FC<ButtonProps> = ({ variant = 'primary', className, ...props }) => {
-  const baseClasses = 'px-4 py-2 rounded-xl font-medium transition duration-200';
+  const baseClasses =
+    'inline-flex min-h-11 items-center justify-center gap-2 rounded-[22px] px-5 py-3 font-heading text-sm font-semibold transition duration-200 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]';
   const variants = {
-    primary: 'bg-blue-600 text-white hover:bg-blue-700',
-    secondary: 'bg-gray-200 text-gray-800 hover:bg-gray-300',
-    outline: 'border border-blue-600 text-blue-600 hover:bg-blue-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800',
-    accent: 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-orange-500 dark:text-white dark:hover:bg-orange-600',
+    primary:
+      'bg-[var(--accent-coral)] text-white shadow-coral-glow hover:brightness-105',
+    secondary:
+      'glass-control text-[var(--primary)] hover:border-[var(--border-strong)]',
+    outline:
+      'border border-[var(--border-strong)] bg-transparent text-[var(--primary)] hover:bg-[var(--primary-soft)]',
+    accent:
+      'bg-[var(--accent-coral)] text-white shadow-coral-glow hover:brightness-105',
   };
   
   return (

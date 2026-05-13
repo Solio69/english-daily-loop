@@ -19,16 +19,22 @@ export const Layout: React.FC<LayoutProps> = ({
   onDisabledNavClick,
 }) => {
   return (
-    <div className={`min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 ${showBottomNav ? 'pb-20' : ''}`}>
-      <main className="max-w-md mx-auto">{children}</main>
-      {showBottomNav && (
-        <BottomNav
-          active={activeNav}
-          onChange={onNavChange}
-          disabledItems={disabledNavItems}
-          onDisabledClick={onDisabledNavClick}
-        />
-      )}
+    <div className="min-h-[100dvh] w-full bg-[var(--background)] text-[var(--text-primary)] transition-colors">
+      <main
+        className={`flex min-h-[100dvh] w-full flex-col ${
+          showBottomNav ? "pb-20" : ""
+        }`}
+      >
+        <div className="flex-1">{children}</div>
+        {showBottomNav && (
+          <BottomNav
+            active={activeNav}
+            onChange={onNavChange}
+            disabledItems={disabledNavItems}
+            onDisabledClick={onDisabledNavClick}
+          />
+        )}
+      </main>
     </div>
   );
 };

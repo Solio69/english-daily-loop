@@ -14,6 +14,7 @@ Telegram Mini App для ежедневной практики английск�
 - Завершение дневного чтения и streak по дням.
 - Раздел `Мои материалы` с историей прочитанных текстов, словарем и индикатором действий по словарю на главной.
 - Первый этап словаря: быстрое добавление слова из активного текста и отдельная AI-подготовка карточек в словаре.
+- Mobile-first главная страница с full-bleed Telegram layout, compact bottom navigation, glass UI и дизайн-токенами.
 - MVP-подписки: `free` и `paid` тарифное состояние без реальных платежей.
 - Базовый security-контур: server-side Telegram auth, RLS/grants hardening, защищенные секреты и безопасные ошибки Edge Functions.
 - Локальный Telegram-запуск через `npm run dev:telegram`.
@@ -24,6 +25,9 @@ Telegram Mini App для ежедневной практики английск�
 - React
 - TypeScript
 - pnpm
+- Tailwind CSS 4
+- `@fontsource/inter` и `@fontsource/manrope`
+- `lucide-react`
 - Supabase local
 - Supabase Edge Functions
 - Postgres
@@ -42,6 +46,7 @@ Telegram Mini App для ежедневной практики английск�
 - `supabase/migrations` — схема базы данных.
 - `supabase/functions` — серверная логика в Deno runtime.
 - `notes` — проектные решения и текущие ограничения.
+- `docs/agents` — рабочая документация для AI-агентов, включая дизайн-систему и локальный Telegram-запуск.
 - `scripts/dev-stack.mjs` и `scripts/dev/*` — локальная инфраструктура разработки.
 - `tools` — локальные утилиты вроде `cloudflared.exe`; папка не коммитится.
 
@@ -242,6 +247,7 @@ pnpm build
 
 - Новую работу с данными лучше выносить в `src/services`, а не напрямую в UI-компоненты.
 - Общие типы держать в `src/types`.
+- Дизайн-токены и общие glass utilities держать в `src/index.css`; актуальные UI-правила главной фиксировать в `docs/agents/DESIGN_SYSTEM.md`.
 - Серверные проверки Telegram `initData`, лимитов и подписок должны оставаться в Edge Functions.
 - Общую инфраструктуру Edge Functions нужно переиспользовать из `supabase/functions/_shared/server.ts`, а доменные проверки держать рядом с бизнес-операцией конкретной функции.
 - Server-only таблицы и RPC должны оставаться закрытыми для `anon` и `authenticated`; новые чувствительные операции нужно добавлять через Edge Functions и миграции прав доступа.
@@ -256,7 +262,8 @@ pnpm build
 
 - `AGENTS.md` — правила работы в репозитории и текущий статус.
 - `GIT_POLICY.md` — строгая политика Git для AI-агентов.
-- `LOCAL_TELEGRAM_RUN.md` — подробный локальный запуск внутри Telegram.
+- `docs/agents/LOCAL_TELEGRAM_RUN.md` — подробный локальный запуск внутри Telegram.
+- `docs/agents/DESIGN_SYSTEM.md` — актуальная дизайн-система приложения.
 - `notes/server-side-data-guards.md` — серверные границы доступа, RLS и транзакционные RPC.
 - `notes/security-threat-model.md` — модель угроз MVP и чеклист security-аудита.
 - `notes/security-audit-2026-04-30.md` — результат проверки базового security-контура.

@@ -14,6 +14,10 @@
 - Отдельного backend-сервера (Express) сейчас нет; backend-слой представлен Supabase API + Edge Functions.
 - Папка `tools/` используется для локальных утилит запуска (например, `cloudflared.exe`) и не коммитится.
 
+## Документация для агентов
+- Актуальная дизайн-система: `docs/agents/DESIGN_SYSTEM.md`.
+- Подробности локального Telegram-запуска: `docs/agents/LOCAL_TELEGRAM_RUN.md`.
+
 ## Правила коммуникации
 - По умолчанию объяснять на русском языке.
 - Каждую команду объяснять перед запуском: что она делает и зачем.
@@ -163,6 +167,9 @@
   - опционально `OPENROUTER_MODEL_TERTIARY`.
 - Для стабильной DX в редакторе: у функции используется `// @ts-nocheck`, а для Deno-окружения есть `supabase/functions/deno.json` и `supabase/functions/deno-globals.d.ts`.
 - На фронте подключен Telegram WebApp SDK (`index.html`) и типы `window.Telegram.WebApp` (`src/types/telegram-webapp.d.ts`).
+- UI-слой использует Tailwind CSS 4 через Vite plugin, дизайн-токены в `src/index.css`, локальные шрифты `@fontsource/inter` и `@fontsource/manrope`, иконки `lucide-react`.
+- Базовый `Layout` сделан full-bleed под Telegram Mini App: без внешнего app shell, с `100dvh`, CSS-переменными темы и фиксированной нижней навигацией.
+- Главная страница реализована как compact mobile-first экран: header с приветствием, кнопками подписки/настроек/темы, карточкой дневного прогресса со streak, карточкой плана на сегодня и карточкой `Мои материалы`.
 - Bootstrap пользователя в `src/services/userService.ts` авторизуется через `auth-telegram` по Telegram `initData`; `AppUser` содержит `subscription`, `homeProgress` и `streakDays`.
 - `src/services/userService.ts` сохраняет настройки через `save-user-settings`; прямых записей в `users` и `user_settings` с клиента нет.
 - На фронте подписка вынесена в `src/services/subscriptionService.ts` и `src/screens/SubscriptionScreen.tsx`; клиент вызывает только `activate-subscription`, прямых записей подписки в БД с фронта нет.

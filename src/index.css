@@ -1,3 +1,152 @@
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: #eaf4ff;
+  --app-shell: rgba(255, 255, 255, 0.62);
+  --surface: rgba(255, 255, 255, 0.58);
+  --surface-strong: rgba(255, 255, 255, 0.78);
+  --border: rgba(93, 143, 205, 0.28);
+  --border-strong: rgba(77, 132, 204, 0.42);
+  --text-primary: #071133;
+  --text-secondary: #50678f;
+  --text-muted: #7d8ba8;
+  --primary: #1f78e8;
+  --primary-soft: #d9ecff;
+  --primary-glow: rgba(31, 120, 232, 0.28);
+  --accent-warm: #f59e0b;
+  --accent-warm-soft: #fff3d6;
+  --accent-coral: #ff6b61;
+  --accent-coral-glow: rgba(255, 107, 97, 0.42);
+  --radius-shell: 2rem;
+  --radius-card: 1.5rem;
+  --radius-control: 1rem;
+  --radius-pill: 9999px;
+}
+
+.dark {
+  --background: #061326;
+  --background-deep: #020b18;
+  --app-shell: rgba(9, 25, 48, 0.74);
+  --surface: rgba(18, 43, 76, 0.58);
+  --surface-strong: rgba(22, 52, 91, 0.74);
+  --border: rgba(130, 178, 232, 0.26);
+  --border-strong: rgba(129, 192, 255, 0.42);
+  --text-primary: #f2f7ff;
+  --text-secondary: #afc1da;
+  --text-muted: #7f92b0;
+  --primary: #6bd8ff;
+  --primary-soft: rgba(107, 216, 255, 0.14);
+  --primary-glow: rgba(107, 216, 255, 0.32);
+  --accent-warm: #ffd17a;
+  --accent-warm-soft: rgba(255, 209, 122, 0.12);
+  --accent-coral: #ff7a6e;
+  --accent-coral-glow: rgba(255, 122, 110, 0.48);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: var(--background);
+}
+
+body {
+  min-height: 100%;
+  margin: 0;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(96, 180, 255, 0.22), transparent 34%),
+    radial-gradient(circle at 80% 20%, rgba(255, 180, 110, 0.16), transparent 30%),
+    var(--background);
+  color: var(--text-primary);
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+@layer utilities {
+  .font-heading {
+    font-family: "Manrope", "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    letter-spacing: 0.01em;
+  }
+
+  .glass-card {
+    border: 1px solid var(--border);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.06)),
+      var(--surface);
+    box-shadow:
+      0 20px 60px rgba(22, 56, 105, 0.14),
+      inset 0 1px 0 rgba(255, 255, 255, 0.42);
+    backdrop-filter: blur(24px);
+  }
+
+  .dark .glass-card {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)),
+      var(--surface);
+    box-shadow:
+      0 24px 80px rgba(0, 0, 0, 0.42),
+      inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  }
+
+  .glass-control {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    box-shadow:
+      0 14px 40px rgba(22, 56, 105, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    backdrop-filter: blur(24px);
+  }
+
+  .dark .glass-control {
+    box-shadow:
+      0 18px 48px rgba(0, 0, 0, 0.34),
+      inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  }
+
+  .glass-shell {
+    border: 1px solid var(--border);
+    background: var(--app-shell);
+    box-shadow:
+      0 24px 80px rgba(22, 56, 105, 0.16),
+      inset 0 1px 0 rgba(255, 255, 255, 0.46);
+    backdrop-filter: blur(24px);
+  }
+
+  .dark .glass-shell {
+    box-shadow:
+      0 24px 90px rgba(0, 0, 0, 0.52),
+      inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  }
+
+  .shadow-primary-glow {
+    box-shadow:
+      0 0 28px var(--primary-glow),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+
+  .shadow-coral-glow {
+    box-shadow:
+      0 0 34px var(--accent-coral-glow),
+      inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  }
+
+  .shadow-warm-glow {
+    box-shadow:
+      0 0 28px rgba(255, 209, 122, 0.34),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+}

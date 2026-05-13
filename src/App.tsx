@@ -275,8 +275,8 @@ export default function App() {
 
   if (isBootstrapping) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors flex items-center justify-center">
-        <p className="text-sm text-gray-500 dark:text-gray-400">
+      <div className="flex min-h-screen items-center justify-center bg-[var(--background)] text-[var(--text-secondary)] transition-colors">
+        <p className="glass-control rounded-[18px] px-5 py-3 text-sm">
           Загружаем профиль...
         </p>
       </div>
@@ -383,7 +383,7 @@ export default function App() {
   const showBottomNav = currentScreen !== "settings" || isSettingsCompleted;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+    <div className="min-h-screen bg-[var(--background)] transition-colors">
       <Layout
         activeNav={
           currentScreen === "settings" ||

@@ -1,10 +1,10 @@
 import {
+  BookOpen,
   CheckCircle2,
   Clock,
   Crown,
   Flame,
-  BookOpen,
-  BookText,
+  NotebookTabs,
   Settings,
   Target,
   WalletCards,
@@ -39,26 +39,66 @@ type HomeScreenProps = {
 };
 
 type StatusState = "done" | "not_started" | "in_progress";
+type ProgressStepState = "done" | "current" | "idle";
 
 const STATUS_STYLES: Record<
   StatusState,
-  { icon: string; text: string; label: string }
+  { step: ProgressStepState; text: string; label: string }
 > = {
   done: {
-    icon: "bg-green-50 dark:bg-green-900/20 text-green-600",
-    text: "text-green-500",
+    step: "done",
+    text: "text-[var(--primary)]",
     label: "Готово",
   },
   not_started: {
-    icon: "bg-gray-50 dark:bg-gray-700 text-gray-400 dark:text-gray-500",
-    text: "text-gray-400 dark:text-gray-500",
+    step: "idle",
+    text: "text-[var(--text-muted)]",
     label: "Не начато",
   },
   in_progress: {
-    icon: "bg-orange-50 dark:bg-orange-900/20 text-orange-500 dark:text-orange-300",
-    text: "text-orange-500 dark:text-orange-300",
+    step: "current",
+    text: "text-[var(--accent-warm)]",
     label: "В процессе",
   },
+};
+
+const PROGRESS_STEP_STYLES: Record<ProgressStepState, string> = {
+  done: "border-[var(--border-strong)] bg-[var(--primary-soft)] text-[var(--primary)] shadow-primary-glow",
+  current:
+    "border-[var(--accent-warm)] bg-[var(--accent-warm-soft)] text-[var(--accent-warm)] shadow-warm-glow",
+  idle: "border-[var(--border)] bg-[var(--surface)] text-[var(--text-muted)]",
+};
+
+type ProgressStepProps = {
+  icon: React.ElementType;
+  label: string;
+  status: StatusState;
+};
+
+const ProgressStep: React.FC<ProgressStepProps> = ({
+  icon: Icon,
+  label,
+  status,
+}) => {
+  const style = STATUS_STYLES[status];
+
+  return (
+    <div className="min-w-0 text-center">
+      <div
+        className={`mx-auto grid size-9 place-items-center rounded-full border backdrop-blur-[24px] min-[390px]:size-10 ${PROGRESS_STEP_STYLES[style.step]}`}
+      >
+        <Icon size={17} strokeWidth={2.3} />
+      </div>
+      <p className="mt-1.5 truncate font-heading text-[12px] font-semibold text-[var(--text-primary)]">
+        {label}
+      </p>
+      <p
+        className={`mt-0.5 text-[11px] font-medium leading-tight ${style.text}`}
+      >
+        {style.label}
+      </p>
+    </div>
+  );
 };
 
 const getVocabularyTileText = (
@@ -94,6 +134,11 @@ const getVocabularyTileText = (
   return { text: `В словаре: ${state.readyCount}`, isAttention: false };
 };
 
+const splitVocabularyTileText = (text: string): string[] =>
+  text.includes(" Подтвердить")
+    ? text.replace(" Подтвердить", "\nПодтвердить").split("\n")
+    : [text];
+
 export const HomeScreen: React.FC<HomeScreenProps> = ({
   onNavigate,
   onOpenLesson,
@@ -128,6 +173,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         : "not_started";
   const isPaid = subscription?.tier === "paid";
   const SubscriptionIcon = isPaid ? Crown : WalletCards;
+  const displayName = userName ?? "Пользователь";
+  const isLongDisplayName = displayName.length > 12;
   const lessonButtonLabel =
     lessonStatus === "in_progress" ? "Продолжить" : "Начать";
   const lessonDescription = isLessonCompleted
@@ -148,6 +195,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     vocabularyState,
     isVocabularyStateLoading,
   );
+  const lessonDescriptionLines = lessonDescription.includes(". ")
+    ? lessonDescription
+        .split(". ")
+        .map((line, index, lines) =>
+          index < lines.length - 1 ? `${line}.` : line,
+        )
+    : [lessonDescription];
+  const vocabularyTileLines = splitVocabularyTileText(vocabularyTile.text);
 
   useEffect(() => {
     if (isFirstSetup) {
@@ -183,143 +238,109 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   }, [isFirstSetup]);
 
   return (
-    <div className="px-4 py-3 space-y-4">
-      <header className="space-y-4">
-        <div className="flex justify-between items-center">
-          <div>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+    <div className="mx-auto w-full max-w-[430px] space-y-3 px-3.5 pb-3 pt-3 min-[390px]:px-4 min-[480px]:max-w-[390px] min-[480px]:px-3">
+      <header className="space-y-3">
+        <div className="space-y-1">
+          <div className="flex items-center justify-between gap-2">
+            <p className="min-w-0 text-[16px] font-medium leading-tight text-[var(--primary)] min-[390px]:text-[17px] min-[480px]:text-[16px]">
               С возвращением,
             </p>
-            <h1 className="text-[26px] leading-8 font-bold text-gray-900 dark:text-white">
-              {userName ?? "Пользователь"}!
-            </h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onOpenSubscription}
-              className={`h-8 rounded-full px-3 flex items-center gap-1.5 text-sm font-semibold transition-colors ${
-                isPaid
-                  ? "bg-green-50 text-green-600 dark:bg-orange-900/25 dark:text-orange-300"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
-              }`}
-            >
-              <SubscriptionIcon size={16} />
-              <span>{isPaid ? "Подписка" : "Купить"}</span>
-            </button>
-            <div className="flex items-center gap-1.5 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 px-3 py-1.5 rounded-full text-sm font-semibold">
-              <Flame size={16} />
-              {streakDays}
+
+            <div className="flex shrink-0 items-center justify-end gap-1.5">
+              <button
+                type="button"
+                onClick={onOpenSubscription}
+                className={`glass-control flex h-9 items-center gap-1 rounded-[15px] px-2 text-[11px] font-semibold leading-none transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] ${
+                  isPaid
+                    ? "text-[var(--primary)]"
+                    : "text-[var(--accent-coral)]"
+                }`}
+              >
+                <SubscriptionIcon className="shrink-0" size={13} />
+                <span>{isPaid ? "Подписка" : "Купить"}</span>
+              </button>
+              <button
+                type="button"
+                aria-label="Открыть настройки"
+                onClick={() => onNavigate("settings")}
+                className="glass-control grid size-9 shrink-0 place-items-center rounded-[15px] text-[var(--primary)] transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+              >
+                <Settings size={18} />
+              </button>
+              <ThemeToggle />
             </div>
-            <ThemeToggle />
           </div>
+
+          <h1
+            className={`py-1 font-heading font-bold text-[var(--text-primary)] [overflow-wrap:anywhere] ${
+              isLongDisplayName
+                ? "text-[24px] leading-[1.08] min-[390px]:text-[26px] min-[480px]:text-[26px]"
+                : "text-[28px] leading-none"
+            }`}
+          >
+            {displayName}!
+          </h1>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 p-3.5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-          <div className="flex justify-between items-center gap-3 mb-3">
-            <h2 className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
+        <section className="glass-card rounded-[20px] p-3">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <h2 className="font-heading text-base font-semibold uppercase tracking-[0.11em] text-[var(--primary)]">
               Прогресс за день
             </h2>
-            <button
-              onClick={() => onNavigate("settings")}
-              className={`relative h-7 w-7 rounded-full flex items-center justify-center transition-colors ${
-                isFirstSetup
-                  ? "text-pink-600 dark:text-pink-300 bg-pink-50 dark:bg-pink-900/20"
-                  : "text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400"
-              }`}
-            >
-              {isFirstSetup && (
-                <span className="absolute inset-0 rounded-full animate-ping bg-pink-400/40 dark:bg-pink-400/40" />
-              )}
-              <span className="relative z-10">
-                <Settings size={14} />
-              </span>
-            </button>
-          </div>
-
-          <div className="flex justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <div
-                className={`p-1.5 rounded-full ${STATUS_STYLES[exerciseStatus].icon}`}
-              >
-                <CheckCircle2 size={14} />
-              </div>
-              <div>
-                <p className="text-xs font-medium text-gray-700 dark:text-gray-200">
-                  Упражнения
-                </p>
-                <p
-                  className={`text-[10px] ${STATUS_STYLES[exerciseStatus].text}`}
-                >
-                  {STATUS_STYLES[exerciseStatus].label}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div
-                className={`p-1.5 rounded-full ${STATUS_STYLES[readingProgressStatus].icon}`}
-              >
-                <Clock size={14} />
-              </div>
-              <div>
-                <p className="text-xs font-medium text-gray-700 dark:text-gray-200">
-                  Текст
-                </p>
-                <p
-                  className={`text-[10px] ${STATUS_STYLES[readingProgressStatus].text}`}
-                >
-                  {STATUS_STYLES[readingProgressStatus].label}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div
-                className={`p-1.5 rounded-full ${STATUS_STYLES[reviewStatus].icon}`}
-              >
-                <Target size={14} />
-              </div>
-              <div>
-                <p className="text-xs font-medium text-gray-700 dark:text-gray-200">
-                  Повторение
-                </p>
-                <p
-                  className={`text-[10px] ${STATUS_STYLES[reviewStatus].text}`}
-                >
-                  {STATUS_STYLES[reviewStatus].label}
-                </p>
-              </div>
+            <div className="glass-control flex min-h-8 shrink-0 items-center gap-1 rounded-[14px] px-2 text-[11px] font-semibold leading-none text-[var(--accent-warm)] shadow-warm-glow">
+              <Flame size={13} />
+              {streakDays}
             </div>
           </div>
 
-          <div className="flex gap-1.5 pt-2.5 border-t border-gray-50 dark:border-gray-700">
-            <span className="px-2 py-0.5 bg-gray-50 dark:bg-gray-700 rounded text-[10px] text-gray-500 dark:text-gray-400">
+          <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-start gap-1.5 min-[390px]:gap-2">
+            <ProgressStep
+              icon={CheckCircle2}
+              label="Упр."
+              status={exerciseStatus}
+            />
+            <div className="mt-4 h-px w-4 bg-[var(--border-strong)] min-[390px]:w-7 min-[480px]:w-5" />
+            <ProgressStep
+              icon={Clock}
+              label="Текст"
+              status={readingProgressStatus}
+            />
+            <div className="mt-4 h-px w-4 bg-[var(--border-strong)] min-[390px]:w-7 min-[480px]:w-5" />
+            <ProgressStep icon={Target} label="Повтор." status={reviewStatus} />
+          </div>
+
+          <div className="my-2 h-px bg-[var(--border)]" />
+
+          <div className="grid grid-cols-3 gap-2 min-[390px]:gap-3 min-[480px]:gap-2">
+            <span className="rounded-[12px] border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-center text-[10px] font-medium text-[var(--text-secondary)] backdrop-blur-[24px]">
               {exerciseMinutes ?? 5}м Упр
             </span>
-            <span className="px-2 py-0.5 bg-gray-50 dark:bg-gray-700 rounded text-[10px] text-gray-500 dark:text-gray-400">
+            <span className="rounded-[12px] border border-[var(--accent-warm)] bg-[var(--accent-warm-soft)] px-2 py-1 text-center text-[10px] font-semibold text-[var(--accent-warm)] shadow-warm-glow">
               {readingMinutes ?? 3}м Текст
             </span>
-            <span className="px-2 py-0.5 bg-gray-50 dark:bg-gray-700 rounded text-[10px] text-gray-500 dark:text-gray-400">
+            <span className="rounded-[12px] border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-center text-[10px] font-medium text-[var(--text-secondary)] backdrop-blur-[24px]">
               30 слов
             </span>
           </div>
-        </div>
+        </section>
       </header>
 
       {isFirstSetup ? (
-        <section className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-blue-200 dark:border-orange-900/40">
-          <h2 className="text-xs font-bold text-blue-500 dark:text-orange-400 uppercase tracking-wider mb-2">
+        <section className="glass-card rounded-[20px] p-3">
+          <h2 className="mb-2 font-heading text-base font-semibold uppercase tracking-[0.11em] text-[var(--primary)]">
             Перед первым уроком
           </h2>
-          <div className="space-y-2.5">
-            <p className="font-bold text-base leading-snug text-gray-900 dark:text-white">
+          <div className="space-y-2">
+            <p className="font-heading text-[20px] font-bold leading-tight text-[var(--text-primary)]">
               Заполни настройки перед стартом.
             </p>
-            <p className="text-sm leading-snug text-gray-500 dark:text-gray-400">
+            <p className="text-sm leading-5 text-[var(--text-secondary)]">
               Выбери уровень и параметры сессии в настройках, после этого
               откроется ежедневный учебный цикл.
             </p>
             <Button
               onClick={() => onNavigate("settings")}
-              className="rounded-full px-4 py-1.5 text-base bg-pink-500 hover:bg-pink-600 dark:bg-pink-500 dark:hover:bg-pink-600"
+              className="w-full min-[390px]:w-auto"
             >
               Открыть настройки
             </Button>
@@ -327,28 +348,29 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </section>
       ) : (
         <>
-          <section className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-            <h2 className="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">
+          <section className="glass-card rounded-[20px] p-3">
+            <h2 className="mb-2 font-heading text-base font-semibold uppercase tracking-[0.11em] text-[var(--primary)]">
               План на сегодня
             </h2>
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-row items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="font-bold text-base text-gray-900 dark:text-white">
-                  Урок на сегодня
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {lessonDescription}
+                <p className="text-sm leading-5 text-[var(--text-secondary)]">
+                  {lessonDescriptionLines.map((line) => (
+                    <span key={line} className="block">
+                      {line}
+                    </span>
+                  ))}
                 </p>
               </div>
               {isLessonCompleted ? (
-                <div className="flex items-center gap-1.5 text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-3 py-1.5 rounded-full text-xs font-medium">
-                  <CheckCircle2 size={14} />
+                <div className="glass-control flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-[16px] px-3 text-xs font-semibold text-[var(--primary)] shadow-primary-glow">
+                  <CheckCircle2 size={15} />
                   <span>Завершено</span>
                 </div>
               ) : (
                 <Button
                   onClick={onOpenLesson}
-                  className="shrink-0 rounded-full px-4 py-1.5 text-sm dark:bg-orange-500 dark:hover:bg-orange-600"
+                  className="min-h-9 w-auto shrink-0 px-4 py-2 text-xs min-[390px]:min-w-[104px] min-[480px]:min-w-[96px]"
                 >
                   {lessonButtonLabel}
                 </Button>
@@ -356,11 +378,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </div>
           </section>
 
-          <section className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-            <div className="space-y-3">
+          <section className="glass-card rounded-[20px] p-3">
+            <div className="space-y-2">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <h2 className="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                  <h2 className="font-heading text-base font-semibold uppercase tracking-[0.11em] text-[var(--primary)]">
                     Мои материалы
                   </h2>
                 </div>
@@ -370,33 +392,45 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 <button
                   type="button"
                   onClick={() => onOpenMaterials("texts")}
-                  className="rounded-xl bg-gray-50 dark:bg-gray-700/70 p-2.5 text-left transition-colors hover:bg-gray-100 dark:hover:bg-gray-700"
+                  className="grid h-[108px] grid-rows-[44px_40px] content-start rounded-[16px] border border-[var(--border)] bg-[var(--surface-strong)] p-2.5 text-left backdrop-blur-[24px] transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
                 >
-                  <div className="flex items-center gap-2 text-gray-700 dark:text-gray-200">
-                    <BookOpen size={16} className="text-green-500 dark:text-orange-300" />
-                    <span className="text-sm font-semibold">Тексты</span>
+                  <div className="flex h-11 items-center gap-2 text-[var(--text-primary)]">
+                    <span className="glass-control grid size-10 shrink-0 place-items-center rounded-full text-[var(--primary)]">
+                      <BookOpen className="-translate-y-px" size={20} />
+                    </span>
+                    <span className="font-heading text-base font-semibold">
+                      Тексты
+                    </span>
                   </div>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  <p className="mt-1.5 h-10 overflow-hidden text-sm leading-5 text-[var(--text-secondary)]">
                     История чтения
                   </p>
                 </button>
                 <button
                   type="button"
                   onClick={() => onOpenMaterials("vocabulary")}
-                  className="rounded-xl bg-gray-50 dark:bg-gray-700/70 p-2.5 text-left transition-colors hover:bg-gray-100 dark:hover:bg-gray-700"
+                  className="grid h-[108px] grid-rows-[44px_40px] content-start rounded-[16px] border border-[var(--border)] bg-[var(--surface-strong)] p-2.5 text-left backdrop-blur-[24px] transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
                 >
-                  <div className="flex items-center gap-2 text-gray-700 dark:text-gray-200">
-                    <BookText size={16} className="text-green-500 dark:text-orange-300" />
-                    <span className="text-sm font-semibold">Словарь</span>
+                  <div className="flex h-11 items-center gap-2 text-[var(--text-primary)]">
+                    <span className="glass-control grid size-10 shrink-0 place-items-center rounded-full text-[var(--primary)]">
+                      <NotebookTabs size={20} />
+                    </span>
+                    <span className="font-heading text-base font-semibold">
+                      Словарь
+                    </span>
                   </div>
                   <p
-                    className={`mt-1 text-xs ${
+                    className={`mt-1.5 h-10 overflow-hidden text-sm leading-5 ${
                       vocabularyTile.isAttention
-                        ? "font-semibold text-orange-500 dark:text-orange-300"
-                        : "text-gray-500 dark:text-gray-400"
+                        ? "font-semibold text-[var(--accent-warm)]"
+                        : "text-[var(--text-secondary)]"
                     }`}
                   >
-                    {vocabularyTile.text}
+                    {vocabularyTileLines.map((line) => (
+                      <span key={line} className="block">
+                        {line}
+                      </span>
+                    ))}
                   </p>
                 </button>
               </div>
