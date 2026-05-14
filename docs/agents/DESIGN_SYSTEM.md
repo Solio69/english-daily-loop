@@ -202,6 +202,39 @@ Content:
 - Body text: `14px`, `leading-5`, `--text-secondary`.
 - CTA `Открыть настройки`: full-width shared `Button`, coral background, `font-heading`, `14px`, `font-semibold`.
 
+## Settings Screen
+
+Purpose:
+
+- User chooses `englishLevel` and `dailyReadingMinutes`.
+- Settings screen does not write to DB directly; it calls the existing `onSave` flow.
+
+Layout:
+
+- Uses the same full-bleed app background from `Layout`.
+- Inner content width: `max-w-[430px]`, wide preview `max-w-[390px]`.
+- Top padding: `pt-3`.
+- Header contains a circular glass back button and uppercase `Настройки` label.
+- No secondary large header inside the screen header.
+
+Cards:
+
+- Settings groups use `glass-card rounded-[20px] p-3`.
+- Section labels use `font-heading`, `16px`, uppercase, `tracking-[0.11em]`, `--primary`.
+- Option buttons use fixed compact control height, rounded `[16px]`, `font-heading`, `14px`, `font-semibold`.
+- Selected options use warm accent: `--accent-warm`, `--accent-warm-soft`, `shadow-warm-glow`.
+- Inactive options use neutral `glass-control` with `--text-secondary`.
+
+First setup helper:
+
+- Uses `glass-card`.
+- Lead text: `16px`, `font-semibold`, `--accent-warm`.
+- Body text: `14px`, `leading-5`, `--text-secondary`.
+
+Dev tools:
+
+- Dev tools panel is rendered by the existing dev flags and keeps its own technical UI.
+
 ## Materials Card
 
 Header: `Мои материалы`.
@@ -259,29 +292,33 @@ Nav item:
 
 Position:
 
-- fixed bottom overlay above bottom nav: `bottom-[calc(env(safe-area-inset-bottom)+5.75rem)]`, centered.
-- mobile width: `w-[calc(100%-2rem)]`, `max-w-[430px]`.
-- desktop/wide preview: `max-w-[390px]`.
+- fixed top overlay: `top-[calc(env(safe-area-inset-top)+20px)]`, centered.
+- viewport wrapper uses `z-[100]`, `w-full`, `px-4`.
+- toast width: `w-[calc(100%-32px)]`, `max-w-[390px]`.
 
 Base:
 
-- glass surface via `glass-control`.
-- min height: `72px`.
-- rounded `[20px]`.
-- padding: `px-4 py-4`.
-- text: `15px`, `leading-5`, `font-medium`.
-- icon left: `20px`.
+- `AppToast` is the primary component API.
+- supported variants: `success`, `warning`, `error`.
+- root: floating pill-like glass card, `rounded-[28px]`, `border`, `backdrop-blur-[24px]`.
+- current compact sizing: `min-h-[70px]`, `gap-3`, `px-3.5`, `py-3`.
+- icon container: circular glass control, `size-14`; on `390px+` uses `size-16`.
+- icon: `size-6`; on `390px+` uses `size-7`.
+- close button: circular `size-9`, `aria-label="Закрыть уведомление"`.
+- enter animation: `app-toast-enter 220ms ease-out`.
+- `role="status"`, `aria-live="polite"`; error uses `aria-live="assertive"`.
 
-Tones:
+Variants:
 
-- `default`: neutral border/text tokens.
-- `onboarding`: `--accent-warm`, `--accent-warm-soft`, `shadow-warm-glow`.
-- `success`: `--primary`, `--primary-soft`, `shadow-primary-glow`.
-- `error`: `#DD3D4C` border/text with soft transparent background.
+- `success`: blue in light theme (`#1F78E8`), cyan in dark theme (`#6BD8FF`), `Check` icon.
+- `warning`: amber in light theme (`#F59E0B`), warm yellow in dark theme (`#FFD17A`), `TriangleAlert` icon.
+- `error`: red in light theme (`#EF4444`), coral in dark theme (`#FF7A6E`), `XCircle` icon.
 
-Onboarding copy:
+Compatibility wrapper:
 
-- Use `Открой настройки, чтобы продолжить.` for attempts to access locked flows before settings are completed.
+- Existing `Toast` wrapper accepts current app tones: `default`, `onboarding`, `success`, `error`.
+- `default` and `onboarding` map to `warning`.
+- `success` maps to `success`; `error` maps to `error`.
 
 ## Accessibility
 
@@ -306,6 +343,6 @@ After visual changes:
 
 ## Current Design Notes
 
-- The actual source of truth is current `src/screens/HomeScreen.tsx`, `src/components/Layout.tsx`, `src/components/BottomNav.tsx`, `src/components/Button.tsx`, `src/components/ThemeToggle.tsx`, and `src/index.css`.
+- The actual source of truth is current `src/screens/HomeScreen.tsx`, `src/screens/SettingsScreen.tsx`, `src/components/Layout.tsx`, `src/components/BottomNav.tsx`, `src/components/Button.tsx`, `src/components/ThemeToggle.tsx`, `src/components/Toast.tsx`, and `src/index.css`.
 - If this document conflicts with implementation, inspect implementation first and update this document after the design is approved.
 - Keep future changes iterative; avoid large redesigns across all screens until home is stable.

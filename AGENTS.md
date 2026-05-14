@@ -198,10 +198,10 @@
   - `15` мин: `700-950` слов, `max_tokens: 1900`.
 - При bootstrap настройки пользователя должны приходить с backend, если `settings_completed_at` уже заполнен.
 - `users.first_text_completed_at` используется только для онбординга; ежедневный факт прочтения хранится отдельно в `user_daily_reading_completions`.
-- Экран настроек содержит уровень английского и время чтения; на главной плашка повторения пока зафиксирована как `30 слов` для демо.
+- Экран настроек содержит уровень английского и время чтения, использует mobile-first glass UI; dev tools панель отображается по существующим dev-флагам.
 - В состоянии "настройки сохранены, но первый текст еще не прочитан" раздел `Слова` заблокирован, но `Главная` и `Текст` доступны.
 - После нажатия "Завершить текст" генерация в текущий день блокируется, активный текст удаляется; новый дневной цикл открывается после `00:00` по `Europe/Moscow`.
-- App-level toast-сообщения вынесены в единый компонент `src/components/Toast.tsx` с тонами `default`, `onboarding`, `success`, `error`; toast показывается снизу над bottom navigation.
+- App-level toast-сообщения вынесены в `src/components/Toast.tsx`: `AppToast` поддерживает variant-состояния `success`, `warning`, `error`, а совместимый wrapper `Toast` мапит текущие тоны `default`, `onboarding`, `success`, `error`; toast показывается сверху как floating glass card с кнопкой закрытия.
 - `vite.config.ts` разрешает внешние tunnel host'ы (`.trycloudflare.com`, `.loca.lt`) для запуска Mini App через Telegram.
 - `npm run dev:telegram` автоматически поднимает frontend/API туннели и печатает `STARTUP SUMMARY` с двумя URL:
   - `BotFather /setmenubutton URL` = FRONTEND TUNNEL URL

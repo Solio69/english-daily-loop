@@ -32,13 +32,19 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   onRunDevToolAction,
 }) => {
   const shouldUseStickySave = !isFirstSetup;
-  const optionButtonClass = "h-12 text-sm font-medium transition-colors";
+  const optionButtonClass =
+    "min-h-11 rounded-[16px] px-3 font-heading text-sm font-semibold transition duration-200 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]";
+  const inactiveOptionClass =
+    "glass-control text-[var(--text-secondary)] hover:border-[var(--border-strong)]";
+  const activeOptionClass =
+    "border border-[var(--accent-warm)] bg-[var(--accent-warm-soft)] text-[var(--accent-warm)] shadow-warm-glow";
   const LEVEL_OPTIONS: UserSettings["englishLevel"][] = [
     "A1",
     "A2",
     "B1",
     "B2",
   ];
+  const READING_TIME_OPTIONS = [3, 5, 10, 15];
   const [level, setLevel] = useState<UserSettings["englishLevel"]>(
     initialSettings?.englishLevel ?? "A1",
   );
@@ -55,28 +61,39 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   return (
     <div
-      className={`flex min-h-screen flex-col p-4 ${
-        shouldUseStickySave ? "pb-24" : "pb-4"
+      className={`mx-auto flex min-h-[100dvh] w-full max-w-[430px] flex-col px-3.5 pt-3 min-[390px]:px-4 min-[480px]:max-w-[390px] min-[480px]:px-3 ${
+        shouldUseStickySave ? "pb-28" : "pb-4"
       }`}
     >
-      <button
-        onClick={onBack}
-        className="flex items-center gap-1 text-gray-500 dark:text-gray-400 text-sm hover:text-gray-700 dark:hover:text-gray-300"
-        disabled={isSaving}
-      >
-        <ChevronLeft size={20} /> Назад
-      </button>
+      <header className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={onBack}
+          className="glass-control grid size-9 shrink-0 place-items-center rounded-full text-[var(--primary)] transition active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+          disabled={isSaving}
+          aria-label="Назад"
+        >
+          <ChevronLeft size={20} />
+        </button>
+        <div className="min-w-0">
+          <h1 className="font-heading text-base font-semibold uppercase tracking-[0.11em] text-[var(--primary)]">
+            Настройки
+          </h1>
+        </div>
+      </header>
 
-      <h1 className="mt-2 text-xl font-bold text-gray-900 dark:text-white">
-        Настройки сессии
-      </h1>
       {isFirstSetup && (
-        <p className="text-sm text-pink-500 dark:text-pink-500">
-          Заполни настройки, чтобы начать первый дневной цикл.
-        </p>
+        <section className="glass-card mt-3 rounded-[20px] p-3">
+          <p className="font-heading text-base font-semibold leading-5 text-[var(--accent-warm)]">
+            Заполни настройки, чтобы начать первый дневной цикл.
+          </p>
+          <p className="mt-1 text-sm leading-5 text-[var(--text-secondary)]">
+            Мы подберем длину и сложность текста под твой ежедневный ритм.
+          </p>
+        </section>
       )}
 
-      <div className="space-y-5 pt-6">
+      <div className="space-y-3 pt-3">
         {showDevTools && onRunDevToolAction && (
           <Suspense
             fallback={
@@ -92,19 +109,21 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </Suspense>
         )}
 
-        <section>
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+        <section className="glass-card rounded-[20px] p-3">
+          <h2 className="mb-2 font-heading text-base font-semibold uppercase tracking-[0.11em] text-[var(--primary)]">
             Уровень текста
           </h2>
-          <div className="-mx-0.5 flex bg-gray-100 dark:bg-gray-800 rounded-full">
+          <div className="grid grid-cols-4 gap-2">
             {LEVEL_OPTIONS.map((option) => (
               <button
+                type="button"
                 key={option}
                 onClick={() => setLevel(option)}
-                className={`flex-1 rounded-full ${optionButtonClass} ${
+                disabled={isSaving}
+                className={`${optionButtonClass} ${
                   level === option
-                    ? "bg-green-500 text-white shadow-sm"
-                    : "text-gray-500 dark:text-gray-400"
+                    ? activeOptionClass
+                    : inactiveOptionClass
                 }`}
               >
                 {option}
@@ -113,22 +132,24 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </div>
         </section>
 
-        <section>
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+        <section className="glass-card rounded-[20px] p-3">
+          <h2 className="mb-2 font-heading text-base font-semibold uppercase tracking-[0.11em] text-[var(--primary)]">
             Время чтения
           </h2>
           <div className="grid grid-cols-4 gap-2">
-            {[3, 5, 10, 15].map((value) => (
+            {READING_TIME_OPTIONS.map((value) => (
               <button
+                type="button"
                 key={value}
                 onClick={() => setReadingTime(value)}
-                className={`rounded-xl ${optionButtonClass} ${
+                disabled={isSaving}
+                className={`${optionButtonClass} ${
                   readingTime === value
-                    ? "bg-green-500 text-white"
-                    : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+                    ? activeOptionClass
+                    : inactiveOptionClass
                 }`}
               >
-                {value}m
+                {value}м
               </button>
             ))}
           </div>
@@ -138,7 +159,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       <div className="mt-auto pt-6">
         <Button
           onClick={handleSave}
-          className="w-full rounded-full py-3 text-base dark:bg-orange-500 dark:hover:bg-orange-600"
+          className="w-full"
           disabled={isSaving}
         >
           {isSaving ? "Сохраняем..." : "Сохранить"}

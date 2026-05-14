@@ -121,6 +121,7 @@ export default function App() {
   const handleSaveSettings = async (settings: SaveUserSettingsInput) => {
     if (!appUser) return;
 
+    const wasFirstSetup = !isSettingsCompleted;
     setIsSavingSettings(true);
     try {
       const updatedUser = await saveCurrentUserSettings(
@@ -132,7 +133,12 @@ export default function App() {
       );
       setAppUser(updatedUser);
       setCurrentScreen("home");
-      showToast("Настройки сохранены. Переходи к тексту.", "success");
+      showToast(
+        wasFirstSetup
+          ? "Настройки готовы. Можно начинать первый текст."
+          : "Настройки сохранены.",
+        wasFirstSetup ? "onboarding" : "success",
+      );
     } catch (error) {
       showToast(
         error instanceof Error
@@ -308,11 +314,7 @@ export default function App() {
           />
         );
       case "vocabulary":
-        return (
-          <VocabularyScreen
-            onBack={() => setCurrentScreen("home")}
-          />
-        );
+        return <VocabularyScreen onBack={() => setCurrentScreen("home")} />;
       case "materials":
         return (
           <MaterialsScreen
@@ -386,7 +388,13 @@ export default function App() {
       >
         {renderScreen()}
       </Layout>
-      {toastText && <Toast message={toastText} tone={toastTone} />}
+      {toastText && (
+        <Toast
+          message={toastText}
+          tone={toastTone}
+          onClose={() => setToastText(null)}
+        />
+      )}
     </div>
   );
 }

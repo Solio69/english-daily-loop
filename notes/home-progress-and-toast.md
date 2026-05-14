@@ -113,23 +113,35 @@ App-level сообщения проходят через единый компо
 - `src/components/Toast.tsx`
 
 Позиционирование:
-- toast фиксируется снизу над bottom navigation
-- учитывает `safe-area-inset-bottom`
-- ширина синхронизирована с мобильной шириной приложения: `max-w-[430px]`, wide preview `max-w-[390px]`
+- toast фиксируется сверху viewport
+- учитывает `safe-area-inset-top`
+- ширина синхронизирована с мобильной шириной приложения: `w-[calc(100%-32px)]`, `max-w-[390px]`
 
-Поддерживаемые тоны:
+Основной API:
+- `AppToast`
+- `ToastViewport`
+
+Поддерживаемые variant-состояния:
+- `success`
+- `warning`
+- `error`
+
+Совместимый wrapper `Toast` принимает текущие app-тоны:
 - `default`
 - `onboarding`
 - `success`
 - `error`
 
 Правила внешнего вида:
-- базовая поверхность использует `glass-control`
-- текст: `15px`, `leading-5`, `font-medium`
-- иконка слева: `20px`
-- `onboarding` использует `--accent-warm`, `--accent-warm-soft`, `shadow-warm-glow`
-- `success` использует `--primary`, `--primary-soft`, `shadow-primary-glow`
-- `error` использует `#DD3D4C`
+- toast — floating pill-like glass card с `rounded-[28px]`, border, blur и мягкой тенью
+- слева круглый icon container
+- в центре title и optional description
+- справа кнопка закрытия
+- `success` использует blue/cyan и `Check`
+- `warning` использует amber/orange и `TriangleAlert`
+- `error` использует red/coral и `XCircle`
+- `default` и `onboarding` мапятся на `warning`
+- появление использует `app-toast-enter`
 
 Тексты onboarding-состояний:
 - для попытки перейти в закрытый раздел до заполнения настроек используется `Открой настройки, чтобы продолжить.`
