@@ -8,7 +8,7 @@ Telegram Mini App для ежедневной практики английск�
 
 - Telegram Mini App с авторизацией через `Telegram WebApp initData`.
 - Онбординг с настройками уровня английского и времени чтения.
-- Экран чтения с AI-генерацией текста через OpenRouter.
+- Экран `Текст` с AI-генерацией текста через OpenRouter и mobile-first glass UI для idle, active text, loading, error и completed состояний.
 - Серверные дневные лимиты генерации текста.
 - Активный непрочитанный текст на пользователя.
 - Завершение дневного чтения и streak по дням.
@@ -18,6 +18,7 @@ Telegram Mini App для ежедневной практики английск�
 - Экран настроек использует mobile-first glass UI для выбора уровня английского и времени чтения.
 - Дневной прогресс на главной показывает шаги `Текст` и `Повторение`; повторение слов остается частью MVP-цикла.
 - Единые app-level toast-сообщения показываются сверху как floating glass card с variant-состояниями `success`, `warning`, `error`.
+- Общие UI primitives: `ScreenHeader`, `LoadingState`, `InlineStatusCard`, shared `Button`.
 - MVP-подписки: `free` и `paid` тарифное состояние без реальных платежей.
 - Базовый security-контур: server-side Telegram auth, RLS/grants hardening, защищенные секреты и безопасные ошибки Edge Functions.
 - Локальный Telegram-запуск через `npm run dev:telegram`.
@@ -44,6 +45,7 @@ Telegram Mini App для ежедневной практики английск�
 Основная граница ответственности:
 
 - `src/screens` — UI-экраны приложения.
+- `src/components` — общие UI-компоненты и feature-компоненты экранов.
 - `src/services` — клиентский сервисный слой, который вызывает Supabase и Edge Functions.
 - `src/types` — общие frontend/domain типы.
 - `supabase/migrations` — схема базы данных.
@@ -253,6 +255,8 @@ pnpm build
 - Новую работу с данными лучше выносить в `src/services`, а не напрямую в UI-компоненты.
 - Общие типы держать в `src/types`.
 - Дизайн-токены и общие glass utilities держать в `src/index.css`; актуальные UI-правила главной фиксировать в `docs/agents/DESIGN_SYSTEM.md`.
+- Для внутренних экранов с back navigation использовать `ScreenHeader`; для встроенных статусов использовать `InlineStatusCard`; для загрузок использовать `LoadingState`.
+- UI экрана чтения держать как контейнер `src/screens/ReadingScreen.tsx`, презентационные компоненты `src/components/reading/*` и helper парсинга текста `src/utils/readingText.ts`.
 - Серверные проверки Telegram `initData`, лимитов и подписок должны оставаться в Edge Functions.
 - Общую инфраструктуру Edge Functions нужно переиспользовать из `supabase/functions/_shared/server.ts`, а доменные проверки держать рядом с бизнес-операцией конкретной функции.
 - Server-only таблицы и RPC должны оставаться закрытыми для `anon` и `authenticated`; новые чувствительные операции нужно добавлять через Edge Functions и миграции прав доступа.

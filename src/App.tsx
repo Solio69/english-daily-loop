@@ -5,6 +5,7 @@
 
 import { useEffect, useState } from "react";
 import { Layout } from "./components/Layout";
+import { LoadingState } from "./components/LoadingState";
 import { Toast, ToastTone } from "./components/Toast";
 import { HomeScreen } from "./screens/HomeScreen";
 import { MaterialsScreen } from "./screens/MaterialsScreen";
@@ -275,13 +276,7 @@ export default function App() {
   };
 
   if (isBootstrapping) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--background)] text-[var(--text-secondary)] transition-colors">
-        <p className="glass-control rounded-[18px] px-5 py-3 text-sm">
-          Загружаем профиль...
-        </p>
-      </div>
-    );
+    return <LoadingState message="Загружаем профиль..." fullScreen />;
   }
 
   const renderScreen = () => {

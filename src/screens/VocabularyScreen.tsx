@@ -1,6 +1,7 @@
 ﻿import { CheckCircle2, RotateCcw, XCircle, Zap } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { Button } from "../components/Button";
+import { LoadingState } from "../components/LoadingState";
 import { getMockReviewQueue } from "../services/mockServices";
 import { VocabularyItem } from "../types";
 
@@ -33,8 +34,7 @@ export const VocabularyScreen: React.FC<{
     }
   };
 
-  if (loading)
-    return <div className="p-4 dark:text-gray-200">Загружаем слова...</div>;
+  if (loading) return <LoadingState message="Загружаем слова..." />;
   if (queue.length === 0)
     return (
       <div className="p-4 text-center dark:text-gray-200">

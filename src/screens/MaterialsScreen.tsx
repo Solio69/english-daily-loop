@@ -3,10 +3,10 @@ import {
   BookText,
   ChevronLeft,
   Clock,
-  Loader2,
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { Button } from "../components/Button";
+import { LoadingState } from "../components/LoadingState";
 import { VocabularyTab } from "../components/vocabulary/VocabularyTab";
 import { getReadingHistory } from "../services/materialsService";
 import { CompletedReadingText, MaterialsTab } from "../types/materials";
@@ -171,10 +171,7 @@ export const MaterialsScreen: React.FC<MaterialsScreenProps> = ({
       {activeTab === "texts" ? (
         <section className="space-y-3">
           {isLoading && (
-            <div className="flex flex-col items-center justify-center py-12 gap-3 text-gray-400 dark:text-gray-500">
-              <Loader2 size={30} className="animate-spin" />
-              <p>Загружаем тексты...</p>
-            </div>
+            <LoadingState message="Загружаем тексты..." />
           )}
 
           {errorText && (

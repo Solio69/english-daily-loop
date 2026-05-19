@@ -39,6 +39,7 @@ type HomeScreenProps = {
 
 type StatusState = "done" | "not_started" | "in_progress";
 type ProgressStepState = "done" | "current" | "idle";
+type ReadingChipState = "completed" | "in_progress" | "idle";
 
 const STATUS_STYLES: Record<
   StatusState,
@@ -66,6 +67,15 @@ const PROGRESS_STEP_STYLES: Record<ProgressStepState, string> = {
   current:
     "border-[var(--accent-warm)] bg-[var(--accent-warm-soft)] text-[var(--accent-warm)] shadow-warm-glow",
   idle: "border-[var(--border)] bg-[var(--surface)] text-[var(--text-muted)]",
+};
+
+const READING_CHIP_STYLES: Record<ReadingChipState, string> = {
+  completed:
+    "border-[var(--border-strong)] bg-[var(--primary-soft)] font-semibold text-[var(--primary)] shadow-primary-glow",
+  in_progress:
+    "border-[var(--accent-warm)] bg-[var(--accent-warm-soft)] font-semibold text-[var(--accent-warm)] shadow-warm-glow",
+  idle:
+    "border-[var(--border)] bg-[var(--surface)] font-medium text-[var(--text-secondary)]",
 };
 
 type ProgressStepProps = {
@@ -164,7 +174,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       : readingStatus === "in_progress"
         ? "in_progress"
         : "not_started";
-  const isReadingChipActive = readingStatus === "in_progress";
+  const readingChipState: ReadingChipState =
+    readingStatus === "completed"
+      ? "completed"
+      : readingStatus === "in_progress"
+        ? "in_progress"
+        : "idle";
   const isPaid = subscription?.tier === "paid";
   const SubscriptionIcon = isPaid ? Crown : WalletCards;
   const displayName = userName ?? "Пользователь";
@@ -311,11 +326,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
           <div className="grid grid-cols-[1fr_5rem_1fr] gap-2 min-[390px]:grid-cols-[1fr_6rem_1fr] min-[480px]:grid-cols-[1fr_5rem_1fr]">
             <span
-              className={`mx-auto w-28 rounded-[12px] border px-2 py-1 text-center text-[10px] backdrop-blur-[24px] min-[480px]:w-24 ${
-                isReadingChipActive
-                  ? "border-[var(--accent-warm)] bg-[var(--accent-warm-soft)] font-semibold text-[var(--accent-warm)] shadow-warm-glow"
-                : "border-[var(--border)] bg-[var(--surface)] font-medium text-[var(--text-secondary)]"
-              }`}
+              className={`mx-auto w-28 rounded-[12px] border px-2 py-1 text-center text-[10px] backdrop-blur-[24px] min-[480px]:w-24 ${READING_CHIP_STYLES[readingChipState]}`}
             >
               {readingMinutes ?? 3}м Текст
             </span>

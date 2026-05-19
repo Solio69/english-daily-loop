@@ -1,6 +1,6 @@
 # Design System: english-daily-loop
 
-Актуальная дизайн-система проекта для главной страницы и общих layout-компонентов.
+Актуальная дизайн-система проекта для mobile-first экранов и общих UI-компонентов.
 
 Цель: компактный mobile-first glass UI для Telegram Mini App. Целевой runtime - мобильный Telegram. Desktop Telegram используется как preview и не должен раздувать интерфейс.
 
@@ -65,6 +65,22 @@
 - `.shadow-coral-glow`
 - `.shadow-warm-glow`
 - `.onboarding-settings-wave` - wide two-phase warm onboarding wave for the settings button on first setup.
+
+## Shared UI Components
+
+Общие UI primitives:
+
+- `src/components/ScreenHeader.tsx` - compact header with circular glass back button and uppercase screen title.
+- `src/components/LoadingState.tsx` - glass loading pill with primary spinner for app-level and screen-level loading states.
+- `src/components/InlineStatusCard.tsx` - inline glass status card with circular icon container and variants `success`, `warning`, `error`, `info`.
+- `src/components/Button.tsx` - shared CTA/control button; default primary/accent style uses coral background.
+
+Rules:
+
+- Use `ScreenHeader` for internal screens with back navigation.
+- Use `LoadingState` instead of ad hoc spinner blocks.
+- Use `InlineStatusCard` instead of standalone green/red alert blocks.
+- Keep app-level floating messages in `Toast`; use `InlineStatusCard` for status messages inside page content.
 
 ## Typography
 
@@ -176,7 +192,8 @@ Chips:
 - chip centers align with progress icon centers.
 - compact height: `py-1`.
 - reading time chip uses warm accent only when `readingStatus === "in_progress"`.
-- before reading starts and after completion, reading time chip uses neutral glass state.
+- reading time chip uses primary/cyan accent when `readingStatus === "completed"`.
+- before reading starts, reading time chip uses neutral glass state.
 - review/vocabulary chip uses neutral glass state until repeat flow is implemented.
 
 ## Lesson Card
@@ -234,6 +251,60 @@ First setup helper:
 Dev tools:
 
 - Dev tools panel is rendered by the existing dev flags and keeps its own technical UI.
+
+## Text Screen
+
+Purpose:
+
+- User generates a daily reading text, reads the active text, adds words to vocabulary and completes daily reading.
+- The screen calls the existing service layer and does not access DB directly.
+
+Layout:
+
+- Uses the same full-bleed app background from `Layout`.
+- Inner content width follows home/settings:
+  - mobile: `max-w-[430px]`
+  - `480px+`: `max-w-[390px]`
+- Content spacing: `space-y-3`, `px-3.5`, `pt-3`.
+- Header uses `ScreenHeader` with title `Текст`.
+
+Idle generation state:
+
+- Uses `ReadingGenerationCard`.
+- Main card: `glass-card rounded-[20px] p-3`.
+- Left icon: `BookOpen` in circular `glass-control`, `size-14`, `390px+` -> `size-16`.
+- Heading text: `Сгенерируй текст для чтения и начни сегодняшний урок.`
+- Reading chips show level, remaining attempts/daily limit and reading time.
+- CTA uses shared `Button`, full-width, coral background, `Sparkles` icon, label `Сгенерировать текст`.
+- Helper card `ReadingInfoCard` explains the daily text flow.
+- If generation fails before a text exists, `InlineStatusCard` with `error` appears directly below the main generation card and above the helper card.
+
+Generated text state:
+
+- Uses compact `ReadingGeneratedToolbar` with chips and full-width CTA.
+- CTA label is `Сгенерировать новый текст`.
+- Text content uses `ReadingTextCard`:
+  - `glass-card rounded-[20px] p-4`
+  - title `18px`, `font-heading`, `font-semibold`
+  - source badge is a glass pill with `AI · model` or `DB`
+  - body text uses `17px`, `leading-7`, controlled paragraph spacing `space-y-3`
+  - selectable words use primary hover/selected state
+  - saved words use warm accent state
+- The finish CTA `Завершить текст` is a full-width shared `Button` below the text card.
+
+Status states:
+
+- Loading states use `LoadingState`.
+- Completed daily reading uses `InlineStatusCard` variant `success` with title `Текст на сегодня прочитан`.
+- Error states use `InlineStatusCard` variant `error` with title `Не удалось сгенерировать текст`.
+- If generation fails while an active text exists, the error card appears below the compact generated toolbar and above the text card.
+
+Implementation:
+
+- Screen container: `src/screens/ReadingScreen.tsx`.
+- Reading UI components: `src/components/reading/*`.
+- Text parsing and selectable word normalization: `src/utils/readingText.ts`.
+- Preserve stable `wordIndex` for vocabulary save flow.
 
 ## Materials Card
 
@@ -343,6 +414,6 @@ After visual changes:
 
 ## Current Design Notes
 
-- The actual source of truth is current `src/screens/HomeScreen.tsx`, `src/screens/SettingsScreen.tsx`, `src/components/Layout.tsx`, `src/components/BottomNav.tsx`, `src/components/Button.tsx`, `src/components/ThemeToggle.tsx`, `src/components/Toast.tsx`, and `src/index.css`.
+- The actual source of truth is current `src/screens/HomeScreen.tsx`, `src/screens/ReadingScreen.tsx`, `src/screens/SettingsScreen.tsx`, `src/components/Layout.tsx`, `src/components/BottomNav.tsx`, `src/components/Button.tsx`, `src/components/ScreenHeader.tsx`, `src/components/LoadingState.tsx`, `src/components/InlineStatusCard.tsx`, `src/components/ThemeToggle.tsx`, `src/components/Toast.tsx`, `src/components/reading/*`, and `src/index.css`.
 - If this document conflicts with implementation, inspect implementation first and update this document after the design is approved.
-- Keep future changes iterative; avoid large redesigns across all screens until home is stable.
+- Keep future changes iterative; avoid large redesigns across all screens in one task.

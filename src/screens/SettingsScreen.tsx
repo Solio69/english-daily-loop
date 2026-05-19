@@ -1,6 +1,7 @@
-import { ChevronLeft } from "lucide-react";
 import React, { Suspense, lazy, useState } from "react";
 import { Button } from "../components/Button";
+import { LoadingState } from "../components/LoadingState";
+import { ScreenHeader } from "../components/ScreenHeader";
 import type { DevToolAction } from "../services/devToolsService";
 import { SaveUserSettingsInput, UserSettings } from "../types/user";
 
@@ -65,22 +66,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         shouldUseStickySave ? "pb-28" : "pb-4"
       }`}
     >
-      <header className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={onBack}
-          className="glass-control grid size-9 shrink-0 place-items-center rounded-full text-[var(--primary)] transition active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
-          disabled={isSaving}
-          aria-label="Назад"
-        >
-          <ChevronLeft size={20} />
-        </button>
-        <div className="min-w-0">
-          <h1 className="font-heading text-base font-semibold uppercase tracking-[0.11em] text-[var(--primary)]">
-            Настройки
-          </h1>
-        </div>
-      </header>
+      <ScreenHeader title="Настройки" onBack={onBack} disabled={isSaving} />
 
       {isFirstSetup && (
         <section className="glass-card mt-3 rounded-[20px] p-3">
@@ -97,9 +83,11 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         {showDevTools && onRunDevToolAction && (
           <Suspense
             fallback={
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200">
-                Загружаем dev tools...
-              </div>
+              <LoadingState
+                message="Загружаем dev tools..."
+                compact
+                className="py-3"
+              />
             }
           >
             <DevToolsPanel

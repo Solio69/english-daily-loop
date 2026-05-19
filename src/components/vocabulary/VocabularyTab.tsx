@@ -1,5 +1,5 @@
-import { Loader2 } from "lucide-react";
 import React from "react";
+import { LoadingState } from "../LoadingState";
 import { useVocabularyMaterials } from "../../hooks/useVocabularyMaterials";
 import { VocabularySummaryCard } from "./VocabularySummaryCard";
 import { VocabularyWordCard } from "./VocabularyWordCard";
@@ -25,10 +25,7 @@ export const VocabularyTab: React.FC<VocabularyTabProps> = ({ isActive }) => {
   return (
     <section className="space-y-3">
       {isLoading && (
-        <div className="flex flex-col items-center justify-center py-12 gap-3 text-gray-400 dark:text-gray-500">
-          <Loader2 size={30} className="animate-spin" />
-          <p>Загружаем словарь...</p>
-        </div>
+        <LoadingState message="Загружаем словарь..." />
       )}
 
       {errorText && (

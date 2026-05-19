@@ -169,6 +169,7 @@
 - Для стабильной DX в редакторе: у функции используется `// @ts-nocheck`, а для Deno-окружения есть `supabase/functions/deno.json` и `supabase/functions/deno-globals.d.ts`.
 - На фронте подключен Telegram WebApp SDK (`index.html`) и типы `window.Telegram.WebApp` (`src/types/telegram-webapp.d.ts`).
 - UI-слой использует Tailwind CSS 4 через Vite plugin, дизайн-токены в `src/index.css`, локальные шрифты `@fontsource/inter` и `@fontsource/manrope`, иконки `lucide-react`.
+- Общие UI primitives находятся в `src/components`: `ScreenHeader` для внутренних экранов с back navigation, `LoadingState` для glass-загрузок, `InlineStatusCard` для встроенных статусов и `Button` для CTA/control кнопок.
 - Базовый `Layout` сделан full-bleed под Telegram Mini App: без внешнего app shell, с `100dvh`, CSS-переменными темы и фиксированной нижней навигацией.
 - Главная страница реализована как compact mobile-first экран: header с приветствием, кнопками подписки/настроек/темы, карточкой дневного прогресса `Текст` + `Повторение` со streak, карточкой плана на сегодня и карточкой `Мои материалы`.
 - Нижняя навигация содержит 3 пункта: `Главная`, `Текст`, `Слова`.
@@ -177,6 +178,8 @@
 - На фронте подписка вынесена в `src/services/subscriptionService.ts` и `src/screens/SubscriptionScreen.tsx`; клиент вызывает только `activate-subscription`, прямых записей подписки в БД с фронта нет.
 - Логика чтения вынесена в сервисный слой (`src/services/readingService.ts`), UI-компонент не содержит прямых запросов к БД.
 - `readingService` вызывает `get-reading-state`, `generate-reading-text` и `complete-reading-text`; текущий UI генерации не использует прямой RPC fallback `get_random_reading_text`.
+- Экран `Текст` реализован как контейнер `src/screens/ReadingScreen.tsx` плюс презентационные компоненты `src/components/reading/*`; idle, active text, loading, error и completed состояния используют mobile-first glass UI.
+- Парсинг отображаемого текста и нормализация кликабельных слов вынесены в `src/utils/readingText.ts`; `wordIndex` используется flow сохранения словаря и должен оставаться стабильным для selectable words.
 - `materialsService` вызывает `get-reading-history`; экран `Мои материалы` показывает завершенные тексты с табами `Тексты` и `Словарь`, где доступны подготовка, подтверждение и просмотр карточек словаря.
 - Первый этап словаря реализован через `public.user_vocabulary_words`, `public.user_vocabulary_word_sources` и Edge Function `save-vocabulary-word`: слово добавляется только из активного текста без AI, сохраняется как `unlearned` + `card_status = pending`.
 - Карточки слов готовятся отдельно в табе `Словарь` через Edge Function `prepare-vocabulary-cards`, batch-ом до `5` pending-слов за запрос; валидные AI-карточки получают `card_status = needs_approval`, а слова без валидной карточки остаются в `pending`.
@@ -202,6 +205,7 @@
 - В состоянии "настройки сохранены, но первый текст еще не прочитан" раздел `Слова` заблокирован, но `Главная` и `Текст` доступны.
 - После нажатия "Завершить текст" генерация в текущий день блокируется, активный текст удаляется; новый дневной цикл открывается после `00:00` по `Europe/Moscow`.
 - App-level toast-сообщения вынесены в `src/components/Toast.tsx`: `AppToast` поддерживает variant-состояния `success`, `warning`, `error`, а совместимый wrapper `Toast` мапит текущие тоны `default`, `onboarding`, `success`, `error`; toast показывается сверху как floating glass card с кнопкой закрытия.
+- Inline status-сообщения внутри экранов должны использовать `src/components/InlineStatusCard.tsx`; app-level floating сообщения остаются в `src/components/Toast.tsx`.
 - `vite.config.ts` разрешает внешние tunnel host'ы (`.trycloudflare.com`, `.loca.lt`) для запуска Mini App через Telegram.
 - `npm run dev:telegram` автоматически поднимает frontend/API туннели и печатает `STARTUP SUMMARY` с двумя URL:
   - `BotFather /setmenubutton URL` = FRONTEND TUNNEL URL
@@ -218,4 +222,3 @@
 - Retention policy и SQL-диагностика AI-попыток зафиксированы в `notes/ai-observability-diagnostics.md`.
 - Ручной AI red-team checklist зафиксирован в `notes/ai-red-team-checklist.md`.
 - Flow сохранения слов зафиксирован в `notes/vocabulary-save-flow.md`.
-
