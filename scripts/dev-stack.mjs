@@ -206,10 +206,17 @@ function startEdgeFunctions() {
 }
 
 function startTunnel(kind, target, label) {
+  const cloudflaredEnv = {
+    TUNNEL_TRANSPORT_PROTOCOL: "http2",
+  };
+  process.stdout.write(
+    `[${label}] forcing Cloudflare tunnel transport: ${cloudflaredEnv.TUNNEL_TRANSPORT_PROTOCOL}\n`,
+  );
   const tunnel = spawnLabeled(
     cloudflaredExecutable,
     ["tunnel", "--url", target],
     label,
+    { env: cloudflaredEnv },
   );
   attachTunnelUrlExtractor(tunnel, kind, handleTunnelUrl);
   children.push(tunnel);

@@ -78,11 +78,11 @@ export function runCapture(command, args) {
   });
 }
 
-export function spawnLabeled(command, args, label) {
+export function spawnLabeled(command, args, label, options = {}) {
   const child = spawn(toSpawnCommand(command, args), toSpawnArgs(args), {
     stdio: ["ignore", "pipe", "pipe"],
     shell: isWindows,
-    env: process.env,
+    env: { ...process.env, ...(options.env ?? {}) },
   });
 
   const prefix = withColor(
