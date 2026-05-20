@@ -332,6 +332,61 @@ Rules:
   - `Подтвердить: M`
 - Do not let loading/ready/pending vocabulary status change tile height.
 
+## Materials Screen
+
+Purpose:
+
+- Shows completed reading texts and vocabulary materials.
+- Uses service layer only; no direct DB access from UI.
+
+Layout:
+
+- Uses the same full-bleed app background from `Layout`.
+- Inner content width follows home/settings:
+  - mobile: `max-w-[430px]`
+  - `480px+`: `max-w-[390px]`
+- Content spacing: `space-y-3`, `px-3.5`, `pt-3`.
+- Header uses `ScreenHeader` with title `Мои материалы`.
+
+Tabs:
+
+- Two equal statistic-like glass tabs inside a `glass-card`.
+- Active tab uses `--primary`, `--primary-soft`, `--border-strong` and `shadow-primary-glow`.
+- Inactive tab uses `--text-muted` / `--text-secondary`.
+- Labels:
+  - `Текстов: N`
+  - `Слов: N`
+
+Completed text cards:
+
+- Card root: `glass-card rounded-[20px] p-4`.
+- Date: `13px`, semibold, `--text-muted`.
+- Title: `20px`, `font-heading`, semibold, `--text-primary`.
+- Excerpt: `15px`, `leading-6`, `--text-secondary`.
+- Level/model chips use `--surface-strong`.
+- Reading time pill and `Показать полностью` use `--accent-warm`.
+- Do not use green for materials accents.
+
+Vocabulary tab:
+
+- Summary and word cards use the same `glass-card` / `glass-control` primitives.
+- Error state reuses `InlineStatusCard` with `variant="error"`.
+- Summary header uses icon + title `Словарь` + stacked stats:
+  - `Всего слов: N`
+  - `Подтвердить: M`
+  - `В словаре: K`
+- Main pending action is a warm outlined row with `TriangleAlert`, pending count text and trailing `ChevronRight`.
+- Confirmation count is a separate muted line with a warm dot.
+- Closed approval rows are compact:
+  - word + translation on the left
+  - chips `Требует подтверждения` and `AI карточка` on the right
+  - trailing chevron for expand
+- Expanded word cards are split into summary/details/examples/actions components.
+- Expanded details show part of speech and verb forms; status is not duplicated inside the expanded body.
+- Examples highlight matching word/forms with `--primary`.
+- Expanded cards scroll into view when opened so the card stays visible above bottom navigation.
+- Ready/confirmed states use `--primary`, not green.
+
 ## Bottom Navigation
 
 Fixed to bottom of viewport:

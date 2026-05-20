@@ -1,4 +1,5 @@
 import React from "react";
+import { InlineStatusCard } from "../InlineStatusCard";
 import { LoadingState } from "../LoadingState";
 import { useVocabularyMaterials } from "../../hooks/useVocabularyMaterials";
 import { VocabularySummaryCard } from "./VocabularySummaryCard";
@@ -16,7 +17,7 @@ export const VocabularyTab: React.FC<VocabularyTabProps> = ({ isActive }) => {
     isPreparingCards,
     approvingWordId,
     expandedWordId,
-    errorText,
+    error,
     setExpandedWordId,
     prepareCards,
     approveCard,
@@ -28,10 +29,12 @@ export const VocabularyTab: React.FC<VocabularyTabProps> = ({ isActive }) => {
         <LoadingState message="Загружаем словарь..." />
       )}
 
-      {errorText && (
-        <div className="p-4 rounded-xl border border-red-200 bg-red-50 text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300">
-          {errorText}
-        </div>
+      {error && (
+        <InlineStatusCard
+          variant="error"
+          title={error.title}
+          description={error.message}
+        />
       )}
 
       {!isLoading && vocabularyState && vocabularyWords && (
@@ -44,7 +47,7 @@ export const VocabularyTab: React.FC<VocabularyTabProps> = ({ isActive }) => {
 
           {vocabularyWords.needsApproval.length > 0 && (
             <section className="space-y-2">
-              <h2 className="text-sm font-bold text-gray-900 dark:text-white">
+              <h2 className="font-heading text-sm font-semibold text-[var(--text-secondary)]">
                 Требуют подтверждения
               </h2>
               {vocabularyWords.needsApproval.map((word) => (
@@ -65,7 +68,7 @@ export const VocabularyTab: React.FC<VocabularyTabProps> = ({ isActive }) => {
 
           {vocabularyWords.ready.length > 0 && (
             <section className="space-y-2">
-              <h2 className="text-sm font-bold text-gray-900 dark:text-white">
+              <h2 className="font-heading text-sm font-semibold text-[var(--text-secondary)]">
                 Словарь
               </h2>
               {vocabularyWords.ready.map((word) => (

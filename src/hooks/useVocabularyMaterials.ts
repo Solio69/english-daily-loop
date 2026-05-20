@@ -7,6 +7,11 @@ import {
 } from "../services/vocabularyService";
 import { VocabularyState, VocabularyWordsPage } from "../types/vocabulary";
 
+type VocabularyMaterialsError = {
+  title: string;
+  message: string;
+};
+
 type UseVocabularyMaterialsResult = {
   vocabularyState: VocabularyState | null;
   vocabularyWords: VocabularyWordsPage | null;
@@ -14,7 +19,7 @@ type UseVocabularyMaterialsResult = {
   isPreparingCards: boolean;
   approvingWordId: string | null;
   expandedWordId: string | null;
-  errorText: string | null;
+  error: VocabularyMaterialsError | null;
   setExpandedWordId: (wordId: string | null) => void;
   prepareCards: () => Promise<void>;
   approveCard: (wordId: string) => Promise<void>;
@@ -31,7 +36,7 @@ export const useVocabularyMaterials = (
   const [isPreparingCards, setIsPreparingCards] = useState(false);
   const [approvingWordId, setApprovingWordId] = useState<string | null>(null);
   const [expandedWordId, setExpandedWordId] = useState<string | null>(null);
-  const [errorText, setErrorText] = useState<string | null>(null);
+  const [error, setError] = useState<VocabularyMaterialsError | null>(null);
 
   const refreshVocabularyData = useCallback(async () => {
     const [state, words] = await Promise.all([
@@ -49,7 +54,7 @@ export const useVocabularyMaterials = (
 
     const loadVocabulary = async () => {
       setIsLoading(true);
-      setErrorText(null);
+      setError(null);
 
       try {
         const [state, words] = await Promise.all([
@@ -62,11 +67,13 @@ export const useVocabularyMaterials = (
         setVocabularyWords(words);
       } catch (error) {
         if (!isMounted) return;
-        setErrorText(
-          error instanceof Error
-            ? error.message
-            : "Не удалось загрузить словарь.",
-        );
+        setError({
+          title: "Не удалось обновить словарь",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Не удалось загрузить словарь.",
+        });
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -85,16 +92,17 @@ export const useVocabularyMaterials = (
     if (isPreparingCards) return;
 
     setIsPreparingCards(true);
-    setErrorText(null);
+    setError(null);
 
     try {
       const result = await prepareVocabularyCards();
       await refreshVocabularyData();
 
       if (result.preparedCount === 0 && result.failedCount > 0) {
-        setErrorText(
-          "Не удалось подготовить карточки. Попробуй еще раз позже.",
-        );
+        setError({
+          title: "Не удалось подготовить карточки",
+          message: "Попробуй еще раз позже.",
+        });
       }
     } catch (error) {
       const prepareErrorMessage =
@@ -104,15 +112,20 @@ export const useVocabularyMaterials = (
       try {
         await refreshVocabularyData();
       } catch (refreshError) {
-        setErrorText(
-          refreshError instanceof Error
-            ? refreshError.message
-            : "Не удалось обновить состояние словаря.",
-        );
+        setError({
+          title: "Не удалось обновить словарь",
+          message:
+            refreshError instanceof Error
+              ? refreshError.message
+              : "Не удалось обновить состояние словаря.",
+        });
         return;
       }
 
-      setErrorText(prepareErrorMessage);
+      setError({
+        title: "Не удалось подготовить карточки",
+        message: prepareErrorMessage,
+      });
     } finally {
       setIsPreparingCards(false);
     }
@@ -122,18 +135,20 @@ export const useVocabularyMaterials = (
     if (approvingWordId) return;
 
     setApprovingWordId(wordId);
-    setErrorText(null);
+    setError(null);
 
     try {
       await approveVocabularyCard(wordId);
       await refreshVocabularyData();
       setExpandedWordId(null);
     } catch (error) {
-      setErrorText(
-        error instanceof Error
-          ? error.message
-          : "Не удалось подтвердить карточку.",
-      );
+      setError({
+        title: "Не удалось обновить словарь",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Не удалось подтвердить карточку.",
+      });
     } finally {
       setApprovingWordId(null);
     }
@@ -146,7 +161,7 @@ export const useVocabularyMaterials = (
     isPreparingCards,
     approvingWordId,
     expandedWordId,
-    errorText,
+    error,
     setExpandedWordId,
     prepareCards,
     approveCard,

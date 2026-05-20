@@ -1,14 +1,16 @@
 import {
   BookOpen,
   BookText,
-  ChevronLeft,
   Clock,
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { Button } from "../components/Button";
+import { InlineStatusCard } from "../components/InlineStatusCard";
 import { LoadingState } from "../components/LoadingState";
+import { ScreenHeader } from "../components/ScreenHeader";
 import { VocabularyTab } from "../components/vocabulary/VocabularyTab";
 import { getReadingHistory } from "../services/materialsService";
+import { getVocabularyState } from "../services/vocabularyService";
 import { CompletedReadingText, MaterialsTab } from "../types/materials";
 
 type MaterialsScreenProps = {
@@ -27,11 +29,11 @@ const DATE_FORMATTER = new Intl.DateTimeFormat("ru-RU", {
 const TAB_STYLES: Record<MaterialsTab, { label: string; icon: typeof BookOpen }> =
   {
     texts: {
-      label: "Тексты",
+      label: "Текстов",
       icon: BookOpen,
     },
     vocabulary: {
-      label: "Словарь",
+      label: "Слов",
       icon: BookText,
     },
   };
@@ -54,6 +56,7 @@ export const MaterialsScreen: React.FC<MaterialsScreenProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
+  const [vocabularyCount, setVocabularyCount] = useState<number | null>(null);
   const [expandedTextIds, setExpandedTextIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -87,6 +90,27 @@ export const MaterialsScreen: React.FC<MaterialsScreenProps> = ({
     };
 
     loadTexts();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadVocabularyCount = async () => {
+      try {
+        const state = await getVocabularyState();
+        if (!isMounted) return;
+        setVocabularyCount(state.totalCount);
+      } catch {
+        if (!isMounted) return;
+        setVocabularyCount(null);
+      }
+    };
+
+    loadVocabularyCount();
 
     return () => {
       isMounted = false;
@@ -132,37 +156,50 @@ export const MaterialsScreen: React.FC<MaterialsScreenProps> = ({
   };
 
   return (
-    <div className="p-4 space-y-4">
-      <header className="flex items-center justify-between gap-3">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1 text-gray-500 dark:text-gray-400 text-sm hover:text-gray-700 dark:hover:text-gray-300"
-          aria-label="Назад"
-        >
-          <ChevronLeft size={20} /> Назад
-        </button>
-        <h1 className="text-lg font-bold text-gray-900 dark:text-white">
-          Мои материалы
-        </h1>
-      </header>
+    <div className="mx-auto w-full max-w-[430px] space-y-3 px-3.5 pb-6 pt-3 min-[390px]:px-4 min-[480px]:max-w-[390px] min-[480px]:px-3">
+      <ScreenHeader title="Мои материалы" onBack={onBack} />
 
-      <div className="grid grid-cols-2 gap-1 rounded-2xl bg-gray-100 dark:bg-gray-800 p-1">
+      <div
+        className="glass-card grid grid-cols-2 gap-2 rounded-[20px] p-2"
+        role="tablist"
+        aria-label="Материалы"
+      >
         {(Object.keys(TAB_STYLES) as MaterialsTab[]).map((tab) => {
           const Icon = TAB_STYLES[tab].icon;
           const isActive = activeTab === tab;
+          const count =
+            tab === "texts"
+              ? texts.length
+              : vocabularyCount === null
+                ? "..."
+                : vocabularyCount;
 
           return (
             <button
               key={tab}
+              type="button"
               onClick={() => setActiveTab(tab)}
-              className={`h-10 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold transition-colors ${
+              className={`glass-control flex min-h-12 items-center justify-center gap-2 rounded-[16px] px-2 py-2 font-heading text-sm font-semibold transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] ${
                 isActive
-                  ? "bg-white text-green-600 shadow-sm dark:bg-gray-700 dark:text-orange-300"
-                  : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  ? "border-[var(--border-strong)] bg-[var(--primary-soft)] text-[var(--primary)] shadow-primary-glow"
+                  : "text-[var(--text-muted)] hover:border-[var(--border-strong)] hover:text-[var(--text-secondary)]"
               }`}
+              role="tab"
+              aria-selected={isActive}
             >
-              <Icon size={16} />
-              {TAB_STYLES[tab].label}
+              <Icon size={19} strokeWidth={2.2} />
+              <span className="truncate">
+                {TAB_STYLES[tab].label}:{" "}
+                <span
+                  className={
+                    isActive
+                      ? "text-[var(--primary)]"
+                      : "text-[var(--text-secondary)]"
+                  }
+                >
+                  {count}
+                </span>
+              </span>
             </button>
           );
         })}
@@ -175,21 +212,22 @@ export const MaterialsScreen: React.FC<MaterialsScreenProps> = ({
           )}
 
           {errorText && (
-            <div className="p-4 rounded-xl border border-red-200 bg-red-50 text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300">
-              {errorText}
-            </div>
+            <InlineStatusCard
+              variant="error"
+              title="Не удалось загрузить материалы"
+              description={errorText}
+            />
           )}
 
           {!isLoading && texts.length === 0 && (
-            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6 text-center shadow-sm">
-              <BookOpen
-                size={34}
-                className="mx-auto mb-3 text-gray-300 dark:text-gray-600"
-              />
-              <h2 className="font-bold text-gray-900 dark:text-white">
+            <div className="glass-card rounded-[20px] p-6 text-center">
+              <div className="glass-control mx-auto mb-3 grid size-14 place-items-center rounded-full text-[var(--primary)]">
+                <BookOpen size={28} />
+              </div>
+              <h2 className="font-heading text-base font-semibold text-[var(--text-primary)]">
                 Прочитанных текстов пока нет
               </h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              <p className="mt-1 text-sm leading-5 text-[var(--text-secondary)]">
                 Завершенные тексты будут появляться здесь.
               </p>
             </div>
@@ -201,25 +239,25 @@ export const MaterialsScreen: React.FC<MaterialsScreenProps> = ({
             return (
               <article
                 key={text.id}
-                className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-4 shadow-sm space-y-2"
+                className="glass-card rounded-[20px] p-4"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                    <p className="text-[13px] font-semibold leading-5 text-[var(--text-muted)]">
                       {formatCompletedDate(text.completedAt)}
                     </p>
-                    <h2 className="text-base font-bold text-gray-900 dark:text-white truncate">
+                    <h2 className="mt-1 font-heading text-[20px] font-semibold leading-6 text-[var(--text-primary)]">
                       {text.title}
                     </h2>
                   </div>
-                  <div className="shrink-0 flex items-center gap-1 rounded-full bg-green-50 text-green-600 dark:bg-orange-900/20 dark:text-orange-300 px-2 py-1 text-[11px] font-semibold">
-                    <Clock size={13} />
+                  <div className="glass-control flex shrink-0 items-center gap-1 rounded-full border-[var(--accent-warm)] bg-[var(--accent-warm-soft)] px-2.5 py-1 text-[12px] font-semibold text-[var(--accent-warm)] shadow-warm-glow">
+                    <Clock size={14} strokeWidth={2.4} />
                     {text.estimatedMinutes}м
                   </div>
                 </div>
 
                 <p
-                  className="text-sm leading-5 text-gray-600 dark:text-gray-300 overflow-hidden whitespace-pre-line"
+                  className="mt-3 overflow-hidden whitespace-pre-line text-[15px] leading-6 text-[var(--text-secondary)]"
                   style={
                     isExpanded
                       ? undefined
@@ -233,19 +271,19 @@ export const MaterialsScreen: React.FC<MaterialsScreenProps> = ({
                   {text.body}
                 </p>
 
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 text-[11px] text-gray-400 dark:text-gray-500 min-w-0">
-                    <span className="rounded bg-gray-50 dark:bg-gray-700 px-2 py-0.5">
+                <div className="mt-4 flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-2 text-[13px] font-semibold text-[var(--text-muted)]">
+                    <span className="rounded-[10px] bg-[var(--surface-strong)] px-2.5 py-1">
                       {text.level}
                     </span>
-                    <span className="rounded bg-gray-50 dark:bg-gray-700 px-2 py-0.5 truncate">
+                    <span className="truncate rounded-[10px] bg-[var(--surface-strong)] px-2.5 py-1">
                       {getModelLabel(text.generation.model)}
                     </span>
                   </div>
                   <button
                     type="button"
                     onClick={() => toggleTextExpanded(text.id)}
-                    className="shrink-0 text-[11px] font-semibold text-green-600 dark:text-orange-300"
+                    className="shrink-0 text-[13px] font-semibold text-[var(--accent-warm)] transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-warm)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
                     aria-expanded={isExpanded}
                   >
                     {isExpanded ? "Свернуть" : "Показать полностью"}
@@ -260,7 +298,7 @@ export const MaterialsScreen: React.FC<MaterialsScreenProps> = ({
               variant="outline"
               onClick={handleLoadMore}
               disabled={isLoadingMore}
-              className="w-full dark:border-gray-700 dark:text-gray-200"
+              className="w-full"
             >
               {isLoadingMore ? "Загружаем..." : "Показать еще"}
             </Button>
