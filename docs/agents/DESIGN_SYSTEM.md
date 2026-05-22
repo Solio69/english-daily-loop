@@ -50,6 +50,10 @@
 
 - light: pale blue background, translucent white surfaces, blue identity, coral CTA, warm accent for progress/streak.
 - dark: deep navy background, cyan/blue identity, warm accent for active progress, coral CTA.
+- Theme preference lives in `src/context/ThemeContext.tsx` as `system | light | dark`.
+- Default preference is `system`: inside Telegram it follows `Telegram.WebApp.colorScheme`; outside Telegram it falls back to `prefers-color-scheme`.
+- User preference is stored in `localStorage` under `english-daily-loop-theme-preference`.
+- `index.html` applies an early theme bootstrap before React renders, so the first paint uses the effective theme and avoids a light-theme flash in dark Telegram.
 
 Не использовать green как основной success/accent на главной. Для completed/current состояний использовать `--primary` и `--accent-warm`.
 
@@ -138,18 +142,23 @@ Structure:
 
 - Top row:
   - left: `С возвращением,`
-  - right: subscription button, settings icon button, theme toggle
+  - right: three-segment theme control, settings icon button
 - Second row:
-  - user name only
+  - user name on the left
+  - subscription button on the right
 
 Rules:
 
 - Header controls must be the same height.
-- Current header controls height: `h-9` / `size-9`.
+- Current header controls height: `h-9`; settings control is `size-9`.
+- Theme control is a compact segmented `radiogroup` with three icon-only options:
+  - `Как в Telegram`: paper-plane icon, follows Telegram/system theme
+  - `Светлая тема`: sun icon
+  - `Темная тема`: moon icon
 - Subscription button shows full `Подписка`.
 - Free subscription button label `Купить` uses `--accent-warm`; paid subscription state uses `--primary`.
 - Subscription button icon: `15px`.
-- Settings and theme are circular icon-only controls with `aria-label`.
+- Settings button is a circular warm icon control with `aria-label="Открыть настройки"`, `--accent-warm`, `--accent-warm-soft` and a subtle warm glow.
 - During first setup, settings button uses `--accent-warm`, `--accent-warm-soft`, `shadow-warm-glow`, and `.onboarding-settings-wave`.
 - Streak is not in header; it lives in the progress card header.
 

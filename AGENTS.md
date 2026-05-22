@@ -171,7 +171,8 @@
 - UI-слой использует Tailwind CSS 4 через Vite plugin, дизайн-токены в `src/index.css`, локальные шрифты `@fontsource/inter` и `@fontsource/manrope`, иконки `lucide-react`.
 - Общие UI primitives находятся в `src/components`: `ScreenHeader` для внутренних экранов с back navigation, `LoadingState` для glass-загрузок, `InlineStatusCard` для встроенных статусов и `Button` для CTA/control кнопок.
 - Базовый `Layout` сделан full-bleed под Telegram Mini App: без внешнего app shell, с `100dvh`, CSS-переменными темы и фиксированной нижней навигацией.
-- Главная страница реализована как compact mobile-first экран: header с приветствием, кнопками подписки/настроек/темы, карточкой дневного прогресса `Текст` + `Повторение` со streak, карточкой плана на сегодня и карточкой `Мои материалы`.
+- Тема приложения управляется через `src/context/ThemeContext.tsx`: preference `system | light | dark` хранится в `localStorage`, дефолт `system` берет тему из `Telegram.WebApp.colorScheme`, а вне Telegram использует `prefers-color-scheme`; `index.html` содержит ранний theme bootstrap, чтобы выставить `.dark` до React-рендера.
+- Главная страница реализована как compact mobile-first экран: header с приветствием, трехпозиционным переключателем темы, теплой кнопкой настроек, кнопкой подписки на уровне имени пользователя, карточкой дневного прогресса `Текст` + `Повторение` со streak, карточкой плана на сегодня и карточкой `Мои материалы`.
 - Нижняя навигация содержит 3 пункта: `Главная`, `Текст`, `Слова`.
 - Bootstrap пользователя в `src/services/userService.ts` авторизуется через `auth-telegram` по Telegram `initData`; `AppUser` содержит `subscription`, `homeProgress` и `streakDays`.
 - `src/services/userService.ts` сохраняет настройки через `save-user-settings`; прямых записей в `users` и `user_settings` с клиента нет.

@@ -252,26 +252,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </p>
 
             <div className="flex shrink-0 items-center justify-end gap-1.5">
-              <button
-                type="button"
-                onClick={onOpenSubscription}
-                className={`glass-control flex h-9 items-center gap-1 rounded-[15px] px-2 text-[11px] font-semibold leading-none transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] ${
-                  isPaid
-                    ? "text-[var(--primary)]"
-                    : "text-[var(--accent-warm)]"
-                }`}
-              >
-                <SubscriptionIcon className="shrink-0" size={15} />
-                <span>{isPaid ? "Подписка" : "Купить"}</span>
-              </button>
+              <ThemeToggle />
               <button
                 type="button"
                 aria-label="Открыть настройки"
                 onClick={() => onNavigate("settings")}
-                className={`glass-control relative z-10 grid size-9 shrink-0 place-items-center overflow-visible rounded-full transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] ${
+                className={`glass-control relative z-10 grid size-9 shrink-0 place-items-center overflow-visible rounded-full border-[var(--accent-warm)] bg-[var(--accent-warm-soft)] text-[var(--accent-warm)] transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-warm)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] ${
                   isFirstSetup
-                    ? "border-[var(--accent-warm)] bg-[var(--accent-warm-soft)] text-[var(--accent-warm)] shadow-warm-glow"
-                    : "text-[var(--primary)]"
+                    ? "shadow-warm-glow"
+                    : "shadow-[0_0_20px_rgba(245,158,11,0.18),inset_0_1px_0_rgba(255,255,255,0.18)]"
                 }`}
               >
                 {isFirstSetup && (
@@ -282,19 +271,30 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 )}
                 <Settings className="relative z-10" size={18} />
               </button>
-              <ThemeToggle />
             </div>
           </div>
 
-          <h1
-            className={`py-1 font-heading font-bold text-[var(--text-primary)] [overflow-wrap:anywhere] ${
-              isLongDisplayName
-                ? "text-[24px] leading-[1.08] min-[390px]:text-[26px] min-[480px]:text-[26px]"
-                : "text-[28px] leading-none"
-            }`}
-          >
-            {displayName}!
-          </h1>
+          <div className="flex items-start justify-between gap-3">
+            <h1
+              className={`min-w-0 flex-1 py-1 font-heading font-bold text-[var(--text-primary)] [overflow-wrap:anywhere] ${
+                isLongDisplayName
+                  ? "text-[24px] leading-[1.08] min-[390px]:text-[26px] min-[480px]:text-[26px]"
+                  : "text-[28px] leading-none"
+              }`}
+            >
+              {displayName}!
+            </h1>
+            <button
+              type="button"
+              onClick={onOpenSubscription}
+              className={`glass-control mt-0.5 flex h-9 shrink-0 items-center gap-1.5 rounded-[15px] px-2.5 text-[12px] font-semibold leading-none transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] ${
+                isPaid ? "text-[var(--primary)]" : "text-[var(--accent-warm)]"
+              }`}
+            >
+              <SubscriptionIcon className="shrink-0" size={15} />
+              <span>{isPaid ? "Подписка" : "Купить"}</span>
+            </button>
+          </div>
         </div>
 
         <section className="glass-card rounded-[20px] p-3">
