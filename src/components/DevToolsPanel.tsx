@@ -22,7 +22,7 @@ const ACTIONS: Array<{
   {
     action: "delete_today_reading_completion",
     label: "Удалить прочитанное",
-    description: "Удаляет сегодняшний completion и текст из истории.",
+    description: "Удаляет прогресс дня и все тексты за сегодня.",
     icon: Trash2,
   },
   {

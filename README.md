@@ -11,7 +11,7 @@ Telegram Mini App для ежедневной практики английск�
 - Экран `Текст` с AI-генерацией текста через OpenRouter и mobile-first glass UI для idle, active text, loading, error и completed состояний.
 - Серверные дневные лимиты генерации текста.
 - Активный непрочитанный текст на пользователя.
-- Завершение дневного чтения и streak по дням.
+- Завершение чтения, сохранение нескольких текстов за день в историю и streak по дням.
 - Раздел `Мои материалы` с историей прочитанных текстов, словарем, glass-табами и индикатором действий по словарю на главной.
 - Первый этап словаря: быстрое добавление слова из активного текста, отдельная AI-подготовка карточек, подтверждение карточек и просмотр готовых слов.
 - Mobile-first главная страница с full-bleed Telegram layout, compact bottom navigation, glass UI и дизайн-токенами.
@@ -66,7 +66,7 @@ Telegram Mini App для ежедневной практики английск�
 - `activate-subscription` — транзакционно активирует MVP-подписку за 0 рублей.
 - `get-reading-state` — возвращает состояние экрана чтения: активный текст, лимиты, использованные попытки и факт завершения чтения за день.
 - `generate-reading-text` — атомарно списывает попытку, вызывает OpenRouter, валидирует ответ модели и сохраняет активный текст.
-- `complete-reading-text` — транзакционно завершает дневное чтение, сохраняет snapshot текста в историю, удаляет активный текст и обновляет streak.
+- `complete-reading-text` — транзакционно завершает активный текст, сохраняет snapshot текста в историю, удаляет активный текст и обновляет streak.
 - `get-reading-history` — возвращает историю прочитанных текстов текущего пользователя с cursor-пагинацией.
 - `save-vocabulary-word` — валидирует активный текст, проверяет лимит словаря и быстро сохраняет слово как `unlearned` + `pending`.
 - `get-vocabulary-state` — возвращает количество pending/needs_approval/ready слов в словаре пользователя.
@@ -108,7 +108,7 @@ AI attempt metadata хранится `90` дней; scheduled cleanup выпол
 Критичные операции, где важна защита от параллельных запросов, вынесены в Postgres RPC:
 
 - `public.claim_reading_generation_attempt(...)` — проверяет дневной лимит и создает attempt одним DB-действием.
-- `public.complete_daily_reading_text(...)` — завершает чтение, пишет completion, сохраняет snapshot текста в историю, удаляет active text и обновляет onboarding-флаг.
+- `public.complete_daily_reading_text(...)` — завершает active text, пишет дневной completion-marker, сохраняет snapshot текста в историю, удаляет active text и обновляет onboarding-флаг.
 - `public.activate_mvp_subscription(...)` — активирует или планирует MVP-подписку с advisory lock по пользователю.
 - `public.save_pending_vocabulary_word_with_source(...)` — сохраняет pending-слово и источник из активного текста с advisory lock по пользователю.
 

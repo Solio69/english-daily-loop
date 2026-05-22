@@ -17,10 +17,11 @@ Supabase Edge Function, базой и внешней AI-моделью.
 - дневной лимит попыток
 - количество использованных/оставшихся попыток
 - флаг `isReadingCompletedToday`
-5. Если текст на сегодня не завершен и попытки остались, пользователь может вызвать `generate-reading-text`.
+5. Если дневные попытки остались, пользователь может вызвать `generate-reading-text`.
 6. Если генерация успешна, новый текст сохраняется как активный и заменяет предыдущий активный текст.
-7. Если генерация неуспешна, попытка остается списанной, новый текст не сохраняется, ранее активный текст остается доступен.
-8. После нажатия "Завершить текст" фронт вызывает `complete-reading-text`; активный текст сохраняется в историю, удаляется из активного состояния, а генерация на текущий день блокируется.
+7. Если пользователь не нажал `Завершить текст` перед новой успешной генерацией, предыдущий активный текст теряется и не попадает в историю.
+8. Если генерация неуспешна, попытка остается списанной, новый текст не сохраняется, ранее активный текст остается доступен.
+9. После нажатия `Завершить текст` фронт вызывает `complete-reading-text`; активный текст сохраняется в историю, удаляется из активного состояния, а генерация в этот же день остается доступна, пока не исчерпан дневной лимит.
 
 ## 3) Серверная функция
 Файлы:
@@ -38,25 +39,24 @@ Supabase Edge Function, базой и внешней AI-моделью.
 - `english_level`
 - `daily_reading_minutes`
 6. Считает текущую дату по `Europe/Moscow`.
-7. Проверяет, нет ли дневного завершения в `public.user_daily_reading_completions`.
-8. Атомарно проверяет дневной лимит и записывает попытку со статусом `started` через RPC `claim_reading_generation_attempt`.
-9. Если лимит не исчерпан, продолжает генерацию; если исчерпан, возвращает `429`.
-10. Проверяет OpenRouter model chain через allowlist.
-11. Передает генерацию в `ai-pipeline.ts`.
-12. AI-пайплайн строит prompt messages с `promptVersion`.
-13. Вызывает OpenRouter с `models` parameter и приоритетным списком free-моделей.
-14. Если router-level fallback не помог или ответ пришел с невалидным JSON/длиной/content pattern, приложение исключает использованную модель и пробует следующую.
-15. Валидирует JSON-ответ модели как недоверенный output.
-16. Записывает безопасные observability metadata в `public.reading_generation_attempts`.
-17. При успехе сохраняет/перезаписывает `public.user_active_reading_texts`.
-18. Помечает попытку как `succeeded`; при ошибке после списания помечает как `failed`.
-19. Возвращает единый контракт:
+7. Атомарно проверяет дневной лимит и записывает попытку со статусом `started` через RPC `claim_reading_generation_attempt`.
+8. Если лимит не исчерпан, продолжает генерацию; если исчерпан, возвращает `429`.
+9. Проверяет OpenRouter model chain через allowlist.
+10. Передает генерацию в `ai-pipeline.ts`.
+11. AI-пайплайн строит prompt messages с `promptVersion`.
+12. Вызывает OpenRouter с `models` parameter и приоритетным списком free-моделей.
+13. Если router-level fallback не помог или ответ пришел с невалидным JSON/длиной/content pattern, приложение исключает использованную модель и пробует следующую.
+14. Валидирует JSON-ответ модели как недоверенный output.
+15. Записывает безопасные observability metadata в `public.reading_generation_attempts`.
+16. При успехе сохраняет/перезаписывает `public.user_active_reading_texts`.
+17. Помечает попытку как `succeeded`; при ошибке после списания помечает как `failed`.
+18. Возвращает единый контракт:
 - успех: `{ ok: true, data: { text, generation, dailyLimit, usedAttempts, remainingAttempts } }`
 - ошибка: `{ ok: false, error: { code, message } }`
 
 Дополнительные Edge Functions:
 - `supabase/functions/get-reading-state/index.ts` — возвращает состояние экрана чтения.
-- `supabase/functions/complete-reading-text/index.ts` — транзакционно завершает дневное чтение через RPC `complete_daily_reading_text`, сохраняет snapshot текста в историю, удаляет активный текст, заполняет `users.first_text_completed_at` для онбординга, если это первый прочитанный текст, и возвращает актуальный `streakDays`.
+- `supabase/functions/complete-reading-text/index.ts` — транзакционно завершает активный текст через RPC `complete_daily_reading_text`, сохраняет snapshot текста в историю, удаляет активный текст, заполняет `users.first_text_completed_at` для онбординга, если это первый прочитанный текст, и возвращает актуальный `streakDays`.
 - `supabase/functions/get-reading-history/index.ts` — возвращает историю прочитанных текстов текущего пользователя с cursor-пагинацией.
 - `supabase/functions/auth-telegram/index.ts` — в bootstrap пользователя отдает `homeProgress.lesson`, `homeProgress.reading.status` и `streakDays` для главного экрана.
 
@@ -134,8 +134,8 @@ Server env:
 Таблицы:
 - `public.reading_generation_attempts` — история списанных попыток генерации.
 - `public.user_active_reading_texts` — последний успешный непрочитанный текст пользователя.
-- `public.user_daily_reading_completions` — факт завершения чтения за дату.
-- `public.user_completed_reading_texts` — snapshot завершенного текста для раздела `Мои материалы`.
+- `public.user_daily_reading_completions` — дневной marker: пользователь завершил хотя бы один текст за дату.
+- `public.user_completed_reading_texts` — snapshot каждого завершенного текста для раздела `Мои материалы`.
 
 Правила MVP:
 - timezone дневного цикла: `Europe/Moscow`
@@ -147,7 +147,7 @@ Server env:
 - при новой успешной генерации активный текст перезаписывается
 - при ошибке генерации активный текст не меняется
 - attempt metadata не хранит полный prompt, raw provider response, полный сгенерированный текст, Telegram `initData`, server env secrets или stack trace
-- после завершения чтения активный текст сохраняется в историю, удаляется из active-состояния, а генерация на текущий день блокируется
+- после завершения чтения активный текст сохраняется в историю и удаляется из active-состояния; генерация в этот же день остается доступна, пока не исчерпан дневной лимит
 - `users.first_text_completed_at` используется только для онбординга
 - статус карточки урока на главной определяется сервером через `homeProgress.lesson`
 - статус блока `Текст` в карточке дневного прогресса определяется сервером через `homeProgress.reading.status`

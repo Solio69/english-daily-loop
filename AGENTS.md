@@ -117,7 +117,6 @@
   - серверная валидация `Telegram initData`
   - поиск пользователя по `telegram_user_id`
   - чтение `english_level` и `daily_reading_minutes` из `user_settings`
-  - проверка дневного завершения чтения по `user_daily_reading_completions`
   - атомарная проверка дневного лимита и списание попытки через RPC `claim_reading_generation_attempt`
   - prompt/output слой находится в `supabase/functions/generate-reading-text/ai-pipeline.ts`
   - общий OpenRouter client/model allowlist находится в `supabase/functions/_shared/openrouter.ts`
@@ -138,8 +137,8 @@
 - Завершение чтения реализовано через Edge Function `supabase/functions/complete-reading-text/index.ts`:
   - серверная валидация `Telegram initData`
   - транзакционное завершение через RPC `complete_daily_reading_text`
-  - запись дневного завершения в `user_daily_reading_completions`
-  - сохранение snapshot прочитанного текста в `user_completed_reading_texts`
+  - запись дневного completion-marker в `user_daily_reading_completions` для progress/streak
+  - сохранение отдельного snapshot прочитанного текста в `user_completed_reading_texts`
   - удаление активного непрочитанного текста из `user_active_reading_texts`
   - заполнение `users.first_text_completed_at` только для онбординга, если это первый прочитанный текст пользователя.
   - пересчет `streakDays` как серии подряд идущих дней по `user_daily_reading_completions`.
@@ -152,6 +151,7 @@
   - серверная валидация `Telegram initData`
   - обязательный server env gate `DEV_TOOLS_ENABLED="true"`
   - actions: `reset_generation_attempts`, `delete_today_reading_completion`, `reset_subscriptions`
+  - `delete_today_reading_completion` удаляет дневной progress-marker и все завершенные сегодня тексты текущего пользователя
   - frontend-панель показывается только при `VITE_DEV_TOOLS_ENABLED="true"`.
 - Текущие MVP-лимиты подписок:
   - free: `3` генерации текста в день, словарь до `30` слов
@@ -204,7 +204,8 @@
 - `users.first_text_completed_at` используется только для онбординга; ежедневный факт прочтения хранится отдельно в `user_daily_reading_completions`.
 - Экран настроек содержит уровень английского и время чтения, использует mobile-first glass UI; dev tools панель отображается по существующим dev-флагам.
 - В состоянии "настройки сохранены, но первый текст еще не прочитан" раздел `Слова` заблокирован, но `Главная` и `Текст` доступны.
-- После нажатия "Завершить текст" генерация в текущий день блокируется, активный текст удаляется; новый дневной цикл открывается после `00:00` по `Europe/Moscow`.
+- После нажатия "Завершить текст" активный текст сохраняется в историю и удаляется; генерация в текущий день остается доступна, пока не исчерпан дневной лимит генераций.
+- Для прогресса дня и streak достаточно первого завершенного текста за дату; `user_completed_reading_texts` может хранить несколько завершенных текстов с одинаковым `completed_date`, различающихся `completed_at`.
 - App-level toast-сообщения вынесены в `src/components/Toast.tsx`: `AppToast` поддерживает variant-состояния `success`, `warning`, `error`, а совместимый wrapper `Toast` мапит текущие тоны `default`, `onboarding`, `success`, `error`; toast показывается сверху как floating glass card с кнопкой закрытия.
 - Inline status-сообщения внутри экранов должны использовать `src/components/InlineStatusCard.tsx`; app-level floating сообщения остаются в `src/components/Toast.tsx`.
 - `vite.config.ts` разрешает внешние tunnel host'ы (`.trycloudflare.com`, `.loca.lt`) для запуска Mini App через Telegram.

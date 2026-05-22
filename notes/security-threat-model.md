@@ -37,7 +37,7 @@ Frontend может отображать лимиты и тарифное сос
 - free/paid состояние
 - дневной лимит генераций
 - списание попыток генерации
-- завершение дневного чтения
+- завершение активного текста
 - активация или планирование подписки
 
 Критичные операции должны оставаться атомарными, особенно при параллельных запросах.
@@ -116,7 +116,7 @@ Edge Functions:
 1. Секреты и frontend env.
 2. Клиентский сервисный слой.
 3. Edge Functions auth и input validation.
-4. Business logic abuse: лимиты, подписки, дневное чтение.
+4. Business logic abuse: лимиты, подписки, чтение.
 5. Postgres RLS, policies и grants.
 6. Postgres RPC: права, `search_path`, атомарность, advisory locks.
 7. Dev tools и debug flags.

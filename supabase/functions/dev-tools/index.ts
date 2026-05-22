@@ -108,7 +108,7 @@ const resetGenerationAttempts = async (
   return { generationAttempts: count ?? 0 };
 };
 
-const deleteTodayReadingCompletion = async (
+const deleteTodayReadingCompletions = async (
   supabase: ReturnType<typeof createClient>,
   userId: string,
   today: string,
@@ -215,7 +215,7 @@ Deno.serve(async (req: Request) => {
       action === "reset_generation_attempts"
         ? await resetGenerationAttempts(supabase, appUser.id, today)
         : action === "delete_today_reading_completion"
-          ? await deleteTodayReadingCompletion(supabase, appUser.id, today)
+          ? await deleteTodayReadingCompletions(supabase, appUser.id, today)
           : await resetSubscriptions(supabase, appUser.id);
 
     return successResponse(200, {
