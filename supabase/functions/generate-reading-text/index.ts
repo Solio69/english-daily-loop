@@ -377,29 +377,6 @@ Deno.serve(async (req: Request) => {
       settings.appUser,
     );
 
-    const { data: completionRow, error: completionError } = await supabase
-      .from("user_daily_reading_completions")
-      .select("id")
-      .eq("user_id", settings.appUserId)
-      .eq("completed_date", today)
-      .maybeSingle();
-
-    if (completionError) {
-      console.error("[generate-reading-text] failed to load completion", {
-        appUserId: settings.appUserId,
-        error: completionError.message,
-      });
-      fail(500, "COMPLETION_LOAD_FAILED", "Failed to load reading completion.");
-    }
-
-    if (completionRow) {
-      fail(
-        409,
-        "DAILY_READING_ALREADY_COMPLETED",
-        "Текст на сегодня уже прочитан.",
-      );
-    }
-
     const claimedAttempt = await claimGenerationAttempt(
       supabase,
       settings.appUserId,

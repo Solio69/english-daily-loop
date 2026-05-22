@@ -26,6 +26,12 @@ const DATE_FORMATTER = new Intl.DateTimeFormat("ru-RU", {
   month: "long",
 });
 
+const TIME_FORMATTER = new Intl.DateTimeFormat("ru-RU", {
+  timeZone: "Europe/Moscow",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
 const TAB_STYLES: Record<MaterialsTab, { label: string; icon: typeof BookOpen }> =
   {
     texts: {
@@ -40,6 +46,12 @@ const TAB_STYLES: Record<MaterialsTab, { label: string; icon: typeof BookOpen }>
 
 const formatCompletedDate = (value: string): string =>
   DATE_FORMATTER.format(new Date(value));
+
+const formatCompletedTime = (value: string): string =>
+  TIME_FORMATTER.format(new Date(value));
+
+const formatCompletedDateTime = (value: string): string =>
+  `${formatCompletedDate(value)}, ${formatCompletedTime(value)}`;
 
 const getModelLabel = (model: string): string => {
   const modelName = model.split("/").pop()?.replace(":free", "");
@@ -244,7 +256,7 @@ export const MaterialsScreen: React.FC<MaterialsScreenProps> = ({
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-[13px] font-semibold leading-5 text-[var(--text-muted)]">
-                      {formatCompletedDate(text.completedAt)}
+                      {formatCompletedDateTime(text.completedAt)}
                     </p>
                     <h2 className="mt-1 font-heading text-[20px] font-semibold leading-6 text-[var(--text-primary)]">
                       {text.title}

@@ -18,9 +18,9 @@ import { normalizeSelectableWord } from "../utils/readingText";
 
 const resolveReadingStatus = (
   nextText: ReadingText | null,
-  completedToday: boolean,
+  hasCompletedReadingToday: boolean,
 ): ReadingHomeStatus => {
-  if (completedToday) return "completed";
+  if (hasCompletedReadingToday) return "completed";
   if (nextText) return "in_progress";
   return "not_started";
 };
@@ -47,7 +47,8 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
   const [text, setText] = useState<ReadingText | null>(null);
   const [dailyLimit, setDailyLimit] = useState(10);
   const [remainingAttempts, setRemainingAttempts] = useState(0);
-  const [isReadingCompletedToday, setIsReadingCompletedToday] = useState(false);
+  const [hasCompletedReadingToday, setHasCompletedReadingToday] =
+    useState(false);
   const [selectedWord, setSelectedWord] = useState<{
     word: string;
     index: number;
@@ -83,7 +84,7 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
         setWordFeedback(null);
         setDailyLimit(state.dailyLimit);
         setRemainingAttempts(state.remainingAttempts);
-        setIsReadingCompletedToday(state.isReadingCompletedToday);
+        setHasCompletedReadingToday(state.isReadingCompletedToday);
         emitReadingStatusChange(
           resolveReadingStatus(state.activeText, state.isReadingCompletedToday),
         );
@@ -109,7 +110,7 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
   }, []);
 
   const handleGenerate = async () => {
-    if (isReadingCompletedToday || remainingAttempts <= 0) return;
+    if (remainingAttempts <= 0) return;
 
     setLoading(true);
     setSavedWords(new Set());
@@ -122,7 +123,9 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
       setText(result.text);
       setDailyLimit(result.dailyLimit);
       setRemainingAttempts(result.remainingAttempts);
-      emitReadingStatusChange("in_progress");
+      emitReadingStatusChange(
+        hasCompletedReadingToday ? "completed" : "in_progress",
+      );
     } catch (error) {
       const message =
         error instanceof Error
@@ -136,7 +139,7 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
         setSavedWords(new Set(state.activeText?.savedWordIndexes ?? []));
         setDailyLimit(state.dailyLimit);
         setRemainingAttempts(state.remainingAttempts);
-        setIsReadingCompletedToday(state.isReadingCompletedToday);
+        setHasCompletedReadingToday(state.isReadingCompletedToday);
         emitReadingStatusChange(
           resolveReadingStatus(state.activeText, state.isReadingCompletedToday),
         );
@@ -201,8 +204,7 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
       setSavedWords(new Set());
       setSelectedWord(null);
       setWordFeedback(null);
-      setIsReadingCompletedToday(true);
-      setRemainingAttempts(0);
+      setHasCompletedReadingToday(true);
       emitReadingStatusChange("completed");
       if (onNext) {
         onNext();
@@ -217,18 +219,16 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
   const isGenerateDisabled =
     isStateLoading ||
     loading ||
-    isReadingCompletedToday ||
     remainingAttempts <= 0;
-  const generateButtonLabel = isReadingCompletedToday
-    ? "Текст на сегодня прочитан"
-    : remainingAttempts <= 0
+  const generateButtonLabel =
+    remainingAttempts <= 0
       ? "Попытки на сегодня закончились"
       : "Сгенерировать текст";
   const generateActionLabel = text
     ? "Сгенерировать новый текст"
     : generateButtonLabel;
   const shouldShowIdleGeneration =
-    !isStateLoading && !loading && !text && !isReadingCompletedToday;
+    !isStateLoading && !loading && !text;
 
   return (
     <div className="mx-auto w-full max-w-[430px] space-y-3 px-3.5 pb-3 pt-3 min-[390px]:px-4 min-[480px]:max-w-[390px] min-[480px]:px-3">
@@ -264,14 +264,6 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
 
       {loading && (
         <LoadingState message="Генерируем текст..." />
-      )}
-
-      {isReadingCompletedToday && (
-        <InlineStatusCard
-          variant="success"
-          title="Текст на сегодня прочитан"
-          description="Новый текст будет доступен завтра."
-        />
       )}
 
       {text && !loading && (

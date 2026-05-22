@@ -256,7 +256,7 @@ Dev tools:
 
 Purpose:
 
-- User generates a daily reading text, reads the active text, adds words to vocabulary and completes daily reading.
+- User generates reading texts within the daily attempt limit, reads the active text, adds words to vocabulary and completes the active text.
 - The screen calls the existing service layer and does not access DB directly.
 
 Layout:
@@ -276,7 +276,7 @@ Idle generation state:
 - Heading text: `Сгенерируй текст для чтения и начни сегодняшний урок.`
 - Reading chips show level, remaining attempts/daily limit and reading time.
 - CTA uses shared `Button`, full-width, coral background, `Sparkles` icon, label `Сгенерировать текст`.
-- Helper card `ReadingInfoCard` explains the daily text flow.
+- Helper card `ReadingInfoCard` explains the reading generation flow.
 - If generation fails before a text exists, `InlineStatusCard` with `error` appears directly below the main generation card and above the helper card.
 
 Generated text state:
@@ -295,7 +295,6 @@ Generated text state:
 Status states:
 
 - Loading states use `LoadingState`.
-- Completed daily reading uses `InlineStatusCard` variant `success` with title `Текст на сегодня прочитан`.
 - Error states use `InlineStatusCard` variant `error` with title `Не удалось сгенерировать текст`.
 - If generation fails while an active text exists, the error card appears below the compact generated toolbar and above the text card.
 
@@ -360,7 +359,7 @@ Tabs:
 Completed text cards:
 
 - Card root: `glass-card rounded-[20px] p-4`.
-- Date: `13px`, semibold, `--text-muted`.
+- Date and completion time: `13px`, semibold, `--text-muted`.
 - Title: `20px`, `font-heading`, semibold, `--text-primary`.
 - Excerpt: `15px`, `leading-6`, `--text-secondary`.
 - Level/model chips use `--surface-strong`.

@@ -38,11 +38,11 @@
 - Попытка считается списанной после записи attempt перед OpenRouter, независимо от успеха генерации.
 - Проверка дневного лимита и запись attempt объединены в RPC `claim_reading_generation_attempt`, который использует transaction-level advisory lock на `user_id + attempt_date`.
 - Перед production стоит:
-  - добавить более явные user-facing сообщения для `429` и `DAILY_READING_ALREADY_COMPLETED`
+  - добавить более явные user-facing сообщения для `429`
 
 ## 5) Generated text persistence
 - Последний успешный непрочитанный AI-текст сохраняется в `user_active_reading_texts`.
-- Прочитанные тексты сохраняются в `user_completed_reading_texts`: при завершении активный текст копируется в историю, затем active text удаляется, а факт дня пишется в `user_daily_reading_completions`.
+- Прочитанные тексты сохраняются в `user_completed_reading_texts`: при завершении активный текст копируется в историю отдельной записью, затем active text удаляется, а факт первого завершения дня пишется в `user_daily_reading_completions`.
 - Само завершение чтения выполняется транзакционно через RPC `complete_daily_reading_text`.
 - Перед production стоит добавить retention/экспорт/удаление пользовательских материалов, если появятся требования по приватности данных.
 

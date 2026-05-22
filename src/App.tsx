@@ -202,7 +202,7 @@ export default function App() {
     }
   };
 
-  const handleCompleteFirstText = async () => {
+  const handleCompleteReadingText = async () => {
     if (!appUser) return;
 
     try {
@@ -302,7 +302,7 @@ export default function App() {
         return (
           <ReadingScreen
             onBack={() => setCurrentScreen("home")}
-            onCompleteText={handleCompleteFirstText}
+            onCompleteText={handleCompleteReadingText}
             onReadingStatusChange={updateReadingHomeStatus}
             userLevel={appUser?.settings?.englishLevel ?? null}
             readingMinutes={appUser?.settings?.dailyReadingMinutes ?? null}

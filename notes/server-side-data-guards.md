@@ -13,7 +13,7 @@ security/business-решения.
 - выбирать пользователя по `telegram_user_id`
 - сохранять настройки в `public.users` или `public.user_settings`
 - списывать попытки генерации
-- завершать дневное чтение
+- завершать активный текст
 - активировать подписки
 
 Эти действия выполняются в Supabase Edge Functions с серверными секретами.
@@ -64,7 +64,7 @@ subscription таблицам, а также к server-only RPC. Доступ и
 
 `generate-reading-text`:
 - валидирует Telegram `initData`
-- проверяет настройки, подписку и дневной completion
+- проверяет настройки и подписку
 - списывает попытку через RPC `claim_reading_generation_attempt`
 - сохраняет активный AI-текст при успешной генерации
 - возвращает клиенту безопасное сообщение для неожиданных AI/provider ошибок
@@ -77,7 +77,7 @@ subscription таблицам, а также к server-only RPC. Доступ и
 
 `complete-reading-text`:
 - валидирует Telegram `initData`
-- завершает дневное чтение через RPC `complete_daily_reading_text`
+- завершает активный текст через RPC `complete_daily_reading_text`
 - сохраняет snapshot прочитанного текста в `user_completed_reading_texts`
 - возвращает актуальный `streakDays`
 - возвращает клиенту безопасное сообщение для неожиданных внутренних ошибок
@@ -111,8 +111,8 @@ subscription таблицам, а также к server-only RPC. Доступ и
 `public.complete_daily_reading_text(...)`:
 - берет transaction-level advisory lock на пользователя и дату завершения
 - проверяет наличие active text
-- пишет или обновляет дневной completion
-- копирует active text в историю завершенных текстов
+- пишет дневной completion-marker для progress/streak
+- копирует active text в историю завершенных текстов отдельной записью
 - удаляет active text
 - заполняет `users.first_text_completed_at` для онбординга
 
