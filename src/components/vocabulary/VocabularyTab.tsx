@@ -18,6 +18,7 @@ export const VocabularyTab: React.FC<VocabularyTabProps> = ({ isActive }) => {
     approvingWordId,
     expandedWordId,
     error,
+    prepareError,
     setExpandedWordId,
     prepareCards,
     approveCard,
@@ -42,6 +43,7 @@ export const VocabularyTab: React.FC<VocabularyTabProps> = ({ isActive }) => {
           <VocabularySummaryCard
             state={vocabularyState}
             isPreparingCards={isPreparingCards}
+            prepareError={prepareError}
             onPrepareCards={prepareCards}
           />
 

@@ -379,12 +379,20 @@ Vocabulary tab:
 
 - Summary and word cards use the same `glass-card` / `glass-control` primitives.
 - Error state reuses `InlineStatusCard` with `variant="error"`.
-- Summary header uses icon + title `Словарь` + stacked stats:
-  - `Всего слов: N`
-  - `Подтвердить: M`
-  - `В словаре: K`
-- Main pending action is a warm outlined row with `TriangleAlert`, pending count text and trailing `ChevronRight`.
-- Confirmation count is a separate muted line with a warm dot.
+- Summary header uses icon + title `Словарь` and compact meta row aligned to the same two-column grid as the status cards:
+  - `Всего: N` with a muted layers icon.
+  - `В словаре: K` with a primary/cyan check icon.
+  - Center divider must align with the gap between the two status cards below.
+- Under the summary header, show two side-by-side warm status cards:
+  - Keep cards compact; avoid tall dashboard tiles.
+  - `N добавить` + `слов без карточек` with a small warm dot.
+  - `M подтвердить` + `ждут подтверждения` with a small warm dot.
+  - Do not add extra right-side icons inside these status cards.
+- Main pending action is a fixed-height warm split block: left side shows `TriangleAlert` with pending-word context, right side is a compact coral `Готовить` CTA with `Sparkles`; do not use arrows or chevrons because the action does not navigate.
+- During card preparation, keep the same button dimensions and replace `Sparkles` with an inline spinner icon.
+- Preparation errors are shown directly below the pending action and above the compact info panel via `InlineStatusCard`.
+- Do not duplicate `needsApprovalCount` below the pending action; it belongs in the top status band.
+- If there are pending words, show a compact inline info panel below the action in the style of `ReadingInfoCard`.
 - Closed approval rows are compact:
   - word + translation on the left
   - chips `Требует подтверждения` and `AI карточка` on the right

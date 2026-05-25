@@ -20,6 +20,7 @@ type UseVocabularyMaterialsResult = {
   approvingWordId: string | null;
   expandedWordId: string | null;
   error: VocabularyMaterialsError | null;
+  prepareError: VocabularyMaterialsError | null;
   setExpandedWordId: (wordId: string | null) => void;
   prepareCards: () => Promise<void>;
   approveCard: (wordId: string) => Promise<void>;
@@ -37,6 +38,8 @@ export const useVocabularyMaterials = (
   const [approvingWordId, setApprovingWordId] = useState<string | null>(null);
   const [expandedWordId, setExpandedWordId] = useState<string | null>(null);
   const [error, setError] = useState<VocabularyMaterialsError | null>(null);
+  const [prepareError, setPrepareError] =
+    useState<VocabularyMaterialsError | null>(null);
 
   const refreshVocabularyData = useCallback(async () => {
     const [state, words] = await Promise.all([
@@ -55,6 +58,7 @@ export const useVocabularyMaterials = (
     const loadVocabulary = async () => {
       setIsLoading(true);
       setError(null);
+      setPrepareError(null);
 
       try {
         const [state, words] = await Promise.all([
@@ -93,22 +97,19 @@ export const useVocabularyMaterials = (
 
     setIsPreparingCards(true);
     setError(null);
+    setPrepareError(null);
 
     try {
       const result = await prepareVocabularyCards();
       await refreshVocabularyData();
 
       if (result.preparedCount === 0 && result.failedCount > 0) {
-        setError({
+        setPrepareError({
           title: "Не удалось подготовить карточки",
           message: "Попробуй еще раз позже.",
         });
       }
     } catch (error) {
-      const prepareErrorMessage =
-        error instanceof Error
-          ? error.message
-          : "Не удалось подготовить карточки.";
       try {
         await refreshVocabularyData();
       } catch (refreshError) {
@@ -119,12 +120,13 @@ export const useVocabularyMaterials = (
               ? refreshError.message
               : "Не удалось обновить состояние словаря.",
         });
+        setPrepareError(null);
         return;
       }
 
-      setError({
+      setPrepareError({
         title: "Не удалось подготовить карточки",
-        message: prepareErrorMessage,
+        message: "Попробуй еще раз позже.",
       });
     } finally {
       setIsPreparingCards(false);
@@ -136,6 +138,7 @@ export const useVocabularyMaterials = (
 
     setApprovingWordId(wordId);
     setError(null);
+    setPrepareError(null);
 
     try {
       await approveVocabularyCard(wordId);
@@ -162,6 +165,7 @@ export const useVocabularyMaterials = (
     approvingWordId,
     expandedWordId,
     error,
+    prepareError,
     setExpandedWordId,
     prepareCards,
     approveCard,
