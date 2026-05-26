@@ -20,6 +20,7 @@ export const cloudflaredExecutable = isWindows
 // TODO: Keep this list in sync with Supabase Edge Functions required by local Telegram flows.
 export const edgeFunctionNames = [
   "approve-vocabulary-card",
+  "approve-vocabulary-cards",
   "auth-telegram",
   "save-user-settings",
   "activate-subscription",

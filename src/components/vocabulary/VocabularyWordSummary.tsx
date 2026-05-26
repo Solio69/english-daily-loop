@@ -7,6 +7,7 @@ type VocabularyWordSummaryProps = {
   mode: "approval" | "ready";
   isExpanded: boolean;
   statusLabel: string;
+  isToggleDisabled?: boolean;
   onToggle: () => void;
 };
 
@@ -15,6 +16,7 @@ export const VocabularyWordSummary: React.FC<VocabularyWordSummaryProps> = ({
   mode,
   isExpanded,
   statusLabel,
+  isToggleDisabled = false,
   onToggle,
 }) => {
   const StatusChevron = isExpanded ? ChevronDown : ChevronRight;
@@ -23,7 +25,8 @@ export const VocabularyWordSummary: React.FC<VocabularyWordSummaryProps> = ({
     <button
       type="button"
       onClick={onToggle}
-      className="w-full p-4 text-left"
+      disabled={isToggleDisabled}
+      className="w-full p-4 text-left disabled:cursor-wait"
       aria-expanded={isExpanded}
     >
       <div className="flex items-start gap-3">

@@ -87,6 +87,7 @@
 Локально поднимаются Edge Functions:
 
 - `approve-vocabulary-card`
+- `approve-vocabulary-cards`
 - `auth-telegram`
 - `save-user-settings`
 - `activate-subscription`

@@ -12,6 +12,7 @@ type VocabularyWordCardProps = {
   mode: "approval" | "ready";
   isExpanded: boolean;
   isApproving: boolean;
+  isToggleDisabled?: boolean;
   onToggle: () => void;
   onApprove: () => void;
 };
@@ -21,6 +22,7 @@ export const VocabularyWordCard: React.FC<VocabularyWordCardProps> = ({
   mode,
   isExpanded,
   isApproving,
+  isToggleDisabled = false,
   onToggle,
   onApprove,
 }) => {
@@ -46,6 +48,7 @@ export const VocabularyWordCard: React.FC<VocabularyWordCardProps> = ({
         mode={mode}
         isExpanded={isExpanded}
         statusLabel={statusLabel}
+        isToggleDisabled={isToggleDisabled}
         onToggle={onToggle}
       />
 

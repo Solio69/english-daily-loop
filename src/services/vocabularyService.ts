@@ -1,6 +1,7 @@
 import { invokeFunction } from "./functionClient";
 import {
   ApproveVocabularyCardResult,
+  ApproveVocabularyCardsResult,
   PrepareVocabularyCardsResult,
   SaveVocabularyWordResult,
   VocabularyState,
@@ -52,3 +53,11 @@ export const approveVocabularyCard = async (
     { wordId },
     "Не удалось подтвердить карточку.",
   );
+
+export const approveVocabularyCards =
+  async (): Promise<ApproveVocabularyCardsResult> =>
+    invokeFunction<ApproveVocabularyCardsResult>(
+      "approve-vocabulary-cards",
+      {},
+      "Не удалось подтвердить карточки.",
+    );

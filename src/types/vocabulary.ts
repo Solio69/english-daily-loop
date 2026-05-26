@@ -62,3 +62,7 @@ export type ApproveVocabularyCardResult = {
   status: VocabularyWordStatus;
   cardStatus: Extract<VocabularyCardStatus, "ready">;
 };
+
+export type ApproveVocabularyCardsResult = {
+  approvedCount: number;
+};
