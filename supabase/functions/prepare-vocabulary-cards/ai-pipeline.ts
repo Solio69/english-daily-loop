@@ -8,6 +8,8 @@ import {
   stripCodeFence,
 } from "../_shared/ai-text.ts";
 import {
+  OpenRouterError,
+  excludeModel,
   requestOpenRouter,
   type PromptMessage,
 } from "../_shared/openrouter.ts";
@@ -47,6 +49,18 @@ export class VocabularyAiError extends Error {
     super(message);
   }
 }
+
+const extractJsonObjectFromModelResponse = (raw: string): string => {
+  const withoutFence = stripCodeFence(raw);
+  const start = withoutFence.indexOf("{");
+  const end = withoutFence.lastIndexOf("}");
+
+  if (start === -1 || end === -1 || end <= start) {
+    return withoutFence;
+  }
+
+  return withoutFence.slice(start, end + 1);
+};
 
 const buildCardBatchMessages = (
   words: Array<{ id: string; word: string }>,
@@ -132,7 +146,7 @@ const parseCardJson = (
   lemma: string,
   level: EnglishLevel,
 ): VocabularyCard => {
-  const parsed = JSON.parse(stripCodeFence(raw)) as {
+  const parsed = JSON.parse(extractJsonObjectFromModelResponse(raw)) as {
     word?: unknown;
     translation?: unknown;
     partOfSpeech?: unknown;
@@ -232,7 +246,7 @@ const parseCardJson = (
     }
 
     isRegularVerb = parsed.isRegularVerb;
-  } else if (parsed.isRegularVerb !== null || parsed.verbForms !== null) {
+  } else if (parsed.isRegularVerb != null || parsed.verbForms != null) {
     throw new VocabularyAiError("Non-verb card must not contain verb data.");
   }
 
@@ -253,7 +267,9 @@ const parseCardBatchJson = (
   expectedIds: Set<string>,
   level: EnglishLevel,
 ): VocabularyCardBatchItem[] => {
-  const parsed = JSON.parse(stripCodeFence(raw)) as { cards?: unknown };
+  const parsed = JSON.parse(extractJsonObjectFromModelResponse(raw)) as {
+    cards?: unknown;
+  };
   if (!Array.isArray(parsed.cards)) {
     throw new VocabularyAiError("Batch JSON has invalid cards.");
   }
@@ -319,21 +335,57 @@ export const generateVocabularyCardsBatch = async ({
   words: Array<{ id: string; word: string }>;
   level: EnglishLevel;
 }): Promise<{ cards: VocabularyCardBatchItem[]; usedModel: string }> => {
-  const routed = await requestOpenRouter({
-    apiKey,
-    models,
-    messages: buildCardBatchMessages(words, level),
-    maxTokens: Math.max(900, words.length * 260),
-    temperature: 0.2,
-    timeoutMs: MODEL_TIMEOUT_MS,
-  });
+  const messages = buildCardBatchMessages(words, level);
+  const expectedIds = new Set(words.map((item) => item.id));
+  let remainingModels = [...models];
+  let lastErrorMessage = "Unknown vocabulary card error.";
 
-  return {
-    cards: parseCardBatchJson(
-      routed.content,
-      new Set(words.map((item) => item.id)),
-      level,
-    ),
-    usedModel: routed.usedModel,
-  };
+  while (remainingModels.length > 0) {
+    let routed: { content: string; usedModel: string };
+
+    try {
+      routed = await requestOpenRouter({
+        apiKey,
+        models: remainingModels,
+        messages,
+        maxTokens: Math.max(1400, words.length * 420),
+        temperature: 0.2,
+        timeoutMs: MODEL_TIMEOUT_MS,
+      });
+    } catch (error) {
+      lastErrorMessage =
+        error instanceof Error ? error.message : "Unknown provider error.";
+      const stage =
+        error instanceof OpenRouterError ? error.stage : "provider_request";
+      console.error("[prepare-vocabulary-cards] model routing failed", {
+        models: remainingModels,
+        promptVersion: VOCABULARY_CARD_PROMPT_VERSION,
+        stage,
+        error: lastErrorMessage,
+      });
+      throw new VocabularyAiError(lastErrorMessage);
+    }
+
+    try {
+      return {
+        cards: parseCardBatchJson(routed.content, expectedIds, level),
+        usedModel: routed.usedModel,
+      };
+    } catch (error) {
+      lastErrorMessage =
+        error instanceof Error
+          ? error.message
+          : "Unknown output validation error.";
+      console.error("[prepare-vocabulary-cards] generated cards validation failed", {
+        usedModel: routed.usedModel,
+        candidateModels: remainingModels,
+        promptVersion: VOCABULARY_CARD_PROMPT_VERSION,
+        stage: "output_validation",
+        error: lastErrorMessage,
+      });
+      remainingModels = excludeModel(remainingModels, routed.usedModel);
+    }
+  }
+
+  throw new VocabularyAiError(lastErrorMessage);
 };

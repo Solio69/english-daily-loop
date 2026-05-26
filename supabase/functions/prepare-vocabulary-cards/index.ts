@@ -26,6 +26,7 @@ import {
   getOpenRouterModelChain,
   type VocabularyCardBatchItem,
 } from "./ai-pipeline.ts";
+import { saveGeneratedCard } from "./card-persistence.ts";
 
 type PendingWordRow = {
   id: string;
@@ -136,6 +137,8 @@ Deno.serve(async (req: Request) => {
       return successResponse(200, {
         preparedCount: 0,
         failedCount: 0,
+        mergedCount: 0,
+        reactivatedCount: 0,
         remainingPendingCount: 0,
         needsApprovalCount: 0,
       });
@@ -163,6 +166,8 @@ Deno.serve(async (req: Request) => {
 
     let preparedCount = 0;
     let failedCount = 0;
+    let mergedCount = 0;
+    let reactivatedCount = 0;
 
     for (const word of words) {
       const card = cardsById.get(word.id);
@@ -171,33 +176,21 @@ Deno.serve(async (req: Request) => {
         continue;
       }
 
-      const { error: updateError } = await supabase
-        .from("user_vocabulary_words")
-        .update({
-          word: card.word,
-          translation: card.translation,
-          part_of_speech: card.partOfSpeech,
-          is_verb: card.isVerb,
-          is_regular_verb: card.isRegularVerb,
-          verb_forms: card.verbForms,
-          examples: card.examples,
-          card_status: "needs_approval",
-        })
-        .eq("id", word.id)
-        .eq("user_id", appUser.id)
-        .eq("card_status", "pending");
+      const saveResult = await saveGeneratedCard(
+        supabase,
+        appUser.id,
+        word.id,
+        card,
+      );
 
-      if (updateError) {
+      if (!saveResult.prepared) {
         failedCount += 1;
-        console.error("[prepare-vocabulary-cards] failed to save card", {
-          appUserId: appUser.id,
-          wordId: word.id,
-          error: updateError.message,
-        });
         continue;
       }
 
       preparedCount += 1;
+      if (saveResult.merged) mergedCount += 1;
+      if (saveResult.reactivated) reactivatedCount += 1;
     }
 
     const remainingPendingCount = await getRemainingPendingCount(
@@ -224,6 +217,8 @@ Deno.serve(async (req: Request) => {
       generatedValidCount: cardsById.size,
       preparedCount,
       failedCount,
+      mergedCount,
+      reactivatedCount,
       remainingPendingCount,
       needsApprovalCount: needsApprovalCount ?? 0,
     });
@@ -231,6 +226,8 @@ Deno.serve(async (req: Request) => {
     return successResponse(200, {
       preparedCount,
       failedCount,
+      mergedCount,
+      reactivatedCount,
       remainingPendingCount,
       needsApprovalCount: needsApprovalCount ?? 0,
     });

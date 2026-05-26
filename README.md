@@ -72,7 +72,7 @@ Telegram Mini App для ежедневной практики английск�
 - `save-vocabulary-word` — валидирует активный текст, проверяет лимит словаря и быстро сохраняет слово как `unlearned` + `pending`.
 - `get-vocabulary-state` — возвращает количество pending/needs_approval/ready слов в словаре пользователя.
 - `get-vocabulary-words` — возвращает AI-карточки на подтверждение и подтвержденные карточки словаря.
-- `prepare-vocabulary-cards` — batch-ом готовит AI-карточки для pending-слов, сохраняет валидные карточки и отправляет их на подтверждение; слова без валидной карточки остаются pending.
+- `prepare-vocabulary-cards` — batch-ом готовит AI-карточки для pending-слов, сохраняет валидные карточки, отправляет их на подтверждение и мержит pending-дубликаты в существующие канонические карточки.
 - `approve-vocabulary-card` — подтверждает AI-карточку пользователя и переводит ее в основной словарь.
 - `approve-vocabulary-cards` — подтверждает все AI-карточки текущего пользователя, которые ждут проверки.
 - `dev-tools` — локальные dev-действия для текущего Telegram-пользователя; работает только при `DEV_TOOLS_ENABLED="true"`.
@@ -80,7 +80,7 @@ Telegram Mini App для ежедневной практики английск�
 Все чувствительные операции выполняются на сервере. `TELEGRAM_BOT_TOKEN`, `SUPABASE_SERVICE_ROLE_KEY` и `OPENROUTER_API_KEY` нельзя использовать в клиентском коде. Неожиданные внутренние ошибки Edge Functions логируются на сервере, а клиент получает безопасный код и сообщение без SQL/provider details.
 
 Общая server-инфраструктура Edge Functions находится в `supabase/functions/_shared/server.ts`: CORS, POST guard, JSON parsing, чтение env, Telegram `initData` validation, `AppError` и единый формат JSON-ответов. Общий OpenRouter client/model allowlist находится в `supabase/functions/_shared/openrouter.ts`, общие AI text helpers — в `supabase/functions/_shared/ai-text.ts`. Бизнес-логика лимитов, подписок, чтения, словаря и генерации остается в конкретных Edge Functions.
-Prompt/output слой словарных карточек находится рядом с функцией подготовки: `supabase/functions/prepare-vocabulary-cards/ai-pipeline.ts`.
+Prompt/output слой словарных карточек находится рядом с функцией подготовки: `supabase/functions/prepare-vocabulary-cards/ai-pipeline.ts`. Сохранение подготовленных карточек и merge pending-дубликатов в существующие канонические карточки вынесены в `supabase/functions/prepare-vocabulary-cards/card-persistence.ts`.
 
 ## Данные
 

@@ -26,6 +26,8 @@ export type VocabularyState = {
 export type PrepareVocabularyCardsResult = {
   preparedCount: number;
   failedCount: number;
+  mergedCount: number;
+  reactivatedCount: number;
   remainingPendingCount: number;
   needsApprovalCount: number;
 };
