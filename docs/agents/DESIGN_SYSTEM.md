@@ -379,15 +379,17 @@ Vocabulary tab:
 
 - Summary and word cards use the same `glass-card` / `glass-control` primitives.
 - Error state reuses `InlineStatusCard` with `variant="error"`.
-- Summary header uses icon + title `Словарь` and compact meta row aligned to the same two-column grid as the status cards:
-  - `Всего: N` with a muted layers icon.
-  - `В словаре: K` with a primary/cyan check icon.
-  - Center divider must align with the gap between the two status cards below.
-- Under the summary header, show two side-by-side warm status cards:
+- Summary header uses icon + title `Словарь`.
+- If `totalCount === 0`, show the helper copy `Добавленные из текстов слова будут появляться здесь.` under the title.
+- If `totalCount > 0`, show two side-by-side status cards under the summary header:
   - Keep cards compact; avoid tall dashboard tiles.
-  - `N добавить` + `слов без карточек` with a small warm dot.
-  - `M подтвердить` + `ждут подтверждения` with a small warm dot.
-  - Do not add extra right-side icons inside these status cards.
+  - Left card uses `Layers`; right card uses `CircleCheck`.
+  - Active pending state uses warm accent: `N добавить` + `слово/слова/слов без карточки/карточек`.
+  - Active approval state uses warm accent: `M подтвердить` + `ждет/ждут подтверждения`.
+  - Zero pending state uses primary/cyan ready-state: `Все готовы` + `слов без карточек нет`.
+  - Zero approval state uses primary/cyan ready-state: `Подтверждено` + `карточек на проверку нет`.
+  - Do not show a separate totals line with `Всего` / `В словаре` inside the summary card.
+  - Do not show a separate all-prepared info row below the two status cards.
 - Main pending action is a fixed-height warm split block: left side shows `TriangleAlert` with pending-word context, right side is a compact coral `Готовить` CTA with `Sparkles`; do not use arrows or chevrons because the action does not navigate.
 - During card preparation, keep the same button dimensions and replace `Sparkles` with an inline spinner icon.
 - Preparation errors are shown directly below the pending action and above the compact info panel via `InlineStatusCard`.

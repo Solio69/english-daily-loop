@@ -18,11 +18,6 @@ type VocabularySummaryCardProps = {
   onPrepareCards: () => void;
 };
 
-type VocabularyMetaRowProps = {
-  totalCount: number;
-  readyCount: number;
-};
-
 type VocabularyStatusCardsProps = {
   pendingCount: number;
   needsApprovalCount: number;
@@ -30,8 +25,11 @@ type VocabularyStatusCardsProps = {
 
 type VocabularyStatusCardProps = {
   count: number;
+  icon: React.ReactNode;
   actionLabel: string;
-  description: string;
+  activeDescription: string;
+  readyTitle: string;
+  readyDescription: string;
 };
 
 type VocabularyPrepareSectionProps = {
@@ -87,8 +85,6 @@ export const VocabularySummaryCard: React.FC<VocabularySummaryCardProps> = ({
   prepareError,
   onPrepareCards,
 }) => {
-  const hasWork = state.pendingCount > 0 || state.needsApprovalCount > 0;
-
   return (
     <div className="glass-card space-y-4 rounded-[20px] p-4">
       <div className="flex items-start gap-3">
@@ -108,13 +104,6 @@ export const VocabularySummaryCard: React.FC<VocabularySummaryCardProps> = ({
       </div>
 
       {state.totalCount > 0 && (
-        <VocabularyMetaRow
-          totalCount={state.totalCount}
-          readyCount={state.readyCount}
-        />
-      )}
-
-      {state.totalCount > 0 && (
         <VocabularyStatusCards
           pendingCount={state.pendingCount}
           needsApprovalCount={state.needsApprovalCount}
@@ -128,31 +117,10 @@ export const VocabularySummaryCard: React.FC<VocabularySummaryCardProps> = ({
           prepareError={prepareError}
           onPrepareCards={onPrepareCards}
         />
-      ) : state.totalCount > 0 && !hasWork ? (
-        <div className="rounded-[16px] border border-[var(--border-strong)] bg-[var(--primary-soft)] px-3 py-2 text-sm leading-5 text-[var(--primary)] shadow-primary-glow">
-          Все добавленные слова уже подготовлены.
-        </div>
       ) : null}
     </div>
   );
 };
-
-const VocabularyMetaRow: React.FC<VocabularyMetaRowProps> = ({
-  totalCount,
-  readyCount,
-}) => (
-  <div className="relative grid grid-cols-2 gap-2 text-xs font-semibold leading-4">
-    <span className="absolute left-1/2 top-1/2 h-4 w-px -translate-y-1/2 bg-[var(--border-strong)]" />
-    <span className="inline-flex min-w-0 items-center justify-center gap-1.5 pr-2 text-[var(--text-secondary)]">
-      <Layers className="size-4 shrink-0 text-[var(--text-muted)]" />
-      <span className="truncate">Всего: {totalCount}</span>
-    </span>
-    <span className="inline-flex min-w-0 items-center justify-center gap-1.5 pl-2 text-[var(--primary)]">
-      <CircleCheck className="size-4 shrink-0" />
-      <span className="truncate">В словаре: {readyCount}</span>
-    </span>
-  </div>
-);
 
 const VocabularyStatusCards: React.FC<VocabularyStatusCardsProps> = ({
   pendingCount,
@@ -161,39 +129,79 @@ const VocabularyStatusCards: React.FC<VocabularyStatusCardsProps> = ({
   <div className="grid grid-cols-2 gap-2">
     <VocabularyStatusCard
       count={pendingCount}
+      icon={<Layers className="size-4 shrink-0" />}
       actionLabel="добавить"
-      description={getRussianPlural(pendingCount, wordWithoutCardForms)}
+      activeDescription={getRussianPlural(pendingCount, wordWithoutCardForms)}
+      readyTitle="Все готовы"
+      readyDescription="слов без карточек нет"
     />
     <VocabularyStatusCard
       count={needsApprovalCount}
+      icon={<CircleCheck className="size-4 shrink-0" />}
       actionLabel="подтвердить"
-      description={getRussianPlural(needsApprovalCount, approvalWaitingForms)}
+      activeDescription={getRussianPlural(
+        needsApprovalCount,
+        approvalWaitingForms,
+      )}
+      readyTitle="Подтверждено"
+      readyDescription="карточек на проверку нет"
     />
   </div>
 );
 
 const VocabularyStatusCard: React.FC<VocabularyStatusCardProps> = ({
   count,
+  icon,
   actionLabel,
-  description,
-}) => (
-  <div className="flex min-h-[68px] items-center rounded-[15px] border border-[var(--accent-warm)] bg-[var(--accent-warm-soft)] px-3 py-2 text-[var(--accent-warm)]">
-    <div className="min-w-0">
-      <div className="flex min-w-0 items-baseline gap-1.5">
-        <span className="size-2 shrink-0 rounded-full bg-[var(--accent-warm)]" />
-        <span className="font-heading text-xl font-semibold leading-none">
-          {count}
-        </span>
-        <span className="truncate text-[11px] font-semibold leading-4">
-          {actionLabel}
-        </span>
+  activeDescription,
+  readyTitle,
+  readyDescription,
+}) => {
+  const isEmpty = count === 0;
+  const toneClass = isEmpty
+    ? "border-[var(--border-strong)] bg-[var(--primary-soft)] text-[var(--primary)] shadow-primary-glow"
+    : "border-[var(--accent-warm)] bg-[var(--accent-warm-soft)] text-[var(--accent-warm)]";
+
+  return (
+    <div
+      className={[
+        "flex min-h-[68px] items-center rounded-[15px] border px-3 py-2",
+        toneClass,
+      ].join(" ")}
+    >
+      <div className="min-w-0">
+        {isEmpty ? (
+          <>
+            <div className="flex min-w-0 items-center gap-1.5">
+              {icon}
+              <span className="truncate font-heading text-sm font-semibold leading-5">
+                {readyTitle}
+              </span>
+            </div>
+            <p className="mt-1 line-clamp-2 text-xs leading-4 text-[var(--text-secondary)]">
+              {readyDescription}
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="flex min-w-0 items-baseline gap-1.5">
+              <span className="relative top-0.5">{icon}</span>
+              <span className="font-heading text-xl font-semibold leading-none">
+                {count}
+              </span>
+              <span className="truncate text-[11px] font-semibold leading-4">
+                {actionLabel}
+              </span>
+            </div>
+            <p className="mt-1 line-clamp-2 text-xs leading-4 text-[var(--text-secondary)]">
+              {activeDescription}
+            </p>
+          </>
+        )}
       </div>
-      <p className="mt-1 line-clamp-2 text-xs leading-4 text-[var(--text-secondary)]">
-        {description}
-      </p>
     </div>
-  </div>
-);
+  );
+};
 
 const VocabularyPrepareSection: React.FC<VocabularyPrepareSectionProps> = ({
   pendingCount,
