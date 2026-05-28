@@ -1,5 +1,5 @@
 import React from "react";
-import { RotateCcw, Trash2, WalletCards } from "lucide-react";
+import { BookMarked, RotateCcw, Trash2, WalletCards } from "lucide-react";
 import type { DevToolAction } from "../services/devToolsService";
 
 type DevToolsPanelProps = {
@@ -15,9 +15,15 @@ const ACTIONS: Array<{
 }> = [
   {
     action: "reset_generation_attempts",
-    label: "Сброс попыток",
-    description: "Обнуляет попытки генерации за сегодня.",
+    label: "Сброс текстов",
+    description: "Обнуляет попытки генерации текстов за сегодня.",
     icon: RotateCcw,
+  },
+  {
+    action: "reset_vocabulary_card_attempts",
+    label: "Сброс AI-карточек",
+    description: "Обнуляет попытки генерации карточек словаря за сегодня.",
+    icon: BookMarked,
   },
   {
     action: "delete_today_reading_completion",

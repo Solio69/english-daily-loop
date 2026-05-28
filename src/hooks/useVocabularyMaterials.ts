@@ -110,6 +110,20 @@ export const useVocabularyMaterials = (
 
     try {
       const result = await prepareVocabularyCards();
+      setVocabularyState((currentState) =>
+        currentState
+          ? {
+              ...currentState,
+              pendingCount: result.remainingPendingCount,
+              needsApprovalCount: result.needsApprovalCount,
+              cardGeneration: {
+                dailyLimit: result.dailyLimit,
+                usedAttempts: result.usedAttempts,
+                remainingAttempts: result.remainingAttempts,
+              },
+            }
+          : currentState,
+      );
       await refreshVocabularyData();
 
       if (result.preparedCount === 0 && result.failedCount > 0) {

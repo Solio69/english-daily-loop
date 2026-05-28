@@ -215,3 +215,15 @@ UI:
 - сервер не смог проверить или сохранить словарь.
 
 Технические детали AI/provider/SQL не возвращаются клиенту.
+
+## 9) Vocabulary card generation attempts
+
+- Лимит batch-подготовки AI-карточек зависит от подписки: `free` = `5` попыток в день, `paid` = `20` попыток в день.
+- 1 попытка = 1 вызов `prepare-vocabulary-cards` для batch до `5` pending-слов.
+- Попытка списывается до вызова OpenRouter и сгорает даже при AI/provider/validation ошибке.
+- Если pending-слов нет, попытка не списывается.
+- Попытки хранятся в `public.vocabulary_card_generation_attempts`.
+- Атомарное списание делает RPC `public.claim_vocabulary_card_generation_attempt(...)` с advisory lock на пользователя и дату.
+- Общая server-логика лимита, подсчета и обновления metadata попытки находится в `supabase/functions/_shared/vocabulary-card-generation.ts`.
+- `get-vocabulary-state` возвращает `cardGeneration.dailyLimit`, `usedAttempts`, `remainingAttempts`.
+- Dev tools имеют отдельный action `reset_vocabulary_card_attempts`.

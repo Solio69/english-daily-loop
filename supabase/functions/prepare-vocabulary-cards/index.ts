@@ -22,11 +22,23 @@ import {
   DEFAULT_FALLBACK_MODEL,
   DEFAULT_PRIMARY_MODEL,
   DEFAULT_TERTIARY_MODEL,
+  VOCABULARY_CARD_PROMPT_VERSION,
   generateVocabularyCardsBatch,
   getOpenRouterModelChain,
   type VocabularyCardBatchItem,
 } from "./ai-pipeline.ts";
 import { saveGeneratedCard } from "./card-persistence.ts";
+import {
+  claimVocabularyCardGenerationAttempt,
+  getDailyVocabularyCardGenerationLimit,
+  getMoscowDate,
+  getVocabularyCardGenerationState,
+  markVocabularyCardAttemptFailed,
+  markVocabularyCardAttemptSucceeded,
+  updateVocabularyCardAttemptMetadata,
+  type VocabularyCardAttemptCounts,
+  type VocabularyCardGenerationState,
+} from "../_shared/vocabulary-card-generation.ts";
 
 type PendingWordRow = {
   id: string;
@@ -34,8 +46,7 @@ type PendingWordRow = {
 };
 
 const BATCH_SIZE = 5;
-const CARD_ERROR_MESSAGE =
-  "Не удалось подготовить карточки. Попробуй еще раз позже.";
+const LOG_PREFIX = "[prepare-vocabulary-cards]";
 
 const getRemainingPendingCount = async (
   supabase: ServiceClient,
@@ -58,11 +69,60 @@ const getRemainingPendingCount = async (
   return count ?? 0;
 };
 
+const getNeedsApprovalCount = async (
+  supabase: ServiceClient,
+  userId: string,
+): Promise<number> => {
+  const { count, error } = await supabase
+    .from("user_vocabulary_words")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("card_status", "needs_approval");
+
+  if (error) {
+    console.error("[prepare-vocabulary-cards] failed to count approval words", {
+      appUserId: userId,
+      error: error.message,
+    });
+    fail(500, "VOCABULARY_COUNT_FAILED", "Failed to count approval words.");
+  }
+
+  return count ?? 0;
+};
+
+const buildPrepareResult = ({
+  counts,
+  remainingPendingCount,
+  needsApprovalCount,
+  generationState,
+}: {
+  counts: Omit<VocabularyCardAttemptCounts, "requestedCount">;
+  remainingPendingCount: number;
+  needsApprovalCount: number;
+  generationState: VocabularyCardGenerationState;
+}) => ({
+  preparedCount: counts.preparedCount,
+  failedCount: counts.failedCount,
+  mergedCount: counts.mergedCount,
+  reactivatedCount: counts.reactivatedCount,
+  remainingPendingCount,
+  needsApprovalCount,
+  dailyLimit: generationState.dailyLimit,
+  usedAttempts: generationState.usedAttempts,
+  remainingAttempts: generationState.remainingAttempts,
+});
+
 Deno.serve(async (req: Request) => {
   const corsResponse = handleCorsPreflight(req);
   if (corsResponse) {
     return corsResponse;
   }
+
+  const requestStartedAt = Date.now();
+  let startedAttempt:
+    | { supabase: ServiceClient; attemptId: string; userId: string }
+    | null = null;
+  let attemptStats: VocabularyCardAttemptCounts | null = null;
 
   try {
     assertPostRequest(req);
@@ -133,18 +193,71 @@ Deno.serve(async (req: Request) => {
     }
 
     const words = (pendingRows ?? []) as PendingWordRow[];
+    const today = getMoscowDate();
+    const dailyLimit = await getDailyVocabularyCardGenerationLimit(
+      supabase,
+      appUser.id,
+      LOG_PREFIX,
+    );
+
     if (words.length === 0) {
-      return successResponse(200, {
-        preparedCount: 0,
-        failedCount: 0,
-        mergedCount: 0,
-        reactivatedCount: 0,
+      const generationState = await getVocabularyCardGenerationState(
+        supabase,
+        appUser.id,
+        today,
+        LOG_PREFIX,
+      );
+
+      return successResponse(200, buildPrepareResult({
+        counts: {
+          preparedCount: 0,
+          failedCount: 0,
+          mergedCount: 0,
+          reactivatedCount: 0,
+        },
         remainingPendingCount: 0,
         needsApprovalCount: 0,
-      });
+        generationState,
+      }));
     }
 
+    const claimedAttempt = await claimVocabularyCardGenerationAttempt(
+      supabase,
+      appUser.id,
+      today,
+      dailyLimit,
+      words.length,
+      LOG_PREFIX,
+    );
+    const generationState: VocabularyCardGenerationState = {
+      dailyLimit,
+      usedAttempts: claimedAttempt.usedAttempts,
+      remainingAttempts: claimedAttempt.remainingAttempts,
+    };
+    startedAttempt = {
+      supabase,
+      attemptId: claimedAttempt.attemptId,
+      userId: appUser.id,
+    };
+    attemptStats = {
+      requestedCount: words.length,
+      preparedCount: 0,
+      failedCount: words.length,
+      mergedCount: 0,
+      reactivatedCount: 0,
+    };
+
+    await updateVocabularyCardAttemptMetadata({
+      supabase,
+      attemptId: startedAttempt.attemptId,
+      userId: appUser.id,
+      promptVersion: VOCABULARY_CARD_PROMPT_VERSION,
+      modelChain: models,
+      logPrefix: LOG_PREFIX,
+    });
+
     let cardsById = new Map<string, VocabularyCardBatchItem>();
+    let usedModel: string | null = null;
     try {
       const generated = await generateVocabularyCardsBatch({
         apiKey: env.OPENROUTER_API_KEY,
@@ -153,6 +266,7 @@ Deno.serve(async (req: Request) => {
         level: englishLevel,
       });
       cardsById = new Map(generated.cards.map((card) => [card.id, card]));
+      usedModel = generated.usedModel;
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unknown vocabulary card error.";
@@ -161,7 +275,40 @@ Deno.serve(async (req: Request) => {
         wordIds: words.map((word) => word.id),
         error: message,
       });
-      fail(502, "VOCABULARY_CARDS_GENERATION_FAILED", CARD_ERROR_MESSAGE);
+
+      const failedCount = words.length;
+      attemptStats.failedCount = failedCount;
+
+      await markVocabularyCardAttemptFailed({
+        supabase,
+        attemptId: startedAttempt.attemptId,
+        userId: appUser.id,
+        promptVersion: VOCABULARY_CARD_PROMPT_VERSION,
+        modelChain: models,
+        counts: attemptStats,
+        durationMs: Date.now() - requestStartedAt,
+        errorCode: "VOCABULARY_CARDS_GENERATION_FAILED",
+        errorMessage: message,
+        logPrefix: LOG_PREFIX,
+      });
+
+      const remainingPendingCount = await getRemainingPendingCount(
+        supabase,
+        appUser.id,
+      );
+      const needsApprovalCount = await getNeedsApprovalCount(supabase, appUser.id);
+
+      return successResponse(200, buildPrepareResult({
+        counts: {
+          preparedCount: 0,
+          failedCount,
+          mergedCount: 0,
+          reactivatedCount: 0,
+        },
+        remainingPendingCount,
+        needsApprovalCount,
+        generationState,
+      }));
     }
 
     let preparedCount = 0;
@@ -193,26 +340,32 @@ Deno.serve(async (req: Request) => {
       if (saveResult.reactivated) reactivatedCount += 1;
     }
 
+    attemptStats.preparedCount = preparedCount;
+    attemptStats.failedCount = failedCount;
+    attemptStats.mergedCount = mergedCount;
+    attemptStats.reactivatedCount = reactivatedCount;
+
     const remainingPendingCount = await getRemainingPendingCount(
       supabase,
       appUser.id,
     );
-    const { count: needsApprovalCount, error: approvalCountError } = await supabase
-      .from("user_vocabulary_words")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", appUser.id)
-      .eq("card_status", "needs_approval");
+    const needsApprovalCount = await getNeedsApprovalCount(supabase, appUser.id);
 
-    if (approvalCountError) {
-      console.error("[prepare-vocabulary-cards] failed to count approval words", {
-        appUserId: appUser.id,
-        error: approvalCountError.message,
-      });
-      fail(500, "VOCABULARY_COUNT_FAILED", "Failed to count approval words.");
-    }
+    await markVocabularyCardAttemptSucceeded({
+      supabase,
+      attemptId: startedAttempt.attemptId,
+      userId: appUser.id,
+      model: usedModel,
+      promptVersion: VOCABULARY_CARD_PROMPT_VERSION,
+      modelChain: models,
+      counts: attemptStats,
+      durationMs: Date.now() - requestStartedAt,
+      logPrefix: LOG_PREFIX,
+    });
 
     console.info("[prepare-vocabulary-cards] batch preparation completed", {
       appUserId: appUser.id,
+      attemptId: startedAttempt.attemptId,
       requestedCount: words.length,
       generatedValidCount: cardsById.size,
       preparedCount,
@@ -220,18 +373,42 @@ Deno.serve(async (req: Request) => {
       mergedCount,
       reactivatedCount,
       remainingPendingCount,
-      needsApprovalCount: needsApprovalCount ?? 0,
+      needsApprovalCount,
+      dailyLimit,
+      usedAttempts: generationState.usedAttempts,
+      remainingAttempts: generationState.remainingAttempts,
     });
 
-    return successResponse(200, {
-      preparedCount,
-      failedCount,
-      mergedCount,
-      reactivatedCount,
+    return successResponse(200, buildPrepareResult({
+      counts: {
+        preparedCount,
+        failedCount,
+        mergedCount,
+        reactivatedCount,
+      },
       remainingPendingCount,
-      needsApprovalCount: needsApprovalCount ?? 0,
-    });
+      needsApprovalCount,
+      generationState,
+    }));
   } catch (error) {
+    if (startedAttempt) {
+      const code =
+        error instanceof AppError ? error.code : "VOCABULARY_PREPARE_FAILED";
+      const message =
+        error instanceof Error ? error.message : "Unknown vocabulary prepare error.";
+      await markVocabularyCardAttemptFailed({
+        supabase: startedAttempt.supabase,
+        attemptId: startedAttempt.attemptId,
+        userId: startedAttempt.userId,
+        promptVersion: VOCABULARY_CARD_PROMPT_VERSION,
+        counts: attemptStats ?? undefined,
+        durationMs: Date.now() - requestStartedAt,
+        errorCode: code,
+        errorMessage: message,
+        logPrefix: LOG_PREFIX,
+      });
+    }
+
     if (error instanceof AppError) {
       console.error("[prepare-vocabulary-cards] request failed", {
         status: error.status,

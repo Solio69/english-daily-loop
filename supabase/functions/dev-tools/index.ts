@@ -16,6 +16,7 @@ import {
 
 type DevToolAction =
   | "reset_generation_attempts"
+  | "reset_vocabulary_card_attempts"
   | "delete_today_reading_completion"
   | "reset_subscriptions";
 
@@ -30,6 +31,7 @@ const MOSCOW_TIME_ZONE = "Europe/Moscow";
 const parseAction = (value: unknown): DevToolAction => {
   if (
     value === "reset_generation_attempts" ||
+    value === "reset_vocabulary_card_attempts" ||
     value === "delete_today_reading_completion" ||
     value === "reset_subscriptions"
   ) {
@@ -106,6 +108,33 @@ const resetGenerationAttempts = async (
   }
 
   return { generationAttempts: count ?? 0 };
+};
+
+const resetVocabularyCardAttempts = async (
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  today: string,
+) => {
+  const { count, error } = await supabase
+    .from("vocabulary_card_generation_attempts")
+    .delete({ count: "exact" })
+    .eq("user_id", userId)
+    .eq("attempt_date", today);
+
+  if (error) {
+    console.error("[dev-tools] failed to reset vocabulary card attempts", {
+      userId,
+      today,
+      error: error.message,
+    });
+    fail(
+      500,
+      "DEV_TOOL_ACTION_FAILED",
+      "Failed to reset vocabulary card attempts.",
+    );
+  }
+
+  return { vocabularyCardAttempts: count ?? 0 };
 };
 
 const deleteTodayReadingCompletions = async (
@@ -214,6 +243,8 @@ Deno.serve(async (req: Request) => {
     const deleted =
       action === "reset_generation_attempts"
         ? await resetGenerationAttempts(supabase, appUser.id, today)
+        : action === "reset_vocabulary_card_attempts"
+          ? await resetVocabularyCardAttempts(supabase, appUser.id, today)
         : action === "delete_today_reading_completion"
           ? await deleteTodayReadingCompletions(supabase, appUser.id, today)
           : await resetSubscriptions(supabase, appUser.id);

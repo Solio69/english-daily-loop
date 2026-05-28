@@ -2,6 +2,7 @@ import { invokeFunction } from "./functionClient";
 
 export type DevToolAction =
   | "reset_generation_attempts"
+  | "reset_vocabulary_card_attempts"
   | "delete_today_reading_completion"
   | "reset_subscriptions";
 
@@ -10,6 +11,7 @@ type DevToolsResult = {
   today: string;
   deleted: {
     generationAttempts?: number;
+    vocabularyCardAttempts?: number;
     dailyReadingCompletions?: number;
     completedReadingTexts?: number;
     subscriptions?: number;

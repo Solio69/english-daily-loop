@@ -15,6 +15,12 @@ import {
   createServiceClient,
   getAppUserByTelegramId,
 } from "../_shared/app.ts";
+import {
+  getMoscowDate,
+  getVocabularyCardGenerationState,
+} from "../_shared/vocabulary-card-generation.ts";
+
+const LOG_PREFIX = "[get-vocabulary-state]";
 
 Deno.serve(async (req: Request) => {
   const corsResponse = handleCorsPreflight(req);
@@ -40,13 +46,15 @@ Deno.serve(async (req: Request) => {
     const appUser = await getAppUserByTelegramId(
       supabase,
       tgUser.id,
-      "[get-vocabulary-state]",
+      LOG_PREFIX,
     );
+    const today = getMoscowDate();
     const [
       { count: pendingCount, error: pendingError },
       { count: needsApprovalCount, error: needsApprovalError },
       { count: readyCount, error: readyError },
       { count: totalCount, error: totalError },
+      cardGeneration,
     ] = await Promise.all([
       supabase
         .from("user_vocabulary_words")
@@ -67,6 +75,7 @@ Deno.serve(async (req: Request) => {
         .from("user_vocabulary_words")
         .select("id", { count: "exact", head: true })
         .eq("user_id", appUser.id),
+      getVocabularyCardGenerationState(supabase, appUser.id, today, LOG_PREFIX),
     ]);
 
     if (pendingError || needsApprovalError || readyError || totalError) {
@@ -85,6 +94,7 @@ Deno.serve(async (req: Request) => {
       needsApprovalCount: needsApprovalCount ?? 0,
       readyCount: readyCount ?? 0,
       totalCount: totalCount ?? 0,
+      cardGeneration,
     });
   } catch (error) {
     if (error instanceof AppError) {

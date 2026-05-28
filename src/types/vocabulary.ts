@@ -16,11 +16,18 @@ export type SaveVocabularyWordResult = {
   wordIndex: number;
 };
 
+export type VocabularyCardGenerationState = {
+  dailyLimit: number;
+  usedAttempts: number;
+  remainingAttempts: number;
+};
+
 export type VocabularyState = {
   pendingCount: number;
   needsApprovalCount: number;
   readyCount: number;
   totalCount: number;
+  cardGeneration: VocabularyCardGenerationState;
 };
 
 export type PrepareVocabularyCardsResult = {
@@ -30,6 +37,9 @@ export type PrepareVocabularyCardsResult = {
   reactivatedCount: number;
   remainingPendingCount: number;
   needsApprovalCount: number;
+  dailyLimit: number;
+  usedAttempts: number;
+  remainingAttempts: number;
 };
 
 export type VocabularyVerbForms = {

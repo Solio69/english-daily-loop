@@ -390,7 +390,9 @@ Vocabulary tab:
   - Zero approval state uses primary/cyan ready-state: `Подтверждено` + `карточек на проверку нет`.
   - Do not show a separate totals line with `Всего` / `В словаре` inside the summary card.
   - Do not show a separate all-prepared info row below the two status cards.
-- Main pending action is a fixed-height warm split block: left side shows `TriangleAlert` with pending-word context, right side is a compact coral `Готовить` CTA with `Sparkles`; do not use arrows or chevrons because the action does not navigate.
+- Main pending action is a fixed-height warm split block: left side shows `TriangleAlert` with pending-word context and a highlighted attempts line `Осталось: remaining/dailyLimit попытка/попытки/попыток`; right side is a compact coral `Готовить` CTA with `Sparkles`; do not use arrows or chevrons because the action does not navigate.
+- The attempts line is plain emphasized text without a separate outline/chip. Available attempts use warm accent; exhausted attempts use coral/error accent.
+- When card preparation attempts are exhausted, keep the pending action visible, disable the CTA and show `Завтра` inside the button instead of a separate exhausted-warning block.
 - During card preparation, keep the same button dimensions and replace `Sparkles` with an inline spinner icon.
 - Preparation errors are shown directly below the pending action and above the compact info panel via `InlineStatusCard`.
 - Do not duplicate `needsApprovalCount` below the pending action; it belongs in the top status band.

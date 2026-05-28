@@ -23,12 +23,14 @@
 - free:
   - `dailyReadingGenerations`: `3`
   - `vocabularyWordsLimit`: `30`
+  - `dailyVocabularyCardGenerations`: `5`
 - paid:
   - `dailyReadingGenerations`: `10`
   - `vocabularyWordsLimit`: `300`
+  - `dailyVocabularyCardGenerations`: `20`
 
-Лимит генераций считается только на сервере в Edge Functions.
-Фронт отображает `dailyLimit`, `remainingAttempts` и `subscription.limits`, но не принимает решение о доступе.
+Лимиты генерации текстов и подготовки AI-карточек словаря считаются только на сервере в Edge Functions.
+Фронт отображает `dailyLimit`, `remainingAttempts`, `subscription.limits` и состояние `cardGeneration`, но не принимает решение о доступе.
 
 ## 4) DB model
 Таблица:
