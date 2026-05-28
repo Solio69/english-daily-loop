@@ -41,7 +41,7 @@ export class OpenRouterError extends Error {
 
 export const OPENROUTER_PROVIDER = "openrouter";
 export const DEFAULT_PRIMARY_MODEL = "openai/gpt-oss-20b:free";
-export const DEFAULT_FALLBACK_MODEL = "google/gemma-3-12b-it:free";
+export const DEFAULT_FALLBACK_MODEL = "qwen/qwen3.6-plus:free";
 export const DEFAULT_TERTIARY_MODEL = "qwen/qwen3.6-plus:free";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";

@@ -72,7 +72,7 @@ Telegram Mini App для ежедневной практики английск�
 - `save-vocabulary-word` — валидирует активный текст, проверяет лимит словаря и быстро сохраняет слово как `unlearned` + `pending`.
 - `get-vocabulary-state` — возвращает количество pending/needs_approval/ready слов в словаре пользователя.
 - `get-vocabulary-words` — возвращает AI-карточки на подтверждение и подтвержденные карточки словаря.
-- `prepare-vocabulary-cards` — batch-ом готовит AI-карточки для pending-слов, сохраняет валидные карточки, отправляет их на подтверждение и мержит pending-дубликаты в существующие канонические карточки.
+- `prepare-vocabulary-cards` — batch-ом готовит AI-карточки для pending-слов, пробует следующую allowlist-модель при невалидном AI-ответе или provider-ошибке, сохраняет валидные карточки, отправляет их на подтверждение и мержит pending-дубликаты в существующие канонические карточки.
 - `approve-vocabulary-card` — подтверждает AI-карточку пользователя и переводит ее в основной словарь.
 - `approve-vocabulary-cards` — подтверждает все AI-карточки текущего пользователя, которые ждут проверки.
 - `dev-tools` — локальные dev-действия для текущего Telegram-пользователя; работает только при `DEV_TOOLS_ENABLED="true"`.
@@ -144,7 +144,7 @@ DEV_TOOLS_ENABLED="false"
 
 ```env
 OPENROUTER_MODEL_PRIMARY="openai/gpt-oss-20b:free"
-OPENROUTER_MODEL_FALLBACK="google/gemma-3-12b-it:free"
+OPENROUTER_MODEL_FALLBACK="qwen/qwen3.6-plus:free"
 OPENROUTER_MODEL_TERTIARY="qwen/qwen3.6-plus:free"
 ```
 

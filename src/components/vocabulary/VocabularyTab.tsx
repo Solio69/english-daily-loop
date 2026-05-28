@@ -1,9 +1,8 @@
-import { CircleCheckBig, LoaderCircle } from "lucide-react";
 import React from "react";
-import { Button } from "../Button";
 import { InlineStatusCard } from "../InlineStatusCard";
 import { LoadingState } from "../LoadingState";
 import { useVocabularyMaterials } from "../../hooks/useVocabularyMaterials";
+import { VocabularyApproveAllAction } from "./VocabularyApproveAllAction";
 import { VocabularyApproveAllCardsModal } from "./VocabularyApproveAllCardsModal";
 import { VocabularySummaryCard } from "./VocabularySummaryCard";
 import { VocabularyWordCard } from "./VocabularyWordCard";
@@ -64,28 +63,15 @@ export const VocabularyTab: React.FC<VocabularyTabProps> = ({ isActive }) => {
 
           {vocabularyWords.needsApproval.length > 0 && (
             <section className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="min-w-0 font-heading text-sm font-semibold text-[var(--text-secondary)]">
-                  Требуют подтверждения
-                </h2>
-                <Button
-                  type="button"
-                  onClick={() => setIsApproveAllModalOpen(true)}
-                  disabled={isApprovingAllCards || Boolean(approvingWordId)}
-                  className="min-h-10 shrink-0 rounded-[18px] px-3 py-2 text-xs"
-                >
-                  {isApprovingAllCards ? (
-                    <LoaderCircle className="size-4 shrink-0 animate-spin" />
-                  ) : (
-                    <CircleCheckBig className="size-4 shrink-0" />
-                  )}
-                  <span>
-                    {isApprovingAllCards
-                      ? "Подтверждаем"
-                      : `Все · ${needsApprovalCount}`}
-                  </span>
-                </Button>
-              </div>
+              <h2 className="font-heading text-sm font-semibold text-[var(--text-secondary)]">
+                Требуют подтверждения
+              </h2>
+              <VocabularyApproveAllAction
+                count={needsApprovalCount}
+                isApproving={isApprovingAllCards}
+                isDisabled={isApprovingAllCards || Boolean(approvingWordId)}
+                onApproveAll={() => setIsApproveAllModalOpen(true)}
+              />
               {approveAllError ? (
                 <InlineStatusCard
                   variant="error"

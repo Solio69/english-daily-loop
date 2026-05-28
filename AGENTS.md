@@ -159,7 +159,7 @@
 - Дневной лимит генерации считается только на сервере в Edge Functions чтения по активной подписке из `user_subscriptions`; фронт только отображает полученные `dailyLimit/remainingAttempts`.
 - Текущие дефолтные OpenRouter-модели:
   - primary: `openai/gpt-oss-20b:free`
-  - fallback: `google/gemma-3-12b-it:free`
+  - fallback: `qwen/qwen3.6-plus:free`
   - tertiary: `qwen/qwen3.6-plus:free`.
 - Требуемые server env для AI:
   - `OPENROUTER_API_KEY`
@@ -182,7 +182,7 @@
 - Экран `Текст` реализован как контейнер `src/screens/ReadingScreen.tsx` плюс презентационные компоненты `src/components/reading/*`; idle, active text, loading, error и completed состояния используют mobile-first glass UI.
 - Парсинг отображаемого текста и нормализация кликабельных слов вынесены в `src/utils/readingText.ts`; `wordIndex` используется flow сохранения словаря и должен оставаться стабильным для selectable words.
 - `materialsService` вызывает `get-reading-history`; экран `Мои материалы` показывает завершенные тексты с табами `Тексты` и `Словарь`, где доступны подготовка, подтверждение и просмотр карточек словаря.
-- UI словаря в `Мои материалы` использует `src/components/vocabulary/*`: summary-карточку состояния словаря с meta row `Всего` / `В словаре`, двумя warm status cards `Добавить` / `Подтвердить`, fixed-height action `Готовить` для pending-слов, compact info panel, bulk-кнопку `Все · N` с confirmation modal для карточек на проверке, compact list rows, раскрываемые карточки с деталями/примерами/actions и `InlineStatusCard` для встроенных ошибок.
+- UI словаря в `Мои материалы` использует `src/components/vocabulary/*`: summary-карточку состояния словаря с meta row `Всего` / `В словаре`, двумя warm status cards `Добавить` / `Подтвердить`, fixed-height action `Готовить` для pending-слов, compact info panel, bulk action `Подтвердить все N AI-карточку/карточки/карточек` с confirmation modal для карточек на проверке, compact list rows, раскрываемые карточки с деталями/примерами/actions и `InlineStatusCard` для встроенных ошибок.
 - Ошибки подготовки словарных карточек показываются внутри summary-карточки под action `Готовить` и над compact info panel; ошибки массового подтверждения показываются внутри секции `Требуют подтверждения`; ошибки загрузки, одиночного подтверждения и просмотра словаря остаются встроенными статусами через `InlineStatusCard`.
 - Первый этап словаря реализован через `public.user_vocabulary_words`, `public.user_vocabulary_word_sources` и Edge Function `save-vocabulary-word`: слово добавляется только из активного текста без AI, сохраняется как `unlearned` + `card_status = pending`.
 - Карточки слов готовятся отдельно в табе `Словарь` через Edge Function `prepare-vocabulary-cards`, batch-ом до `5` pending-слов за запрос; валидные AI-карточки получают `card_status = needs_approval`, а слова без валидной карточки остаются в `pending`.
@@ -191,7 +191,7 @@
 - Пользователь подтверждает AI-карточку через Edge Function `approve-vocabulary-card` или подтверждает все карточки на проверке через `approve-vocabulary-cards`; только после этого карточка получает `card_status = ready` и попадает в основной список словаря.
 - Для связи слов с текстами активные и завершенные тексты имеют стабильный `reading_text_id`; при завершении чтения RPC `complete_daily_reading_text` переносит этот id из `user_active_reading_texts` в `user_completed_reading_texts`.
 - Сохранение pending-слова выполняется через RPC `save_pending_vocabulary_word_with_source` с advisory lock по пользователю; лимит словаря проверяется server-side по активной подписке (`free: 30`, `paid: 300`), прямых записей словаря с клиента нет.
-- AI-карточка слова хранит базовую форму, перевод, часть речи, данные глагола при необходимости и 3 английских примера по уровню пользователя; подготовка карточек сохраняет валидную часть batch-а, мержит совпадения по канонической форме и оставляет слова с невалидным или отсутствующим AI-ответом в `pending`.
+- AI-карточка слова хранит базовую форму, перевод, часть речи, данные глагола при необходимости и 3 английских примера по уровню пользователя; подготовка карточек сохраняет валидную часть batch-а, мержит совпадения по канонической форме, не блокирует карточку только из-за некорректного echo-поля `level` от AI и оставляет слова с невалидным или отсутствующим AI-ответом в `pending`.
 - На главной есть компактная карточка `Мои материалы`; плитка `Тексты` открывает экран материалов на табе текстов, плитка `Словарь` открывает таб словаря и показывает краткое состояние по `get-vocabulary-state`: `Добавить: N`, `Подтвердить: N` или `В словаре: N`.
 - На главной карточка урока использует `homeProgress.lesson.status` и `homeProgress.lesson.currentStep`; пока daily lesson состоит только из чтения и ведет пользователя сразу на экран текста.
 - Счетчик с иконкой огонька на главной использует `streakDays`, который сервер считает как серию подряд идущих завершений чтения по timezone `Europe/Moscow`.

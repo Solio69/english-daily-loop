@@ -69,7 +69,7 @@ Server env:
 
 Текущие дефолты:
 - primary: `openai/gpt-oss-20b:free`
-- fallback: `google/gemma-3-12b-it:free`
+- fallback: `qwen/qwen3.6-plus:free`
 - tertiary: `qwen/qwen3.6-plus:free`
 
 Текущая стратегия:

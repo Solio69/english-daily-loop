@@ -393,8 +393,9 @@ Vocabulary tab:
 - Preparation errors are shown directly below the pending action and above the compact info panel via `InlineStatusCard`.
 - Do not duplicate `needsApprovalCount` below the pending action; it belongs in the top status band.
 - If there are pending words, show a compact inline info panel below the action in the style of `ReadingInfoCard`.
-- Approval section header shows `Требуют подтверждения` with a compact coral bulk action button `Все · N` on the right.
-- Bulk approval opens a compact bottom confirmation modal with glass surface, warm attention icon, close control, secondary `Проверить вручную` action and coral `Подтвердить` CTA.
+- Approval section header shows only `Требуют подтверждения`; the bulk approval action sits directly below it as a fixed-height warm split block.
+- Bulk approval action uses the same visual grammar as the pending preparation block: left side has `TriangleAlert`, title `Подтвердить все N AI-карточку/AI-карточки/AI-карточек`, compact warning copy `AI может ошибаться. Проверь карточки перед добавлением.`, and right side has a coral `Подтвердить` CTA with `CircleCheckBig`.
+- Bulk approval opens a compact bottom confirmation modal with glass surface, warm icon/title accent, subtitle with card count, an info panel in the style of `VocabularyGenerationInfo`, secondary `Отменить` action and coral `Подтвердить` CTA; do not show a separate close control.
 - During bulk approval, keep the bulk action button dimensions stable and replace the check icon with an inline `LoaderCircle` spinner.
 - While bulk approval is running, closed approval rows are not expandable; individual approval actions stay visually busy/disabled.
 - Bulk approval errors are shown inside the approval section via `InlineStatusCard` with `variant="error"`.

@@ -58,7 +58,6 @@ Prompt считается частью кода:
 OpenRouter-модели проходят allowlist в `supabase/functions/_shared/openrouter.ts`.
 Текущие разрешенные модели:
 - `openai/gpt-oss-20b:free`
-- `google/gemma-3-12b-it:free`
 - `qwen/qwen3.6-plus:free`
 
 Если server env указывает модель вне allowlist, Edge Function возвращает `AI_MODEL_CONFIG_INVALID`

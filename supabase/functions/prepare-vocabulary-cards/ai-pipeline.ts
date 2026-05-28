@@ -172,9 +172,6 @@ const parseCardJson = (
   if (typeof parsed.isVerb !== "boolean") {
     throw new VocabularyAiError("Card JSON has invalid isVerb.");
   }
-  if (parsed.level !== level) {
-    throw new VocabularyAiError("Card JSON has invalid level.");
-  }
   if (!Array.isArray(parsed.examples) || parsed.examples.length !== 3) {
     throw new VocabularyAiError("Card JSON must contain exactly 3 examples.");
   }
@@ -363,6 +360,12 @@ export const generateVocabularyCardsBatch = async ({
         stage,
         error: lastErrorMessage,
       });
+
+      if (stage === "provider_response" && remainingModels.length > 1) {
+        remainingModels = excludeModel(remainingModels, remainingModels[0]);
+        continue;
+      }
+
       throw new VocabularyAiError(lastErrorMessage);
     }
 
