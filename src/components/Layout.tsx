@@ -1,13 +1,14 @@
 import React from 'react';
 import { BottomNav } from './BottomNav';
+import type { BottomNavItemId } from './BottomNav';
 
 type LayoutProps = {
   children: React.ReactNode;
-  activeNav: string;
-  onNavChange: (id: string) => void;
+  activeNav: BottomNavItemId;
+  onNavChange: (id: BottomNavItemId) => void;
   showBottomNav?: boolean;
-  disabledNavItems?: string[];
-  onDisabledNavClick?: (id: string) => void;
+  disabledNavItems?: BottomNavItemId[];
+  onDisabledNavClick?: (id: BottomNavItemId) => void;
 };
 
 export const Layout: React.FC<LayoutProps> = ({

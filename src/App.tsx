@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { Layout } from "./components/Layout";
 import { LoadingState } from "./components/LoadingState";
 import { Toast, ToastTone } from "./components/Toast";
+import type { BottomNavItemId } from "./components/BottomNav";
 import { HomeScreen } from "./screens/HomeScreen";
 import { MaterialsScreen } from "./screens/MaterialsScreen";
 import { ReadingScreen } from "./screens/ReadingScreen";
@@ -359,23 +360,21 @@ export default function App() {
     }
   };
 
-  const disabledNavItems = shouldForceSettings
-    ? ["reading", "vocabulary"]
+  const disabledNavItems: BottomNavItemId[] = shouldForceSettings
+    ? ["reading", "vocabulary", "materials"]
     : shouldForceReading
       ? ["vocabulary"]
       : [];
   const showBottomNav = currentScreen !== "settings" || isSettingsCompleted;
+  const activeNav: BottomNavItemId =
+    currentScreen === "settings" || currentScreen === "subscription"
+      ? "home"
+      : currentScreen;
 
   return (
     <div className="min-h-screen bg-[var(--background)] transition-colors">
       <Layout
-        activeNav={
-          currentScreen === "settings" ||
-          currentScreen === "subscription" ||
-          currentScreen === "materials"
-            ? "home"
-            : currentScreen
-        }
+        activeNav={activeNav}
         onNavChange={handleNavChange}
         showBottomNav={showBottomNav}
         disabledNavItems={disabledNavItems}

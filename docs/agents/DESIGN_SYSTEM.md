@@ -104,7 +104,7 @@ Fonts:
 - Lesson body text: `14px`, `leading-5`.
 - Materials tile title `Тексты` / `Словарь`: `16px`.
 - Materials tile secondary text: `14px`, `leading-5`.
-- Bottom nav label: `9px`; на `390px+` используется `10px`.
+- Bottom nav label: `8px`; на `390px+` используется `9px`.
 
 ## Layout
 
@@ -425,7 +425,7 @@ Nav capsule:
 
 ```tsx
 <nav className="
-  mx-auto grid max-w-[430px] grid-cols-3
+  mx-auto grid max-w-[430px] grid-cols-4
   rounded-[22px] border border-[var(--border)]
   bg-[var(--surface-strong)] p-1.5
   shadow-primary-glow backdrop-blur-[24px]
@@ -436,9 +436,10 @@ Nav capsule:
 Nav item:
 
 - icon: `19px`.
-- text: `9px`; на `390px+` используется `10px`.
+- text: `8px`; на `390px+` используется `9px`.
 - text must stay inside its button; use `truncate`.
 - active item uses `bg-[var(--primary-soft)] text-[var(--primary)] shadow-primary-glow`.
+- Items: `Главная` (`Home`), `Текст` (`BookOpen`), `Слова` (`BookText`), `Материалы` (`LibraryBig`).
 
 ## Toast
 

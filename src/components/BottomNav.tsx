@@ -1,29 +1,32 @@
 ﻿import React from 'react';
-import { Home, BookOpen, BookText } from 'lucide-react';
+import { Home, BookOpen, BookText, LibraryBig } from 'lucide-react';
 
 interface NavItem {
-  id: string;
+  id: BottomNavItemId;
   label: string;
   icon: React.ElementType;
 }
+
+export type BottomNavItemId = "home" | "reading" | "vocabulary" | "materials";
 
 const navItems: NavItem[] = [
   { id: 'home', label: 'Главная', icon: Home },
   { id: 'reading', label: 'Текст', icon: BookOpen },
   { id: 'vocabulary', label: 'Слова', icon: BookText },
+  { id: 'materials', label: 'Материалы', icon: LibraryBig },
 ];
 
 type BottomNavProps = {
-  active: string;
-  onChange: (id: string) => void;
-  disabledItems?: string[];
-  onDisabledClick?: (id: string) => void;
+  active: BottomNavItemId;
+  onChange: (id: BottomNavItemId) => void;
+  disabledItems?: BottomNavItemId[];
+  onDisabledClick?: (id: BottomNavItemId) => void;
 };
 
 export const BottomNav: React.FC<BottomNavProps> = ({ active, onChange, disabledItems = [], onDisabledClick }) => {
   return (
     <div className="fixed inset-x-0 bottom-0 z-20 px-2 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-1.5">
-      <nav className="mx-auto grid max-w-[430px] grid-cols-3 rounded-[22px] border border-[var(--border)] bg-[var(--surface-strong)] p-1.5 shadow-primary-glow backdrop-blur-[24px] min-[480px]:max-w-[390px]">
+      <nav className="mx-auto grid max-w-[430px] grid-cols-4 rounded-[22px] border border-[var(--border)] bg-[var(--surface-strong)] p-1.5 shadow-primary-glow backdrop-blur-[24px] min-[480px]:max-w-[390px]">
         {navItems.map((item) => {
           const isDisabled = disabledItems.includes(item.id);
           const isActive = active === item.id;
@@ -35,7 +38,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ active, onChange, disabled
               aria-label={item.label}
               aria-current={isActive ? "page" : undefined}
               onClick={() => (isDisabled ? onDisabledClick?.(item.id) : onChange(item.id))}
-              className={`flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-[18px] px-0.5 py-1.5 text-[9px] font-semibold leading-none transition active:scale-[0.98] min-[390px]:text-[10px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] ${
+              className={`flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-[18px] px-0.5 py-1.5 text-[8px] font-semibold leading-none transition active:scale-[0.98] min-[390px]:text-[9px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] ${
                 isActive
                   ? 'bg-[var(--primary-soft)] text-[var(--primary)] shadow-primary-glow'
                   : 'text-[var(--text-muted)] hover:bg-[var(--surface)]'
