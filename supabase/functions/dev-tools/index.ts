@@ -17,6 +17,9 @@ import {
 type DevToolAction =
   | "reset_generation_attempts"
   | "reset_vocabulary_card_attempts"
+  | "reset_vocabulary_review_progress"
+  | "make_vocabulary_reviews_due_today"
+  | "clear_today_vocabulary_review_completion"
   | "delete_today_reading_completion"
   | "reset_subscriptions";
 
@@ -32,6 +35,9 @@ const parseAction = (value: unknown): DevToolAction => {
   if (
     value === "reset_generation_attempts" ||
     value === "reset_vocabulary_card_attempts" ||
+    value === "reset_vocabulary_review_progress" ||
+    value === "make_vocabulary_reviews_due_today" ||
+    value === "clear_today_vocabulary_review_completion" ||
     value === "delete_today_reading_completion" ||
     value === "reset_subscriptions"
   ) {
@@ -135,6 +141,100 @@ const resetVocabularyCardAttempts = async (
   }
 
   return { vocabularyCardAttempts: count ?? 0 };
+};
+
+const resetVocabularyReviewProgress = async (
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+) => {
+  const { count, error } = await supabase
+    .from("user_vocabulary_words")
+    .update(
+      {
+        status: "not_started",
+        review_step: null,
+        next_review_date: null,
+        last_reviewed_at: null,
+        review_count: 0,
+        forgot_count: 0,
+        same_step_count: 0,
+        next_step_count: 0,
+        jump_step_count: 0,
+        learned_at: null,
+      },
+      { count: "exact" },
+    )
+    .eq("user_id", userId)
+    .eq("card_status", "ready");
+
+  if (error) {
+    console.error("[dev-tools] failed to reset vocabulary review progress", {
+      userId,
+      error: error.message,
+    });
+    fail(
+      500,
+      "DEV_TOOL_ACTION_FAILED",
+      "Failed to reset vocabulary review progress.",
+    );
+  }
+
+  return { vocabularyReviewWords: count ?? 0 };
+};
+
+const makeVocabularyReviewsDueToday = async (
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  today: string,
+) => {
+  const { count, error } = await supabase
+    .from("user_vocabulary_words")
+    .update({ next_review_date: today }, { count: "exact" })
+    .eq("user_id", userId)
+    .eq("card_status", "ready")
+    .eq("status", "active");
+
+  if (error) {
+    console.error("[dev-tools] failed to make vocabulary reviews due today", {
+      userId,
+      today,
+      error: error.message,
+    });
+    fail(
+      500,
+      "DEV_TOOL_ACTION_FAILED",
+      "Failed to make vocabulary reviews due today.",
+    );
+  }
+
+  return { vocabularyReviewsDueToday: count ?? 0 };
+};
+
+const clearTodayVocabularyReviewCompletion = async (
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  today: string,
+) => {
+  const { count, error } = await supabase
+    .from("user_daily_vocabulary_review_completions")
+    .delete({ count: "exact" })
+    .eq("user_id", userId)
+    .eq("review_date", today);
+
+  if (error) {
+    console.error("[dev-tools] failed to clear vocabulary review completion", {
+      userId,
+      today,
+      error: error.message,
+    });
+    fail(
+      500,
+      "DEV_TOOL_ACTION_FAILED",
+      "Failed to clear vocabulary review completion.",
+    );
+  }
+
+  return { dailyVocabularyReviewCompletions: count ?? 0 };
 };
 
 const deleteTodayReadingCompletions = async (
@@ -245,6 +345,16 @@ Deno.serve(async (req: Request) => {
         ? await resetGenerationAttempts(supabase, appUser.id, today)
         : action === "reset_vocabulary_card_attempts"
           ? await resetVocabularyCardAttempts(supabase, appUser.id, today)
+        : action === "reset_vocabulary_review_progress"
+          ? await resetVocabularyReviewProgress(supabase, appUser.id)
+        : action === "make_vocabulary_reviews_due_today"
+          ? await makeVocabularyReviewsDueToday(supabase, appUser.id, today)
+        : action === "clear_today_vocabulary_review_completion"
+          ? await clearTodayVocabularyReviewCompletion(
+              supabase,
+              appUser.id,
+              today,
+            )
         : action === "delete_today_reading_completion"
           ? await deleteTodayReadingCompletions(supabase, appUser.id, today)
           : await resetSubscriptions(supabase, appUser.id);

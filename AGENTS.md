@@ -56,6 +56,7 @@
 - Делать небольшие, проверяемые изменения.
 - Не использовать разрушительные git/file операции без явного запроса.
 - После существенных изменений запускать проверки (минимум `pnpm lint`) и сообщать результат.
+- Для изменений повторения, навигации и общих frontend helpers запускать `pnpm test`.
 
 ## Жесткая Git-политика
 - Агенту запрещены любые команды, меняющие историю или состояние репозитория: `git commit`, `git push`, `git merge`, `git rebase`, `git cherry-pick`, `git reset`, `git revert`, `git tag`, `git stash`, `git checkout` (для переключения/отката), `git switch`, `git restore`, `git clean`.
@@ -65,13 +66,15 @@
 
 ## Текущий статус (для будущих агентов)
 - Supabase local и Docker-окружение уже работают.
-- Уже подключены и используются таблицы `public.users`, `public.user_settings`, `public.reading_texts`, `public.reading_generation_attempts`, `public.user_active_reading_texts`, `public.user_daily_reading_completions`, `public.user_completed_reading_texts`, `public.user_subscriptions`, `public.user_vocabulary_words`, `public.user_vocabulary_word_sources` и `public.vocabulary_card_generation_attempts`.
+- Уже подключены и используются таблицы `public.users`, `public.user_settings`, `public.reading_texts`, `public.reading_generation_attempts`, `public.user_active_reading_texts`, `public.user_daily_reading_completions`, `public.user_completed_reading_texts`, `public.user_subscriptions`, `public.user_vocabulary_words`, `public.user_vocabulary_word_sources`, `public.vocabulary_card_generation_attempts` и `public.user_daily_vocabulary_review_completions`.
 - В `public.user_settings` есть настройки `english_level`, `daily_reading_minutes`.
 - На пользовательских, reading-state, completion/history и subscription таблицах включен RLS; frontend не пишет в защищенные таблицы напрямую, операции проходят через Edge Functions с `SUPABASE_SERVICE_ROLE_KEY`.
 - Миграция `supabase/migrations/20260430120000_harden_public_api_permissions.sql` явно закрывает прямой доступ `anon`/`authenticated` к защищенным таблицам, закрывает legacy RPC `get_random_reading_text` для клиента и оставляет server-only доступ через `service_role`.
 - Миграция `supabase/migrations/20260430173000_add_ai_generation_observability.sql` добавляет безопасные metadata-поля AI-попыток в `public.reading_generation_attempts`: prompt version, model chain, target/validation ranges, output word count, fallback flag, duration и failure stage.
 - Миграция `supabase/migrations/20260430190000_schedule_ai_attempt_cleanup.sql` включает `pg_cron` и создает scheduled cleanup job `cleanup_ai_generation_attempts` для удаления AI attempt metadata старше `90` дней.
 - Миграция `supabase/migrations/20260528120000_add_vocabulary_card_generation_attempts.sql` добавляет `public.vocabulary_card_generation_attempts`, RPC `claim_vocabulary_card_generation_attempt(...)` и scheduled cleanup job `cleanup_vocabulary_card_generation_attempts` для удаления attempt metadata подготовки карточек старше `90` дней.
+- Миграция `supabase/migrations/20260618120000_add_vocabulary_review_flow.sql` добавляет статусы и поля повторения, таблицу дневных completion-marker и RPC `review_vocabulary_word(...)`.
+- Миграция `supabase/migrations/20260622120000_harden_vocabulary_review_state.sql` добавляет RPC `get_or_create_vocabulary_review_state(...)` для атомарного snapshot очереди и фиксирует реактивацию существующих `learned`-слов без увеличения словаря.
 - В проекте есть базовые миграции и сиды для локальной разработки (dev user + моковые тексты).
 - Миграция `supabase/migrations/20260424113000_drop_daily_review_words_from_user_settings.sql` удаляет устаревшее поле `daily_review_words` из `public.user_settings`.
 - Миграция `supabase/migrations/20260513120000_drop_daily_exercise_minutes_from_user_settings.sql` удаляет поле `daily_exercise_minutes` из `public.user_settings`.
@@ -82,10 +85,13 @@
   - `public.activate_mvp_subscription(...)` — активация MVP-подписки с advisory lock по пользователю.
   - `public.save_pending_vocabulary_word_with_source(...)` — атомарное сохранение pending-слова и source из активного текста с advisory lock по пользователю.
   - `public.claim_vocabulary_card_generation_attempt(...)` — атомарная проверка лимита и списание попытки подготовки словарных карточек.
+  - `public.review_vocabulary_word(...)` — атомарный переход по шкале повторения и создание дневного completion-marker.
+  - `public.get_or_create_vocabulary_review_state(...)` — точный snapshot очереди и фиксация завершения пустого плана с advisory lock по пользователю и дате.
 - Корневой `tsconfig.json` исключает `supabase/functions`, потому что Edge Functions работают в Deno-рантайме и не должны проверяться frontend `tsc`.
 - Общая server-инфраструктура Edge Functions находится в `supabase/functions/_shared/server.ts`: CORS, POST guard, JSON parsing, env helpers, Telegram `initData` validation, безопасные JSON-ответы и `AppError`.
 - Общая server-логика лимита, подсчета и обновления metadata попыток подготовки словарных карточек находится в `supabase/functions/_shared/vocabulary-card-generation.ts`.
-- Edge Functions `auth-telegram`, `save-user-settings`, `activate-subscription`, `complete-reading-text`, `dev-tools`, `get-reading-state`, `get-reading-history`, `generate-reading-text`, `save-vocabulary-word`, `get-vocabulary-state`, `get-vocabulary-words`, `prepare-vocabulary-cards`, `approve-vocabulary-card` и `approve-vocabulary-cards` используют общий helper для Telegram auth/error/env/http слоя; бизнес-валидация остается внутри конкретных функций.
+- Общие server helper'ы повторения находятся в `supabase/functions/_shared/vocabulary-review.ts`, `supabase/functions/_shared/vocabulary-review-state.ts` и `supabase/functions/_shared/home-progress.ts`.
+- Edge Functions `auth-telegram`, `save-user-settings`, `activate-subscription`, `complete-reading-text`, `dev-tools`, `get-reading-state`, `get-reading-history`, `generate-reading-text`, `save-vocabulary-word`, `get-vocabulary-state`, `get-vocabulary-words`, `get-vocabulary-review-state`, `review-vocabulary-word`, `prepare-vocabulary-cards`, `approve-vocabulary-card` и `approve-vocabulary-cards` используют общий helper для Telegram auth/error/env/http слоя; бизнес-валидация остается внутри конкретных функций.
 - Telegram auth реализована через Edge Function `supabase/functions/auth-telegram/index.ts`:
   - серверная валидация `initData` (подпись + `auth_date`)
   - идемпотентный `find-or-create/upsert` пользователя по `telegram_user_id`
@@ -95,6 +101,7 @@
   - возвращает `subscription` summary (`tier`, `limits`, активная/запланированная подписка)
   - возвращает `homeProgress.lesson` (`status`, `currentStep`) для карточки урока на главной
   - возвращает `homeProgress.reading.status` (`not_started | in_progress | completed`) для карточки дневного прогресса
+  - возвращает `homeProgress.review` (`status`, `dueCount`, `reviewedTodayCount`) для шага повторения
   - возвращает `streakDays` для счетчика с иконкой огонька
   - единый контракт ответа (`ok/data` или `ok/error`).
 - Сохранение настроек пользователя реализовано через Edge Function `supabase/functions/save-user-settings/index.ts`:
@@ -153,7 +160,7 @@
 - Локальные dev tools реализованы через Edge Function `supabase/functions/dev-tools/index.ts`:
   - серверная валидация `Telegram initData`
   - обязательный server env gate `DEV_TOOLS_ENABLED="true"`
-  - actions: `reset_generation_attempts`, `reset_vocabulary_card_attempts`, `delete_today_reading_completion`, `reset_subscriptions`
+  - actions: `reset_generation_attempts`, `reset_vocabulary_card_attempts`, `reset_vocabulary_review_progress`, `make_vocabulary_reviews_due_today`, `clear_today_vocabulary_review_completion`, `delete_today_reading_completion`, `reset_subscriptions`
   - `delete_today_reading_completion` удаляет дневной progress-marker и все завершенные сегодня тексты текущего пользователя
   - frontend-панель показывается только при `VITE_DEV_TOOLS_ENABLED="true"`.
 - Текущие MVP-лимиты подписок:
@@ -191,16 +198,20 @@
 - `materialsService` вызывает `get-reading-history`; экран `Мои материалы` показывает завершенные тексты с табами `Тексты` и `Словарь`, где доступны подготовка, подтверждение и просмотр карточек словаря.
 - UI словаря в `Мои материалы` использует `src/components/vocabulary/*`: summary-карточку состояния словаря с двумя compact status cards `Добавить` / `Подтвердить`, где активные значения используют warm-состояние, а нулевые значения показываются как blue ready-state `Все готовы` / `Подтверждено` с иконками `Layers` / `CircleCheck`; fixed-height action `Готовить` для pending-слов, compact info panel, bulk action `Подтвердить все N AI-карточку/карточки/карточек` с confirmation modal для карточек на проверке, compact list rows, раскрываемые карточки с деталями/примерами/actions и `InlineStatusCard` для встроенных ошибок.
 - Ошибки подготовки словарных карточек показываются внутри summary-карточки под action `Готовить` и над compact info panel; ошибки массового подтверждения показываются внутри секции `Требуют подтверждения`; ошибки загрузки, одиночного подтверждения и просмотра словаря остаются встроенными статусами через `InlineStatusCard`.
-- Первый этап словаря реализован через `public.user_vocabulary_words`, `public.user_vocabulary_word_sources` и Edge Function `save-vocabulary-word`: слово добавляется только из активного текста без AI, сохраняется как `unlearned` + `card_status = pending`.
+- Сохранение словаря реализовано через `public.user_vocabulary_words`, `public.user_vocabulary_word_sources` и Edge Function `save-vocabulary-word`: слово добавляется только из активного текста без AI, сохраняется как `not_started` + `card_status = pending`.
 - Карточки слов готовятся отдельно в табе `Словарь` через Edge Function `prepare-vocabulary-cards`, batch-ом до `5` pending-слов за запрос; перед AI-запросом сервер списывает попытку через RPC `claim_vocabulary_card_generation_attempt`; валидные AI-карточки получают `card_status = needs_approval`, а слова без валидной карточки остаются в `pending`.
-- Если AI приводит pending-слово к канонической форме, которая уже есть у пользователя, подготовка карточек мержит pending-дубликат в существующую карточку: переносит `user_vocabulary_word_sources`, удаляет pending-запись и возвращает существующее слово из `learned` в `unlearned`, если пользователь снова добавил уже изученное слово.
+- Если AI приводит pending-слово к канонической форме, которая уже есть у пользователя, подготовка карточек переносит `user_vocabulary_word_sources` и удаляет pending-дубликат; прогресс `active`-слова сохраняется, а `learned`-слово возвращается в `not_started`.
 - Prompt/output слой подготовки словарных карточек находится в `supabase/functions/prepare-vocabulary-cards/ai-pipeline.ts`; сохранение подготовленных карточек и merge pending-дубликатов находятся в `supabase/functions/prepare-vocabulary-cards/card-persistence.ts`; общий OpenRouter client/model allowlist переиспользуется из `supabase/functions/_shared/openrouter.ts`.
 - Пользователь подтверждает AI-карточку через Edge Function `approve-vocabulary-card` или подтверждает все карточки на проверке через `approve-vocabulary-cards`; только после этого карточка получает `card_status = ready` и попадает в основной список словаря.
+- Подтвержденная `ready`-карточка получает `status = not_started` и сразу доступна в очереди повторения текущего дня.
+- Экран `Слова` реализует дневное повторение через `get-vocabulary-review-state` и `review-vocabulary-word`; очередь сортируется как новые → просроченные → сегодняшние, дневного cap нет.
+- Состояния учебного прогресса слова: `not_started | active | learned`; шкала интервалов: `1 день`, `3 дня`, `7 дней`, `14 дней`, `1–6 месяцев`, затем `learned`.
+- Завершение обязательной очереди фиксируется в `user_daily_vocabulary_review_completions`; новые карточки после completion доступны дополнительно и не открывают завершенный план заново.
 - Для связи слов с текстами активные и завершенные тексты имеют стабильный `reading_text_id`; при завершении чтения RPC `complete_daily_reading_text` переносит этот id из `user_active_reading_texts` в `user_completed_reading_texts`.
 - Сохранение pending-слова выполняется через RPC `save_pending_vocabulary_word_with_source` с advisory lock по пользователю; лимит словаря проверяется server-side по активной подписке (`free: 30`, `paid: 300`), прямых записей словаря с клиента нет.
 - AI-карточка слова хранит базовую форму, перевод, часть речи, данные глагола при необходимости и 3 английских примера по уровню пользователя; подготовка карточек сохраняет валидную часть batch-а, мержит совпадения по канонической форме, не блокирует карточку только из-за некорректного echo-поля `level` от AI и оставляет слова с невалидным или отсутствующим AI-ответом в `pending`.
 - На главной есть компактная карточка `Мои материалы`; пункт нижней навигации `Материалы` открывает экран материалов, плитка `Тексты` открывает экран материалов на табе текстов, плитка `Словарь` открывает таб словаря и показывает краткое состояние по `get-vocabulary-state`: `Добавить: N`, `Подтвердить: N` или `В словаре: N`.
-- На главной карточка урока использует `homeProgress.lesson.status` и `homeProgress.lesson.currentStep`; пока daily lesson состоит только из чтения и ведет пользователя сразу на экран текста.
+- На главной карточка урока использует `homeProgress.lesson.status` и `homeProgress.lesson.currentStep`; daily lesson последовательно ведет на чтение, затем на повторение слов.
 - Счетчик с иконкой огонька на главной использует `streakDays`, который сервер считает как серию подряд идущих завершений чтения по timezone `Europe/Moscow`.
 - Если генерация упала, новая попытка уже списана, новый текст не сохраняется, а ранее активный текст остается доступен после завершения состояния загрузки.
 - После неуспешной генерации экран чтения повторно запрашивает `get-reading-state`, чтобы синхронизировать активный текст и оставшиеся попытки с сервером.
@@ -224,7 +235,7 @@
   - `.env.local VITE_SUPABASE_URL` = SUPABASE API TUNNEL URL.
 - `npm run dev:telegram` запускает production-like локальный режим для Telegram: Supabase + Edge Functions + API tunnel + frontend build + Vite preview + frontend tunnel.
 - Новые миграции без пересоздания БД применяются через `npx supabase migration up`; полный `npx supabase db reset` пересоздает локальную БД и удаляет текущие локальные данные.
-- `npm run dev:telegram` поднимает Edge Functions `approve-vocabulary-card`, `approve-vocabulary-cards`, `auth-telegram`, `save-user-settings`, `activate-subscription`, `complete-reading-text`, `dev-tools`, `get-reading-state`, `get-reading-history`, `get-vocabulary-state`, `get-vocabulary-words`, `generate-reading-text`, `prepare-vocabulary-cards` и `save-vocabulary-word`.
+- `npm run dev:telegram` поднимает Edge Functions `approve-vocabulary-card`, `approve-vocabulary-cards`, `auth-telegram`, `save-user-settings`, `activate-subscription`, `complete-reading-text`, `dev-tools`, `get-reading-state`, `get-reading-history`, `get-vocabulary-review-state`, `review-vocabulary-word`, `get-vocabulary-state`, `get-vocabulary-words`, `generate-reading-text`, `prepare-vocabulary-cards` и `save-vocabulary-word`.
 - Логи в dev-режимах цветные по источнику (`[frontend]`, `[edge]`, `[db]`, `[api]`, `[tunnel-*]`), HTTP-методы и статус-коды дополнительно подсвечиваются.
 - `// TODO:` после изменения frontend-кода, кода Edge Functions или server env для OpenRouter (`OPENROUTER_MODEL_*`, `OPENROUTER_API_KEY`) перезапускать активный dev-режим, чтобы локальная среда подхватила актуальную версию функций, env и frontend bundle.
 - Если в summary указано `Frontend restart required: YES`, нужно перезапустить `npm run dev:telegram`.
@@ -234,3 +245,4 @@
 - Retention policy и SQL-диагностика AI-попыток зафиксированы в `notes/ai-observability-diagnostics.md`.
 - Ручной AI red-team checklist зафиксирован в `notes/ai-red-team-checklist.md`.
 - Flow сохранения слов зафиксирован в `notes/vocabulary-save-flow.md`.
+- Алгоритм и flow дневного повторения слов зафиксированы в `notes/vocabulary-review.md`.

@@ -10,22 +10,35 @@
 Источник истины для карточек на главной:
 - `public.user_daily_reading_completions`
 - `public.user_active_reading_texts`
+- `public.user_daily_vocabulary_review_completions`
+- `public.user_vocabulary_words`
 
-Сервер собирает в `auth-telegram`:
+Общий server helper `supabase/functions/_shared/home-progress.ts` собирает:
 - `homeProgress.lesson.status`
 - `homeProgress.lesson.currentStep`
 - `homeProgress.reading.status`
+- `homeProgress.review.status`
+- `homeProgress.review.dueCount`
+- `homeProgress.review.reviewedTodayCount`
 - `streakDays`
 
 Текущая модель lesson для главной:
-- daily lesson пока состоит только из чтения
-- `currentStep = "reading"`, пока урок не завершен
+- daily lesson состоит из чтения и повторения слов;
+- `currentStep = "reading"`, пока не завершено чтение;
+- `currentStep = "vocabulary"`, когда чтение завершено, а повторение еще нет;
 - `currentStep = null`, когда урок завершен
 
 Текущая модель чтения:
 - `not_started` — на сегодня нет активного текста и нет completion
 - `in_progress` — есть активный текст, но completion на сегодня нет
 - `completed` — на сегодня уже есть completion; это значит, что пользователь завершил хотя бы один текст, но не запрещает читать дополнительные тексты в тот же день
+
+Текущая модель повторения:
+- `not_started` — обязательная очередь не пуста, ответов за сегодня еще нет;
+- `in_progress` — пользователь повторил часть обязательной очереди;
+- `completed` — обязательная очередь пуста и дневной completion-marker сохранен;
+- если карточек на день нет, completion-marker создается с `reviewed_count = 0`;
+- новые карточки после completion доступны дополнительно и не открывают план заново.
 
 Текущая модель streak:
 - `streakDays` считается сервером по серии подряд идущих дат в `user_daily_reading_completions`
@@ -34,7 +47,11 @@
 ## 3) Где это используется
 Backend:
 - `supabase/functions/auth-telegram/index.ts`
+- `supabase/functions/save-user-settings/index.ts`
 - `supabase/functions/complete-reading-text/index.ts`
+- `supabase/functions/get-vocabulary-review-state/index.ts`
+- `supabase/functions/review-vocabulary-word/index.ts`
+- `supabase/functions/_shared/home-progress.ts`
 
 Frontend:
 - `src/types/homeProgress.ts`
@@ -45,6 +62,7 @@ Frontend:
 - `src/screens/HomeScreen.tsx`
 - `src/screens/MaterialsScreen.tsx`
 - `src/screens/ReadingScreen.tsx`
+- `src/screens/VocabularyScreen.tsx`
 
 ## 4) Поведение UI
 Главная страница:
@@ -67,14 +85,16 @@ Header главной:
 - streak с иконкой огонька находится справа в header карточки
 - показывает два шага дневного цикла: `Текст` и `Повторение`
 - статус `Текст` показывает `homeProgress.reading.status`
-- статус `Повторение` пока остается `Не начато`, пока отдельный flow повторения слов не участвует в server-side progress
+- статус `Повторение` показывает `homeProgress.review.status`
 - `not_started` отображается как `Не начато`
 - `in_progress` отображается как `В процессе`
 - `completed` отображается как `Готово`
 - текущий шаг использует теплый акцент `--accent-warm`
 - завершенный шаг использует основной акцент `--primary`
-- нижние плашки показывают минуты текста и демо-лимит повторения `30 слов`
+- нижние плашки показывают минуты текста и текущее количество обязательных слов;
+- при пустой очереди плашка повторения показывает `Слова`;
 - плашка времени чтения использует теплый акцент в состоянии `in_progress`, основной акцент в состоянии `completed` и нейтральный glass state в состоянии `not_started`
+- плашка повторения использует те же status-цвета: neutral, warm и primary.
 
 Карточка `План на сегодня`:
 - показывает короткое описание текущего состояния урока
@@ -82,7 +102,7 @@ Header главной:
 - кнопка `Начать` отображается, если урок еще не начат
 - кнопка `Продолжить` отображается, если чтение уже начато
 - бейдж `Завершено` отображается, если урок завершен
-- нажатие на кнопку ведет сразу на экран чтения
+- нажатие ведет на экран текущего шага: `Текст` или `Слова`.
 
 Карточка `Мои материалы`:
 - находится на главной под дневным планом
@@ -110,7 +130,10 @@ Header главной:
 
 Локальные обновления на клиенте:
 - после генерации текста `lesson.status` и `reading.status` переходят в `in_progress`
-- после завершения первого текста за день `lesson.status` и `reading.status` переходят в `completed`
+- после завершения первого текста `reading.status` переходит в `completed`, а
+  `lesson` вычисляется с учетом текущего `review.status`;
+- после ответа на карточку экран повторения обновляет `homeProgress.review` и общий
+  статус урока;
 - если генерация упала, экран чтения повторно запрашивает `get-reading-state`, чтобы синхронизировать активный текст и оставшиеся попытки
 
 ## 5) Toast component
@@ -173,5 +196,4 @@ App-level сообщения проходят через единый компо
 ## 7) Ограничения
 - Сейчас toast-слой живет в `App.tsx` и работает как единый глобальный канал только
   для app-level сообщений.
-- Daily lesson на главной пока агрегирует только чтение; слова еще не участвуют
-  в server-side расчете lesson progress.
+- Streak пока считается только по завершениям чтения и не зависит от повторения слов.

@@ -12,6 +12,7 @@ import {
   parseJsonBody,
   successResponse,
 } from "../_shared/server.ts";
+import { getHomeProgress as getSharedHomeProgress } from "../_shared/home-progress.ts";
 
 type EnglishLevel = "A1" | "A2" | "B1" | "B2";
 type DailyReadingMinutes = 3 | 5 | 10 | 15;
@@ -36,7 +37,6 @@ type SubscriptionRow = {
   ends_at: string;
 };
 
-const MOSCOW_TIME_ZONE = "Europe/Moscow";
 const FREE_LIMITS = {
   dailyReadingGenerations: 3,
   vocabularyWordsLimit: 30,
@@ -76,23 +76,6 @@ const mapSettings = (row: UserSettingsRow) => ({
   englishLevel: row.english_level,
   dailyReadingMinutes: row.daily_reading_minutes,
 });
-
-const getMoscowDate = (): string => {
-  const parts = new Intl.DateTimeFormat("en", {
-    timeZone: MOSCOW_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-
-  const values = Object.fromEntries(
-    parts
-      .filter((part) => part.type !== "literal")
-      .map((part) => [part.type, part.value]),
-  );
-
-  return `${values.year}-${values.month}-${values.day}`;
-};
 
 const getSubscriptionSummary = async (
   supabase: ReturnType<typeof createClient>,
@@ -139,55 +122,6 @@ const getSubscriptionSummary = async (
     limits: activeSubscription ? PAID_LIMITS : FREE_LIMITS,
     activeSubscription: mapSubscription(activeSubscription),
     scheduledSubscription: mapSubscription(scheduledSubscription),
-  };
-};
-
-const getHomeProgress = async (
-  supabase: ReturnType<typeof createClient>,
-  userId: string,
-) => {
-  const today = getMoscowDate();
-  const [
-    { data: completionRows, error: completionError },
-    { data: activeTextRow, error: activeTextError },
-  ] = await Promise.all([
-    supabase
-      .from("user_daily_reading_completions")
-      .select("user_id")
-      .eq("user_id", userId)
-      .eq("completed_date", today)
-      .limit(1),
-    supabase
-      .from("user_active_reading_texts")
-      .select("user_id")
-      .eq("user_id", userId)
-      .maybeSingle(),
-  ]);
-
-  if (completionError || activeTextError) {
-    console.error("[save-user-settings] failed to load home progress", {
-      appUserId: userId,
-      completionError: completionError?.message,
-      activeTextError: activeTextError?.message,
-    });
-    fail(500, "HOME_PROGRESS_LOAD_FAILED", "Failed to load home progress.");
-  }
-
-  const readingStatus =
-    (completionRows?.length ?? 0) > 0
-      ? "completed"
-      : activeTextRow
-        ? "in_progress"
-        : "not_started";
-
-  return {
-    lesson: {
-      status: readingStatus,
-      currentStep: readingStatus === "completed" ? null : "reading",
-    },
-    reading: {
-      status: readingStatus,
-    },
   };
 };
 
@@ -304,7 +238,7 @@ Deno.serve(async (req: Request) => {
     const user = (updatedUser as UserRow | null) ?? appUser;
     const [subscription, homeProgress] = await Promise.all([
       getSubscriptionSummary(supabase, appUser.id),
-      getHomeProgress(supabase, appUser.id),
+      getSharedHomeProgress(supabase, appUser.id, "[save-user-settings]"),
     ]);
 
     return successResponse(200, {

@@ -1,4 +1,4 @@
-import { BookOpen } from "lucide-react";
+import { BookOpen, Box } from "lucide-react";
 import React from "react";
 import { VocabularyWordCard } from "../../types/vocabulary";
 import { getPartOfSpeechLabel } from "../../utils/vocabularyLabels";
@@ -36,9 +36,12 @@ export const VocabularyWordDetails: React.FC<VocabularyWordDetailsProps> = ({
 
       {word.isVerb && word.verbForms && (
         <section className="glass-control rounded-[16px] border border-[var(--border)] p-3">
-          <p className="mb-3 font-heading text-[15px] font-semibold text-[var(--text-secondary)]">
-            {formsTitle}
-          </p>
+          <div className="mb-3 flex items-center gap-2 text-[var(--text-secondary)]">
+            <Box size={20} strokeWidth={2.2} className="text-[var(--primary)]" />
+            <p className="font-heading text-[15px] font-semibold">
+              {formsTitle}
+            </p>
+          </div>
           <div className="grid grid-cols-3 gap-2 text-[14px] font-semibold text-[var(--primary)] min-[390px]:text-[15px]">
             <span className="glass-control rounded-[14px] px-2.5 py-2.5 text-center">
               {word.verbForms.base}

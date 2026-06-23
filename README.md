@@ -13,11 +13,12 @@ Telegram Mini App для ежедневной практики английск�
 - Активный непрочитанный текст на пользователя.
 - Завершение чтения, сохранение нескольких текстов за день в историю и streak по дням.
 - Раздел `Мои материалы` с историей прочитанных текстов, словарем, glass-табами, входом из нижней навигации и индикатором действий по словарю на главной.
-- Первый этап словаря: быстрое добавление слова из активного текста, отдельная AI-подготовка карточек, одиночное и массовое подтверждение карточек, просмотр готовых слов.
+- Словарь: быстрое добавление слова из активного текста, отдельная AI-подготовка карточек, одиночное и массовое подтверждение карточек, просмотр готовых слов.
+- Дневное повторение подтвержденных карточек по интервальной шкале от 1 дня до 6 месяцев с действиями `Не помню`, текущий шаг, следующий шаг и шаг через один.
 - Mobile-first главная страница с full-bleed Telegram layout, compact bottom navigation `Главная` / `Текст` / `Слова` / `Материалы`, glass UI и дизайн-токенами.
 - Тема приложения по умолчанию следует системной теме Telegram; пользователь может выбрать режим `Как в Telegram`, светлую или темную тему через трехпозиционный переключатель в header главной.
 - Экран настроек использует mobile-first glass UI для выбора уровня английского и времени чтения.
-- Дневной прогресс на главной показывает шаги `Текст` и `Повторение`; повторение слов остается частью MVP-цикла.
+- Дневной прогресс и план урока объединяют последовательные шаги `Текст` и `Повторение`.
 - Единые app-level toast-сообщения показываются сверху как floating glass card с variant-состояниями `success`, `warning`, `error`.
 - Общие UI primitives: `ScreenHeader`, `LoadingState`, `InlineStatusCard`, shared `Button`.
 - MVP-подписки: `free` и `paid` тарифное состояние без реальных платежей.
@@ -69,17 +70,19 @@ Telegram Mini App для ежедневной практики английск�
 - `generate-reading-text` — атомарно списывает попытку, вызывает OpenRouter, валидирует ответ модели и сохраняет активный текст.
 - `complete-reading-text` — транзакционно завершает активный текст, сохраняет snapshot текста в историю, удаляет активный текст и обновляет streak.
 - `get-reading-history` — возвращает историю прочитанных текстов текущего пользователя с cursor-пагинацией.
-- `save-vocabulary-word` — валидирует активный текст, проверяет лимит словаря и быстро сохраняет слово как `unlearned` + `pending`.
+- `save-vocabulary-word` — валидирует активный текст, проверяет лимит словаря и быстро сохраняет слово как `not_started` + `pending`.
 - `get-vocabulary-state` — возвращает количество pending/needs_approval/ready слов в словаре пользователя и состояние дневного лимита подготовки AI-карточек.
 - `get-vocabulary-words` — возвращает AI-карточки на подтверждение и подтвержденные карточки словаря.
 - `prepare-vocabulary-cards` — batch-ом до 5 pending-слов списывает дневную попытку подготовки карточек, готовит AI-карточки, пробует следующую allowlist-модель при невалидном AI-ответе или provider-ошибке, сохраняет валидные карточки, отправляет их на подтверждение и мержит pending-дубликаты в существующие канонические карточки.
 - `approve-vocabulary-card` — подтверждает AI-карточку пользователя и переводит ее в основной словарь.
 - `approve-vocabulary-cards` — подтверждает все AI-карточки текущего пользователя, которые ждут проверки.
-- `dev-tools` — локальные dev-действия для текущего Telegram-пользователя; умеет сбрасывать попытки генерации текстов, попытки подготовки карточек словаря, дневное чтение и подписки; работает только при `DEV_TOOLS_ENABLED="true"`.
+- `get-vocabulary-review-state` — возвращает точный snapshot дневной очереди, прогресс, следующую карточку и действия словаря.
+- `review-vocabulary-word` — атомарно применяет выбранный интервал и завершает дневной план после последней обязательной карточки.
+- `dev-tools` — локальные dev-действия для текущего Telegram-пользователя; управляет попытками генерации, чтением, повторением слов и подписками; работает только при `DEV_TOOLS_ENABLED="true"`.
 
 Все чувствительные операции выполняются на сервере. `TELEGRAM_BOT_TOKEN`, `SUPABASE_SERVICE_ROLE_KEY` и `OPENROUTER_API_KEY` нельзя использовать в клиентском коде. Неожиданные внутренние ошибки Edge Functions логируются на сервере, а клиент получает безопасный код и сообщение без SQL/provider details.
 
-Общая server-инфраструктура Edge Functions находится в `supabase/functions/_shared/server.ts`: CORS, POST guard, JSON parsing, чтение env, Telegram `initData` validation, `AppError` и единый формат JSON-ответов. Общий OpenRouter client/model allowlist находится в `supabase/functions/_shared/openrouter.ts`, общие AI text helpers — в `supabase/functions/_shared/ai-text.ts`. Общая server-логика лимита подготовки словарных карточек находится в `supabase/functions/_shared/vocabulary-card-generation.ts`. Бизнес-логика подписок, чтения, словаря и генерации остается в конкретных Edge Functions.
+Общая server-инфраструктура Edge Functions находится в `supabase/functions/_shared/server.ts`: CORS, POST guard, JSON parsing, чтение env, Telegram `initData` validation, `AppError` и единый формат JSON-ответов. Общий OpenRouter client/model allowlist находится в `supabase/functions/_shared/openrouter.ts`, общие AI text helpers — в `supabase/functions/_shared/ai-text.ts`. Лимиты подготовки карточек вынесены в `supabase/functions/_shared/vocabulary-card-generation.ts`, а snapshot повторения и home progress — в `supabase/functions/_shared/vocabulary-review-state.ts` и `supabase/functions/_shared/home-progress.ts`.
 Prompt/output слой словарных карточек находится рядом с функцией подготовки: `supabase/functions/prepare-vocabulary-cards/ai-pipeline.ts`. Сохранение подготовленных карточек и merge pending-дубликатов в существующие канонические карточки вынесены в `supabase/functions/prepare-vocabulary-cards/card-persistence.ts`.
 
 ## Данные
@@ -97,6 +100,7 @@ Prompt/output слой словарных карточек находится р
 - `public.user_vocabulary_words`
 - `public.user_vocabulary_word_sources`
 - `public.vocabulary_card_generation_attempts`
+- `public.user_daily_vocabulary_review_completions`
 
 Дневной цикл считается по timezone `Europe/Moscow`.
 
@@ -117,6 +121,8 @@ AI attempt metadata хранится `90` дней; scheduled cleanup выпол
 - `public.activate_mvp_subscription(...)` — активирует или планирует MVP-подписку с advisory lock по пользователю.
 - `public.save_pending_vocabulary_word_with_source(...)` — сохраняет pending-слово и источник из активного текста с advisory lock по пользователю.
 - `public.claim_vocabulary_card_generation_attempt(...)` — атомарно проверяет дневной лимит подготовки карточек и создает attempt с advisory lock по пользователю и дате.
+- `public.review_vocabulary_word(...)` — применяет действие повторения, обновляет интервалы и создает дневной completion-marker.
+- `public.get_or_create_vocabulary_review_state(...)` — атомарно считает очередь и фиксирует завершение пустого или выполненного плана.
 
 Текущие MVP-лимиты:
 
@@ -254,6 +260,12 @@ pnpm lint
 Запускает TypeScript-проверку frontend-кода.
 
 ```bash
+pnpm test
+```
+
+Запускает unit-тесты интервалов повторения, навигационного стека и русских форм счетчиков.
+
+```bash
 pnpm build
 ```
 
@@ -292,6 +304,7 @@ pnpm build
 - `notes/reading-generation-limits.md` — дневные попытки и активный текст.
 - `notes/materials-and-reading-history.md` — раздел `Мои материалы` и история прочитанных текстов.
 - `notes/vocabulary-save-flow.md` — словарь: сохранение слов из активного текста, AI-подготовка карточек и дневные попытки подготовки.
+- `notes/vocabulary-review.md` — алгоритм, дневная очередь, server-side progress и UI повторения слов.
 - `notes/subscriptions.md` — MVP-модель подписок.
 - `notes/home-progress-and-toast.md` — прогресс главного экрана и toast-сообщения.
 - `notes/dev-mode-dx.md` — локальный Telegram-режим разработки и ограничения DX.

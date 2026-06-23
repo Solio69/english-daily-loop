@@ -17,10 +17,12 @@ import {
   LessonCurrentStep,
   LessonHomeStatus,
   ReadingHomeStatus,
+  ReviewHomeStatus,
 } from "../types/homeProgress";
 import { MaterialsTab } from "../types/materials";
 import { SubscriptionSummary } from "../types/subscription";
 import { VocabularyState } from "../types/vocabulary";
+import { getRussianPlural } from "../utils/russianPlural";
 
 type HomeScreenProps = {
   onNavigate: (screen: string) => void;
@@ -32,6 +34,8 @@ type HomeScreenProps = {
   lessonStatus?: LessonHomeStatus;
   lessonCurrentStep?: LessonCurrentStep;
   readingStatus?: ReadingHomeStatus;
+  reviewStatus?: ReviewHomeStatus;
+  reviewDueCount?: number;
   isFirstSetup?: boolean;
   subscription?: SubscriptionSummary;
   readingMinutes?: number | null;
@@ -158,6 +162,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   lessonStatus = "not_started",
   lessonCurrentStep = "reading",
   readingStatus = "not_started",
+  reviewStatus = "completed",
+  reviewDueCount = 0,
   isFirstSetup = false,
   subscription,
   readingMinutes,
@@ -180,6 +186,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       : readingStatus === "in_progress"
         ? "in_progress"
         : "idle";
+  const reviewProgressStatus: StatusState =
+    reviewStatus === "completed"
+      ? "done"
+      : reviewStatus === "in_progress"
+        ? "in_progress"
+        : "not_started";
   const isPaid = subscription?.tier === "paid";
   const SubscriptionIcon = isPaid ? Crown : WalletCards;
   const displayName = userName ?? "Пользователь";
@@ -192,10 +204,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       ? lessonStatus === "in_progress"
         ? "Урок начат. Вернись, чтобы закончить чтение."
         : "Начни урок с чтения текста."
-      : lessonStatus === "in_progress"
-        ? "Урок начат. Продолжай следующий шаг."
-        : "Начни сегодняшний урок.";
-  const reviewStatus: StatusState = "not_started";
+      : reviewDueCount > 0
+        ? `Осталось повторить ${reviewDueCount} ${getRussianPlural(reviewDueCount, ["слово", "слова", "слов"])}.`
+        : "Повтори слова, чтобы закрыть урок.";
   const vocabularyTile = getVocabularyTileText(
     vocabularyState,
     isVocabularyStateLoading,
@@ -318,7 +329,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <ProgressStep
               icon={Target}
               label="Повторение"
-              status={reviewStatus}
+              status={reviewProgressStatus}
             />
           </div>
 
@@ -330,8 +341,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             >
               {readingMinutes ?? 3}м Текст
             </span>
-            <span className="col-start-3 mx-auto w-28 rounded-[12px] border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-center text-[10px] font-medium text-[var(--text-secondary)] backdrop-blur-[24px] min-[480px]:w-24">
-              30 слов
+            <span
+              className={`col-start-3 mx-auto w-28 rounded-[12px] border px-2 py-1 text-center text-[10px] backdrop-blur-[24px] min-[480px]:w-24 ${
+                reviewStatus === "completed"
+                  ? "border-[var(--border-strong)] bg-[var(--primary-soft)] font-semibold text-[var(--primary)] shadow-primary-glow"
+                  : reviewStatus === "in_progress"
+                    ? "border-[var(--accent-warm)] bg-[var(--accent-warm-soft)] font-semibold text-[var(--accent-warm)] shadow-warm-glow"
+                    : "border-[var(--border)] bg-[var(--surface)] font-medium text-[var(--text-secondary)]"
+              }`}
+            >
+              {reviewDueCount > 0 ? `${reviewDueCount} слов` : "Слова"}
             </span>
           </div>
         </section>
@@ -403,23 +422,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => onOpenMaterials("texts")}
-                  className="grid h-[108px] grid-rows-[44px_40px] content-start rounded-[16px] border border-[var(--border)] bg-[var(--surface-strong)] p-2.5 text-left backdrop-blur-[24px] transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
-                >
-                  <div className="flex h-11 items-center gap-2 text-[var(--text-primary)]">
-                    <span className="glass-control grid size-10 shrink-0 place-items-center rounded-full text-[var(--primary)]">
-                      <BookOpen className="-translate-y-px" size={20} />
-                    </span>
-                    <span className="font-heading text-base font-semibold">
-                      Тексты
-                    </span>
-                  </div>
-                  <p className="mt-1.5 h-10 overflow-hidden text-sm leading-5 text-[var(--text-secondary)]">
-                    История чтения
-                  </p>
-                </button>
-                <button
-                  type="button"
                   onClick={() => onOpenMaterials("vocabulary")}
                   className="grid h-[108px] grid-rows-[44px_40px] content-start rounded-[16px] border border-[var(--border)] bg-[var(--surface-strong)] p-2.5 text-left backdrop-blur-[24px] transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
                 >
@@ -443,6 +445,23 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                         {line}
                       </span>
                     ))}
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onOpenMaterials("texts")}
+                  className="grid h-[108px] grid-rows-[44px_40px] content-start rounded-[16px] border border-[var(--border)] bg-[var(--surface-strong)] p-2.5 text-left backdrop-blur-[24px] transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+                >
+                  <div className="flex h-11 items-center gap-2 text-[var(--text-primary)]">
+                    <span className="glass-control grid size-10 shrink-0 place-items-center rounded-full text-[var(--primary)]">
+                      <BookOpen className="-translate-y-px" size={20} />
+                    </span>
+                    <span className="font-heading text-base font-semibold">
+                      Тексты
+                    </span>
+                  </div>
+                  <p className="mt-1.5 h-10 overflow-hidden text-sm leading-5 text-[var(--text-secondary)]">
+                    История чтения
                   </p>
                 </button>
               </div>

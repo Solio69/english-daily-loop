@@ -29,7 +29,7 @@ type VocabularyWordRow = {
     pastParticiple?: string;
   } | null;
   examples: string[];
-  status: "unlearned" | "learned";
+  status: "not_started" | "active" | "learned";
   card_status: "needs_approval" | "ready";
   created_at: string;
   updated_at: string;

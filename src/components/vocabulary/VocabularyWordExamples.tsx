@@ -5,11 +5,13 @@ import { getHighlightedTextParts } from "../../utils/vocabularyText";
 type VocabularyWordExamplesProps = {
   examples: string[];
   highlightTokens: string[];
+  highlightTone?: "primary" | "warm";
 };
 
 export const VocabularyWordExamples: React.FC<VocabularyWordExamplesProps> = ({
   examples,
   highlightTokens,
+  highlightTone = "primary",
 }) => (
   <section className="space-y-3">
     <div className="flex items-center gap-2 text-[var(--text-secondary)]">
@@ -34,7 +36,11 @@ export const VocabularyWordExamples: React.FC<VocabularyWordExamplesProps> = ({
               part.isHighlighted ? (
                 <span
                   key={`${part.text}-${partIndex}`}
-                  className="font-semibold text-[var(--primary)]"
+                  className={`font-semibold ${
+                    highlightTone === "warm"
+                      ? "text-[var(--accent-warm)]"
+                      : "text-[var(--primary)]"
+                  }`}
                 >
                   {part.text}
                 </span>

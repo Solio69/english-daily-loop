@@ -9,6 +9,10 @@ export type LessonHomeStatus =
   | "completed";
 
 export type LessonCurrentStep = "reading" | "vocabulary" | null;
+export type ReviewHomeStatus =
+  | "not_started"
+  | "in_progress"
+  | "completed";
 
 export type HomeProgress = {
   lesson: {
@@ -17,5 +21,10 @@ export type HomeProgress = {
   };
   reading: {
     status: ReadingHomeStatus;
+  };
+  review: {
+    status: ReviewHomeStatus;
+    dueCount: number;
+    reviewedTodayCount: number;
   };
 };

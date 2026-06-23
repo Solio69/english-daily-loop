@@ -95,10 +95,12 @@
 - `dev-tools`
 - `get-reading-state`
 - `get-reading-history`
+- `get-vocabulary-review-state`
 - `get-vocabulary-state`
 - `get-vocabulary-words`
 - `generate-reading-text`
 - `prepare-vocabulary-cards`
+- `review-vocabulary-word`
 - `save-vocabulary-word`
 
 Локальные tunnel targets:
@@ -121,6 +123,9 @@ DEV_TOOLS_ENABLED="true"
 
 - `Сброс текстов` обнуляет попытки генерации текстов за сегодня.
 - `Сброс AI-карточек` обнуляет попытки подготовки карточек словаря за сегодня.
+- `Сброс повторения` возвращает все ready-карточки текущего пользователя в начало алгоритма и очищает статистику повторения.
+- `Слова на сегодня` назначает активным ready-карточкам текущую московскую дату повторения.
+- `Открыть повторение` удаляет completion-marker повторения за текущую московскую дату.
 - `Удалить прочитанное` удаляет progress-marker текущего дня и все завершенные сегодня тексты текущего Telegram-пользователя из истории.
 - `Сброс подписок` удаляет MVP-подписки текущего Telegram-пользователя.
 

@@ -1,111 +1,198 @@
-﻿import { CheckCircle2, RotateCcw, XCircle, Zap } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import { BookText, CheckCircle2, Sparkles } from "lucide-react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Button } from "../components/Button";
+import { InlineStatusCard } from "../components/InlineStatusCard";
 import { LoadingState } from "../components/LoadingState";
-import { getMockReviewQueue } from "../services/mockServices";
-import { VocabularyItem } from "../types";
+import { ScreenHeader } from "../components/ScreenHeader";
+import { VocabularyDictionaryActionsNotice } from "../components/vocabulary-review/VocabularyDictionaryActionsNotice";
+import { VocabularyReviewProgressCard } from "../components/vocabulary-review/VocabularyReviewProgressCard";
+import { VocabularyReviewWordCard } from "../components/vocabulary-review/VocabularyReviewWordCard";
+import {
+  getVocabularyReviewState,
+  reviewVocabularyWord,
+} from "../services/vocabularyService";
+import {
+  VocabularyReviewAction,
+  VocabularyReviewState,
+  VocabularyReviewStatus,
+} from "../types/vocabulary";
 
-export const VocabularyScreen: React.FC<{
+type VocabularyScreenProps = {
   onBack: () => void;
-  onNext?: () => void;
-}> = ({ onBack, onNext }) => {
-  const [queue, setQueue] = useState<VocabularyItem[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [showBack, setShowBack] = useState(false);
-  const [loading, setLoading] = useState(true);
+  onOpenVocabularyMaterials: () => void;
+  onReviewStatusChange?: (
+    status: VocabularyReviewStatus,
+    remainingRequiredCount: number,
+    reviewedTodayCount: number,
+  ) => void;
+};
+
+export const VocabularyScreen: React.FC<VocabularyScreenProps> = ({
+  onBack,
+  onOpenVocabularyMaterials,
+  onReviewStatusChange,
+}) => {
+  const [reviewState, setReviewState] = useState<VocabularyReviewState | null>(
+    null,
+  );
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCardRevealed, setIsCardRevealed] = useState(false);
+  const [errorText, setErrorText] = useState<string | null>(null);
+
+  const applyReviewState = useCallback(
+    (state: VocabularyReviewState) => {
+      setReviewState(state);
+      onReviewStatusChange?.(
+        state.status,
+        state.remainingRequiredCount,
+        state.reviewedTodayCount,
+      );
+    },
+    [onReviewStatusChange],
+  );
+
+  const loadReviewState = useCallback(async () => {
+    setErrorText(null);
+    const state = await getVocabularyReviewState();
+    applyReviewState(state);
+  }, [applyReviewState]);
 
   useEffect(() => {
-    getMockReviewQueue().then((data) => {
-      setQueue(data);
-      setLoading(false);
-    });
-  }, []);
+    let isMounted = true;
 
-  const handleNext = () => {
-    if (currentIndex + 1 >= queue.length) {
-      if (onNext) {
-        onNext();
-      } else {
-        setCurrentIndex((prev) => prev + 1);
+    const load = async () => {
+      setIsLoading(true);
+      try {
+        const state = await getVocabularyReviewState();
+        if (!isMounted) return;
+        applyReviewState(state);
+      } catch (error) {
+        if (!isMounted) return;
+        setErrorText(
+          error instanceof Error
+            ? error.message
+            : "Не удалось загрузить повторение слов.",
+        );
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
-    } else {
-      setCurrentIndex((prev) => prev + 1);
-      setShowBack(false);
+    };
+
+    load();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [applyReviewState]);
+
+  const handleReview = async (action: VocabularyReviewAction) => {
+    const currentCard = reviewState?.currentCard;
+    if (!currentCard || isSubmitting) return;
+
+    setIsSubmitting(true);
+    setErrorText(null);
+    try {
+      await reviewVocabularyWord(currentCard.id, action);
+      setIsCardRevealed(false);
+      await loadReviewState();
+    } catch (error) {
+      setErrorText(
+        error instanceof Error ? error.message : "Не удалось сохранить ответ.",
+      );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  if (loading) return <LoadingState message="Загружаем слова..." />;
-  if (queue.length === 0)
-    return (
-      <div className="p-4 text-center dark:text-gray-200">
-        Слов для повторения пока нет
-      </div>
-    );
-  if (currentIndex >= queue.length)
-    return (
-      <div className="p-4 text-center space-y-4">
-        <CheckCircle2 size={48} className="mx-auto text-green-500" />
-        <h2 className="text-2xl font-bold dark:text-white">
-          Повторение завершено!
-        </h2>
-        <Button
-          className="w-full py-4 dark:bg-orange-500 dark:hover:bg-orange-600"
-          onClick={onNext || onBack}
-        >
-          Продолжить
-        </Button>
-      </div>
-    );
-
-  const item = queue[currentIndex];
+  const totalCount = reviewState?.requiredTotalCount ?? 0;
+  const remainingCount = reviewState?.remainingRequiredCount ?? 0;
+  const reviewedCount = Math.max(totalCount - remainingCount, 0);
+  const currentCard = reviewState?.currentCard ?? null;
+  const dictionaryActions = reviewState?.dictionaryActions ?? {
+    pendingCount: 0,
+    needsApprovalCount: 0,
+  };
 
   return (
-    <div className="p-3 space-y-3 w-full max-w-full overflow-hidden">
-      <header className="flex justify-between items-center text-sm text-gray-500 dark:text-gray-400">
-        <div className="flex items-center gap-1">
-          <Zap size={16} /> Повторение
-        </div>
-        <div>
-          {currentIndex + 1} / {queue.length}
-        </div>
-      </header>
+    <div className="mx-auto w-full max-w-[430px] space-y-3 px-3.5 pb-6 pt-3 min-[390px]:px-4 min-[480px]:max-w-[390px] min-[480px]:px-3">
+      <ScreenHeader title="Слова" onBack={onBack} />
 
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 text-center min-h-[200px] flex flex-col justify-center items-center w-full">
-        <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-          {showBack ? item.translation : item.word}
-        </h3>
-        {showBack && (
-          <p className="text-gray-600 dark:text-gray-400 text-base italic">
-            "{item.example}"
-          </p>
-        )}
-      </div>
+      {isLoading ? (
+        <LoadingState message="Загружаем повторение..." />
+      ) : errorText && !reviewState ? (
+        <InlineStatusCard
+          variant="error"
+          title="Не удалось загрузить слова"
+          description={errorText}
+        />
+      ) : reviewState ? (
+        <>
+          <VocabularyReviewProgressCard
+            totalCount={totalCount}
+            reviewedCount={reviewedCount}
+            remainingCount={remainingCount}
+          />
 
-      <Button
-        className="w-full py-3 text-base dark:bg-orange-500 dark:hover:bg-orange-600"
-        onClick={() => setShowBack(!showBack)}
-      >
-        <RotateCcw size={18} className="mr-2" />
-        {showBack ? "Показать слово" : "Показать перевод"}
-      </Button>
+          <VocabularyDictionaryActionsNotice
+            pendingCount={dictionaryActions.pendingCount}
+            needsApprovalCount={dictionaryActions.needsApprovalCount}
+            onOpen={onOpenVocabularyMaterials}
+          />
 
-      {showBack && (
-        <div className="grid grid-cols-2 gap-2 w-full">
-          <Button
-            variant="outline"
-            className="py-3 text-base dark:border-gray-700 dark:text-gray-200"
-            onClick={handleNext}
-          >
-            <XCircle size={18} className="mr-2" /> Снова
-          </Button>
-          <Button
-            className="py-3 text-base dark:bg-green-600 dark:hover:bg-green-700"
-            onClick={handleNext}
-          >
-            <CheckCircle2 size={18} className="mr-2" /> Знаю
-          </Button>
-        </div>
-      )}
+          {errorText && (
+            <InlineStatusCard
+              variant="error"
+              title="Не удалось сохранить ответ"
+              description={errorText}
+            />
+          )}
+
+          {currentCard ? (
+            <VocabularyReviewWordCard
+              card={currentCard}
+              isRevealed={isCardRevealed}
+              isSubmitting={isSubmitting}
+              onReveal={() => setIsCardRevealed(true)}
+              onReview={handleReview}
+            />
+          ) : reviewState.totalReadyCount === 0 ? (
+            <section className="glass-card rounded-[20px] p-6 text-center">
+              <div className="glass-control mx-auto mb-3 grid size-14 place-items-center rounded-full text-[var(--primary)]">
+                <BookText size={28} />
+              </div>
+              <h2 className="font-heading text-base font-semibold text-[var(--text-primary)]">
+                Слов для повторения пока нет
+              </h2>
+              <p className="mt-1 text-sm leading-5 text-[var(--text-secondary)]">
+                Добавляй слова из текстов и подтверждай карточки в материалах.
+              </p>
+            </section>
+          ) : (
+            <section className="glass-card rounded-[20px] p-5 text-center">
+              <div className="glass-control mx-auto mb-3 grid size-14 place-items-center rounded-full border-[var(--border-strong)] bg-[var(--primary-soft)] text-[var(--primary)] shadow-primary-glow">
+                <CheckCircle2 size={28} />
+              </div>
+              <h2 className="font-heading text-lg font-semibold text-[var(--primary)]">
+                Повторение готово
+              </h2>
+              <p className="mt-1 text-sm leading-5 text-[var(--text-secondary)]">
+                План на сегодня завершен.
+              </p>
+              <Button
+                variant="secondary"
+                onClick={loadReviewState}
+                className="mt-4 w-full"
+              >
+                <Sparkles size={18} />
+                Проверить новые слова
+              </Button>
+            </section>
+          )}
+        </>
+      ) : null}
     </div>
   );
 };

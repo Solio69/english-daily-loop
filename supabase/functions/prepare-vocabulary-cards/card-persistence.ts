@@ -7,7 +7,7 @@ import type { VocabularyCardBatchItem } from "./ai-pipeline.ts";
 type VocabularyWordRow = {
   id: string;
   word: string;
-  status: "unlearned" | "learned";
+  status: "not_started" | "active" | "learned";
   card_status: "pending" | "needs_approval" | "ready";
 };
 
@@ -98,10 +98,22 @@ const mergePendingDuplicateIntoCanonicalWord = async (
 ): Promise<CardSaveResult> => {
   const reactivated = existingWord.status === "learned";
 
-  const existingUpdatePayload: Record<string, unknown> = {
-    status: "unlearned",
-    learned_at: null,
-  };
+  const existingUpdatePayload: Record<string, unknown> = {};
+
+  if (reactivated) {
+    Object.assign(existingUpdatePayload, {
+      status: "not_started",
+      review_step: null,
+      next_review_date: null,
+      last_reviewed_at: null,
+      review_count: 0,
+      forgot_count: 0,
+      same_step_count: 0,
+      next_step_count: 0,
+      jump_step_count: 0,
+      learned_at: null,
+    });
+  }
 
   if (existingWord.card_status === "pending") {
     Object.assign(existingUpdatePayload, toCardUpdatePayload(card), {
@@ -109,20 +121,22 @@ const mergePendingDuplicateIntoCanonicalWord = async (
     });
   }
 
-  const { error: existingUpdateError } = await supabase
-    .from("user_vocabulary_words")
-    .update(existingUpdatePayload)
-    .eq("id", existingWord.id)
-    .eq("user_id", userId);
+  if (Object.keys(existingUpdatePayload).length > 0) {
+    const { error: existingUpdateError } = await supabase
+      .from("user_vocabulary_words")
+      .update(existingUpdatePayload)
+      .eq("id", existingWord.id)
+      .eq("user_id", userId);
 
-  if (existingUpdateError) {
-    console.error("[prepare-vocabulary-cards] failed to update canonical word", {
-      appUserId: userId,
-      pendingWordId,
-      canonicalWordId: existingWord.id,
-      error: existingUpdateError.message,
-    });
-    return failedSaveResult;
+    if (existingUpdateError) {
+      console.error("[prepare-vocabulary-cards] failed to update canonical word", {
+        appUserId: userId,
+        pendingWordId,
+        canonicalWordId: existingWord.id,
+        error: existingUpdateError.message,
+      });
+      return failedSaveResult;
+    }
   }
 
   const { error: sourcesUpdateError } = await supabase

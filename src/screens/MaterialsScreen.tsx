@@ -44,6 +44,8 @@ const TAB_STYLES: Record<MaterialsTab, { label: string; icon: typeof BookOpen }>
     },
   };
 
+const TAB_ORDER: MaterialsTab[] = ["vocabulary", "texts"];
+
 const formatCompletedDate = (value: string): string =>
   DATE_FORMATTER.format(new Date(value));
 
@@ -60,7 +62,7 @@ const getModelLabel = (model: string): string => {
 
 export const MaterialsScreen: React.FC<MaterialsScreenProps> = ({
   onBack,
-  initialTab = "texts",
+  initialTab = "vocabulary",
 }) => {
   const [activeTab, setActiveTab] = useState<MaterialsTab>(initialTab);
   const [texts, setTexts] = useState<CompletedReadingText[]>([]);
@@ -176,7 +178,7 @@ export const MaterialsScreen: React.FC<MaterialsScreenProps> = ({
         role="tablist"
         aria-label="Материалы"
       >
-        {(Object.keys(TAB_STYLES) as MaterialsTab[]).map((tab) => {
+        {TAB_ORDER.map((tab) => {
           const Icon = TAB_STYLES[tab].icon;
           const isActive = activeTab === tab;
           const count =

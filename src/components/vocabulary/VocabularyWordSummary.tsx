@@ -57,6 +57,8 @@ export const VocabularyWordSummary: React.FC<VocabularyWordSummaryProps> = ({
                   ? "border border-[var(--accent-warm)] bg-[var(--accent-warm-soft)] text-[var(--accent-warm)]"
                   : word.status === "learned"
                     ? "border border-[var(--border-strong)] bg-[var(--primary-soft)] text-[var(--primary)]"
+                    : word.status === "active"
+                      ? "border border-[var(--accent-warm)] bg-[var(--accent-warm-soft)] text-[var(--accent-warm)]"
                     : "border border-[var(--border)] bg-[var(--surface-strong)] text-[var(--text-secondary)]"
               }`}
             >

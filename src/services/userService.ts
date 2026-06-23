@@ -89,6 +89,11 @@ const DEFAULT_HOME_PROGRESS: HomeProgress = {
   reading: {
     status: "not_started",
   },
+  review: {
+    status: "completed",
+    dueCount: 0,
+    reviewedTodayCount: 0,
+  },
 };
 
 const authLog = (message: string, details?: unknown): void => {
@@ -106,17 +111,27 @@ const mapUser = (
   subscription: SubscriptionSummary = FREE_SUBSCRIPTION_SUMMARY,
   homeProgress: HomeProgress = DEFAULT_HOME_PROGRESS,
   streakDays = 0,
-): AppUser => ({
-  id: user.id,
-  telegramUserId: user.telegram_user_id,
-  firstName: user.first_name,
-  streakDays,
-  settingsCompletedAt: user.settings_completed_at,
-  firstTextCompletedAt: user.first_text_completed_at,
-  settings,
-  subscription,
-  homeProgress,
-});
+): AppUser => {
+  const normalizedHomeProgress: HomeProgress = {
+    ...DEFAULT_HOME_PROGRESS,
+    ...homeProgress,
+    lesson: homeProgress.lesson ?? DEFAULT_HOME_PROGRESS.lesson,
+    reading: homeProgress.reading ?? DEFAULT_HOME_PROGRESS.reading,
+    review: homeProgress.review ?? DEFAULT_HOME_PROGRESS.review,
+  };
+
+  return {
+    id: user.id,
+    telegramUserId: user.telegram_user_id,
+    firstName: user.first_name,
+    streakDays,
+    settingsCompletedAt: user.settings_completed_at,
+    firstTextCompletedAt: user.first_text_completed_at,
+    settings,
+    subscription,
+    homeProgress: normalizedHomeProgress,
+  };
+};
 
 const getTelegramInitData = (): string | null => {
   const initData = window.Telegram?.WebApp?.initData?.trim();
@@ -221,6 +236,7 @@ export const getCurrentAppUser = async (): Promise<AppUser> => {
     hasSettings: Boolean(settings),
     subscriptionTier: subscription.tier,
     readingStatus: homeProgress.reading.status,
+    reviewStatus: homeProgress.review.status,
     streakDays,
   });
   return mapUser(user, settings, subscription, homeProgress, streakDays);

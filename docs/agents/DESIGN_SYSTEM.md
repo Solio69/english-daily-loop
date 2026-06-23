@@ -203,7 +203,10 @@ Chips:
 - reading time chip uses warm accent only when `readingStatus === "in_progress"`.
 - reading time chip uses primary/cyan accent when `readingStatus === "completed"`.
 - before reading starts, reading time chip uses neutral glass state.
-- review/vocabulary chip uses neutral glass state until repeat flow is implemented.
+- review/vocabulary chip uses neutral glass for `not_started`, warm accent for
+  `in_progress` and primary/cyan for `completed`.
+- chip text shows the required word count when it is greater than zero; otherwise
+  it shows `Слова`.
 
 ## Lesson Card
 
@@ -359,6 +362,7 @@ Layout:
 Tabs:
 
 - Two equal statistic-like glass tabs inside a `glass-card`.
+- Default and first tab is `Словарь`; `Тексты` is second.
 - Active tab uses `--primary`, `--primary-soft`, `--border-strong` and `shadow-primary-glow`.
 - Inactive tab uses `--text-muted` / `--text-secondary`.
 - Labels:
@@ -412,6 +416,72 @@ Vocabulary tab:
 - Examples highlight matching word/forms with `--primary`.
 - Expanded cards scroll into view when opened so the card stays visible above bottom navigation.
 - Ready/confirmed states use `--primary`, not green.
+
+## Vocabulary Review Screen
+
+Purpose:
+
+- Runs the daily review queue from the bottom navigation item `Слова`.
+- Shows one card at a time and keeps dictionary preparation as a separate
+  navigation action.
+
+Layout:
+
+- Uses `ScreenHeader` with title `Слова`.
+- Inner content follows the compact mobile width: `max-w-[430px]`, and
+  `max-w-[390px]` on `480px+`.
+- Main vertical rhythm: `space-y-3`, `px-3.5`, `pt-3`.
+- Expanded cards scroll into view above the fixed bottom navigation.
+
+Progress card:
+
+- Root: `glass-card rounded-[20px]`, warm border and `shadow-warm-glow`.
+- Header uses a fixed circular `Flame` control, warm title `Повторение` and the
+  exact required count for the day.
+- Progress bar and `reviewed / total` counter use warm accent.
+- Bottom summary has two equal columns: `Всего` with `Target` and `Осталось`
+  with `Flame`.
+
+Dictionary actions notice:
+
+- Render only when pending or needs-approval cards exist.
+- Keep it separate from the review word card.
+- Use `BookMarked` without a bordered icon container.
+- Title and trailing `ChevronRight` use warm accent.
+- Copy: `Открой словарь, чтобы добавить новые слова в повторение`.
+- Bottom line shows compact `N подготовить` and/or `M подтвердить` actions.
+
+Closed review card:
+
+- Root: `glass-card rounded-[20px] p-4`.
+- Word is left-aligned, `32px`, bold; do not render a part-of-speech chip.
+- Supporting copy: `Открой перевод и выбери следующий интервал.`
+- Three fixed controls show `перевод`, `формы`, `примеры`; use `Eye` for
+  translation and `LockKeyhole` for locked sections.
+- Full-width `Показать перевод` uses the shared coral primary button.
+
+Expanded review card:
+
+- Reuses `VocabularyWordDetails` and `VocabularyWordExamples`; do not create a
+  second visual language for dictionary content.
+- Header shows word, translation and compact status `Не изучено` or
+  `В повторении`.
+- Verb forms use the blue/cyan `Box` icon shared with dictionary cards.
+- Target word/forms in examples use warm highlight; dictionary cards keep the
+  primary highlight.
+- No audio icon is shown until pronunciation playback exists.
+- Four interval actions form one stable `grid-cols-4` row.
+- Interval actions use primary blue in light theme and warm accent in dark theme;
+  all four buttons share the same style, including `Не помню`.
+
+Empty and completed states:
+
+- With no ready cards, show a compact centered `BookText` state and direct the
+  user to add/confirm words in materials.
+- Completed state uses primary/cyan `CheckCircle2`, title `Повторение готово`
+  and copy `План на сегодня завершен.`
+- `Проверить новые слова` is a secondary glass action and must not reopen the
+  required daily progress.
 
 ## Bottom Navigation
 
@@ -496,6 +566,6 @@ After visual changes:
 
 ## Current Design Notes
 
-- The actual source of truth is current `src/screens/HomeScreen.tsx`, `src/screens/ReadingScreen.tsx`, `src/screens/SettingsScreen.tsx`, `src/components/Layout.tsx`, `src/components/BottomNav.tsx`, `src/components/Button.tsx`, `src/components/ScreenHeader.tsx`, `src/components/LoadingState.tsx`, `src/components/InlineStatusCard.tsx`, `src/components/ThemeToggle.tsx`, `src/components/Toast.tsx`, `src/components/reading/*`, and `src/index.css`.
+- The actual source of truth is current `src/screens/HomeScreen.tsx`, `src/screens/ReadingScreen.tsx`, `src/screens/VocabularyScreen.tsx`, `src/screens/MaterialsScreen.tsx`, `src/screens/SettingsScreen.tsx`, `src/components/Layout.tsx`, `src/components/BottomNav.tsx`, `src/components/Button.tsx`, `src/components/ScreenHeader.tsx`, `src/components/LoadingState.tsx`, `src/components/InlineStatusCard.tsx`, `src/components/ThemeToggle.tsx`, `src/components/Toast.tsx`, `src/components/reading/*`, `src/components/vocabulary/*`, `src/components/vocabulary-review/*`, and `src/index.css`.
 - If this document conflicts with implementation, inspect implementation first and update this document after the design is approved.
 - Keep future changes iterative; avoid large redesigns across all screens in one task.

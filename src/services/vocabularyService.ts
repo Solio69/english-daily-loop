@@ -3,7 +3,10 @@ import {
   ApproveVocabularyCardResult,
   ApproveVocabularyCardsResult,
   PrepareVocabularyCardsResult,
+  ReviewVocabularyWordResult,
   SaveVocabularyWordResult,
+  VocabularyReviewAction,
+  VocabularyReviewState,
   VocabularyState,
   VocabularyWordsPage,
 } from "../types/vocabulary";
@@ -43,6 +46,24 @@ export const getVocabularyWords = async (): Promise<VocabularyWordsPage> =>
     "get-vocabulary-words",
     {},
     "Не удалось загрузить карточки словаря.",
+  );
+
+export const getVocabularyReviewState =
+  async (): Promise<VocabularyReviewState> =>
+    invokeFunction<VocabularyReviewState>(
+      "get-vocabulary-review-state",
+      {},
+      "Не удалось загрузить повторение слов.",
+    );
+
+export const reviewVocabularyWord = async (
+  wordId: string,
+  action: VocabularyReviewAction,
+): Promise<ReviewVocabularyWordResult> =>
+  invokeFunction<ReviewVocabularyWordResult>(
+    "review-vocabulary-word",
+    { wordId, action },
+    "Не удалось сохранить ответ.",
   );
 
 export const approveVocabularyCard = async (

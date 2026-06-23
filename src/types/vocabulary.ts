@@ -3,8 +3,29 @@ export type SaveVocabularyWordAction =
   | "reactivated"
   | "already_exists";
 
-export type VocabularyWordStatus = "unlearned" | "learned";
+export type VocabularyWordStatus = "not_started" | "active" | "learned";
 export type VocabularyCardStatus = "pending" | "needs_approval" | "ready";
+export type VocabularyReviewStep =
+  | "1_day"
+  | "3_days"
+  | "7_days"
+  | "14_days"
+  | "1_month"
+  | "2_months"
+  | "3_months"
+  | "4_months"
+  | "5_months"
+  | "6_months";
+export type VocabularyReviewAction =
+  | "forgot"
+  | "same_step"
+  | "next_step"
+  | "jump_step";
+
+export type VocabularyReviewActionOption = {
+  action: VocabularyReviewAction;
+  label: string;
+};
 
 export type SaveVocabularyWordResult = {
   action: SaveVocabularyWordAction;
@@ -61,6 +82,49 @@ export type VocabularyWordCard = {
   cardStatus: Extract<VocabularyCardStatus, "needs_approval" | "ready">;
   createdAt: string;
   updatedAt: string;
+};
+
+export type VocabularyReviewCard = VocabularyWordCard & {
+  cardStatus: Extract<VocabularyCardStatus, "ready">;
+  reviewStep: VocabularyReviewStep | null;
+  nextReviewDate: string | null;
+  lastReviewedAt: string | null;
+  reviewCount: number;
+  isOptional: boolean;
+  actions: VocabularyReviewActionOption[];
+};
+
+export type VocabularyReviewStatus =
+  | "not_started"
+  | "in_progress"
+  | "completed";
+
+export type VocabularyReviewState = {
+  reviewDate: string;
+  status: VocabularyReviewStatus;
+  totalReadyCount: number;
+  requiredTotalCount: number;
+  reviewedTodayCount: number;
+  remainingRequiredCount: number;
+  newAvailableCount: number;
+  extraAvailableCount: number;
+  completedAt: string | null;
+  dictionaryActions: {
+    pendingCount: number;
+    needsApprovalCount: number;
+  };
+  currentCard: VocabularyReviewCard | null;
+};
+
+export type ReviewVocabularyWordResult = {
+  reviewDate: string;
+  wordId: string;
+  word: string;
+  status: VocabularyWordStatus;
+  reviewStep: VocabularyReviewStep | null;
+  nextReviewDate: string | null;
+  learnedAt: string | null;
+  wasRequired: boolean;
 };
 
 export type VocabularyWordsPage = {

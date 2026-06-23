@@ -1,5 +1,5 @@
 import React from "react";
-import { BookMarked, RotateCcw, Trash2, WalletCards } from "lucide-react";
+import { BookMarked, CalendarClock, RotateCcw, Trash2, WalletCards } from "lucide-react";
 import type { DevToolAction } from "../services/devToolsService";
 
 type DevToolsPanelProps = {
@@ -7,6 +7,7 @@ type DevToolsPanelProps = {
   onRunAction: (action: DevToolAction) => void;
 };
 
+// TODO: Keep local-only actions behind both VITE_DEV_TOOLS_ENABLED and DEV_TOOLS_ENABLED.
 const ACTIONS: Array<{
   action: DevToolAction;
   label: string;
@@ -24,6 +25,24 @@ const ACTIONS: Array<{
     label: "Сброс AI-карточек",
     description: "Обнуляет попытки генерации карточек словаря за сегодня.",
     icon: BookMarked,
+  },
+  {
+    action: "reset_vocabulary_review_progress",
+    label: "Сброс повторения",
+    description: "Возвращает готовые слова в начало алгоритма.",
+    icon: RotateCcw,
+  },
+  {
+    action: "make_vocabulary_reviews_due_today",
+    label: "Слова на сегодня",
+    description: "Делает активные карточки доступными сегодня.",
+    icon: CalendarClock,
+  },
+  {
+    action: "clear_today_vocabulary_review_completion",
+    label: "Открыть повторение",
+    description: "Удаляет отметку завершения повторения за сегодня.",
+    icon: Trash2,
   },
   {
     action: "delete_today_reading_completion",

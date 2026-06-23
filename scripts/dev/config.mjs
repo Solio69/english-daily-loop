@@ -28,9 +28,11 @@ export const edgeFunctionNames = [
   "dev-tools",
   "get-reading-state",
   "get-reading-history",
+  "get-vocabulary-review-state",
   "get-vocabulary-state",
   "get-vocabulary-words",
   "generate-reading-text",
   "prepare-vocabulary-cards",
+  "review-vocabulary-word",
   "save-vocabulary-word",
 ];

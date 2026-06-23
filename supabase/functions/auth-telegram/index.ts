@@ -13,6 +13,7 @@ import {
   successResponse,
   type TelegramUser,
 } from "../_shared/server.ts";
+import { getHomeProgress as getSharedHomeProgress } from "../_shared/home-progress.ts";
 
 type UserRow = {
   id: string;
@@ -165,57 +166,6 @@ const getSubscriptionSummary = async (
   };
 };
 
-const getHomeProgress = async (
-  supabase: ReturnType<typeof createClient>,
-  userId: string,
-) => {
-  const today = getMoscowDate();
-  const [
-    { data: completionRows, error: completionError },
-    { data: activeTextRow, error: activeTextError },
-  ] = await Promise.all([
-    supabase
-      .from("user_daily_reading_completions")
-      .select("user_id")
-      .eq("user_id", userId)
-      .eq("completed_date", today)
-      .limit(1),
-    supabase
-      .from("user_active_reading_texts")
-      .select("user_id")
-      .eq("user_id", userId)
-      .maybeSingle(),
-  ]);
-
-  if (completionError || activeTextError) {
-    console.error("[auth-telegram] failed to load home progress", {
-      appUserId: userId,
-      completionError: completionError?.message,
-      activeTextError: activeTextError?.message,
-    });
-    fail(500, "HOME_PROGRESS_LOAD_FAILED", "Failed to load home progress.");
-  }
-
-  const readingStatus =
-    (completionRows?.length ?? 0) > 0
-      ? "completed"
-      : activeTextRow
-        ? "in_progress"
-        : "not_started";
-  const lessonStatus = readingStatus;
-  const lessonCurrentStep = readingStatus === "completed" ? null : "reading";
-
-  return {
-    lesson: {
-      status: lessonStatus,
-      currentStep: lessonCurrentStep,
-    },
-    reading: {
-      status: readingStatus,
-    },
-  };
-};
-
 const getReadingCompletionStreak = async (
   supabase: ReturnType<typeof createClient>,
   userId: string,
@@ -352,7 +302,7 @@ Deno.serve(async (req: Request) => {
     const [settings, subscription, homeProgress, streakDays] = await Promise.all([
       getUserSettings(supabase, appUser.id),
       getSubscriptionSummary(supabase, appUser.id),
-      getHomeProgress(supabase, appUser.id),
+      getSharedHomeProgress(supabase, appUser.id, "[auth-telegram]"),
       getReadingCompletionStreak(supabase, appUser.id),
     ]);
 

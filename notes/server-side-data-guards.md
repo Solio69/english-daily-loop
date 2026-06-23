@@ -15,6 +15,8 @@ security/business-решения.
 - списывать попытки генерации
 - завершать активный текст
 - активировать подписки
+- сохранять или подтверждать словарные карточки
+- изменять шаг и дату повторения слова
 
 Эти действия выполняются в Supabase Edge Functions с серверными секретами.
 
@@ -32,6 +34,10 @@ RLS включен для:
 - `public.user_daily_reading_completions`
 - `public.user_completed_reading_texts`
 - `public.user_subscriptions`
+- `public.user_vocabulary_words`
+- `public.user_vocabulary_word_sources`
+- `public.vocabulary_card_generation_attempts`
+- `public.user_daily_vocabulary_review_completions`
 
 Миграции:
 - `supabase/migrations/20260427165000_enable_rls_for_users_and_settings.sql`
@@ -39,6 +45,10 @@ RLS включен для:
 - `supabase/migrations/20260423133000_create_user_subscriptions.sql`
 - `supabase/migrations/20260427181000_create_user_completed_reading_texts.sql`
 - `supabase/migrations/20260430120000_harden_public_api_permissions.sql`
+- `supabase/migrations/20260511120000_add_vocabulary_word_saving.sql`
+- `supabase/migrations/20260528120000_add_vocabulary_card_generation_attempts.sql`
+- `supabase/migrations/20260618120000_add_vocabulary_review_flow.sql`
+- `supabase/migrations/20260622120000_harden_vocabulary_review_state.sql`
 
 Frontend policies для защищенных таблиц не добавлены. Для `anon` и `authenticated`
 явно закрыт прямой доступ к пользовательским, reading-state, completion/history и
@@ -94,6 +104,24 @@ subscription таблицам, а также к server-only RPC. Доступ и
 - возвращает актуальный subscription summary
 - возвращает клиенту безопасное сообщение для неожиданных внутренних ошибок
 
+`save-vocabulary-word`, `prepare-vocabulary-cards`, `approve-vocabulary-card`,
+`approve-vocabulary-cards`:
+- валидируют Telegram `initData`;
+- работают только со словами текущего пользователя;
+- проверяют лимит словаря и попыток подготовки server-side;
+- переводят подтвержденные карточки в `ready + not_started`;
+- не возвращают клиенту SQL/provider details.
+
+`get-vocabulary-review-state`:
+- валидирует Telegram `initData`;
+- вызывает server-only RPC для точного snapshot очереди;
+- не принимает `user_id` и дату от клиента.
+
+`review-vocabulary-word`:
+- валидирует Telegram `initData`, `wordId` и фиксированный action;
+- применяет переход через server-only RPC;
+- не разрешает менять чужую, неподтвержденную или `learned`-карточку.
+
 `dev-tools`:
 - валидирует Telegram `initData`
 - работает только при server env `DEV_TOOLS_ENABLED="true"`
@@ -121,3 +149,25 @@ subscription таблицам, а также к server-only RPC. Доступ и
 - проверяет active и scheduled подписки
 - создает `monthly` или `yearly` подписку в одной транзакции
 - планирует `yearly` после active `monthly`, если такой переход доступен
+
+`public.save_pending_vocabulary_word_with_source(...)`:
+- берет advisory lock по пользователю;
+- проверяет существующую карточку и лимит только перед новой вставкой;
+- атомарно сохраняет pending-слово и source;
+- реактивирует существующее `learned`-слово без увеличения размера словаря.
+
+`public.claim_vocabulary_card_generation_attempt(...)`:
+- берет advisory lock по пользователю и дате;
+- атомарно проверяет дневной лимит и создает metadata попытки.
+
+`public.review_vocabulary_word(...)`:
+- берет advisory lock по пользователю и дате и row lock выбранной карточки;
+- применяет только allowlist-действия алгоритма;
+- обновляет шаг, следующую дату и счетчики;
+- фиксирует completion-marker после последней обязательной карточки.
+
+`public.get_or_create_vocabulary_review_state(...)`:
+- использует тот же advisory lock повторения;
+- считает очередь и следующую карточку server-side без клиентского лимита;
+- фиксирует completion-marker, когда обязательная очередь пуста;
+- доступен только `service_role`.

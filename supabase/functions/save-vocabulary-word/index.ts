@@ -33,7 +33,7 @@ type SaveVocabularyWordResult =
       action: "created" | "reactivated" | "already_exists";
       wordId: string;
       word: string;
-      status: "unlearned" | "learned";
+      status: "not_started" | "active" | "learned";
       cardStatus: VocabularyCardStatus;
     }
   | {

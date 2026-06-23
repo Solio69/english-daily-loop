@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Layout } from "./components/Layout";
 import { LoadingState } from "./components/LoadingState";
 import { Toast, ToastTone } from "./components/Toast";
@@ -14,6 +14,7 @@ import { ReadingScreen } from "./screens/ReadingScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { SubscriptionScreen } from "./screens/SubscriptionScreen";
 import { VocabularyScreen } from "./screens/VocabularyScreen";
+import { useScreenNavigation } from "./hooks/useScreenNavigation";
 import type { DevToolAction } from "./services/devToolsService";
 import { completeReadingText } from "./services/readingService";
 import { activateSubscription } from "./services/subscriptionService";
@@ -25,6 +26,7 @@ import {
   LessonCurrentStep,
   LessonHomeStatus,
   ReadingHomeStatus,
+  ReviewHomeStatus,
 } from "./types/homeProgress";
 import { MaterialsTab } from "./types/materials";
 import { SubscriptionPlanType } from "./types/subscription";
@@ -38,13 +40,42 @@ type ScreenId =
   | "settings"
   | "subscription";
 
+const getLessonProgress = (
+  status: ReadingHomeStatus,
+  review: ReviewHomeStatus,
+): { status: LessonHomeStatus; currentStep: LessonCurrentStep } => {
+  if (status !== "completed") {
+    return {
+      status,
+      currentStep: "reading",
+    };
+  }
+
+  if (review === "completed") {
+    return {
+      status: "completed",
+      currentStep: null,
+    };
+  }
+
+  return {
+    status: "in_progress",
+    currentStep: "vocabulary",
+  };
+};
+
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<ScreenId>("home");
+  const {
+    currentScreen,
+    navigateTo,
+    navigateBack,
+    navigateRoot: navigateHome,
+  } = useScreenNavigation<ScreenId>("home");
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [materialsInitialTab, setMaterialsInitialTab] =
-    useState<MaterialsTab>("texts");
+    useState<MaterialsTab>("vocabulary");
   const [activatingPlan, setActivatingPlan] =
     useState<SubscriptionPlanType | null>(null);
   const [runningDevToolAction, setRunningDevToolAction] =
@@ -59,16 +90,18 @@ export default function App() {
   const lessonCurrentStep =
     appUser?.homeProgress.lesson.currentStep ?? "reading";
   const readingStatus = appUser?.homeProgress.reading.status ?? "not_started";
+  const reviewStatus = appUser?.homeProgress.review.status ?? "completed";
   const shouldForceSettings = !isSettingsCompleted;
   const shouldForceReading = isSettingsCompleted && !isFirstTextCompleted;
   const showDevTools = import.meta.env.VITE_DEV_TOOLS_ENABLED === "true";
 
-  const getLessonProgressFromReadingStatus = (
-    status: ReadingHomeStatus,
-  ): { status: LessonHomeStatus; currentStep: LessonCurrentStep } => ({
-    status,
-    currentStep: status === "completed" ? null : "reading",
-  });
+  const showToast = useCallback(
+    (message: string, tone: ToastTone = "default") => {
+      setToastText(message);
+      setToastTone(tone);
+    },
+    [],
+  );
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -76,7 +109,7 @@ export default function App() {
         window.Telegram?.WebApp?.ready?.();
         const user = await getCurrentAppUser();
         setAppUser(user);
-        setCurrentScreen("home");
+        navigateHome();
       } catch (error) {
         showToast(
           error instanceof Error
@@ -90,7 +123,7 @@ export default function App() {
     };
 
     bootstrap();
-  }, []);
+  }, [navigateHome, showToast]);
 
   useEffect(() => {
     if (!toastText) return;
@@ -98,27 +131,53 @@ export default function App() {
     return () => window.clearTimeout(timeout);
   }, [toastText]);
 
-  const showToast = (message: string, tone: ToastTone = "default") => {
-    setToastText(message);
-    setToastTone(tone);
-  };
-
-  const updateReadingHomeStatus = (status: ReadingHomeStatus) => {
-    const nextLesson = getLessonProgressFromReadingStatus(status);
-
+  const updateReadingHomeStatus = useCallback((status: ReadingHomeStatus) => {
     setAppUser((currentUser) =>
       currentUser
         ? {
             ...currentUser,
             homeProgress: {
               ...currentUser.homeProgress,
-              lesson: nextLesson,
+              lesson: getLessonProgress(
+                status,
+                currentUser.homeProgress.review.status,
+              ),
               reading: { status },
             },
           }
         : currentUser,
     );
-  };
+  }, []);
+
+  const updateReviewHomeStatus = useCallback(
+    (
+      status: ReviewHomeStatus,
+      dueCount: number,
+      reviewedTodayCount: number,
+    ) => {
+      setAppUser((currentUser) =>
+        currentUser
+          ? {
+              ...currentUser,
+              homeProgress: {
+                ...currentUser.homeProgress,
+                lesson: getLessonProgress(
+                  currentUser.homeProgress.reading.status,
+                  status,
+                ),
+                review: {
+                  ...currentUser.homeProgress.review,
+                  status,
+                  dueCount,
+                  reviewedTodayCount,
+                },
+              },
+            }
+          : currentUser,
+      );
+    },
+    [],
+  );
 
   const handleSaveSettings = async (settings: SaveUserSettingsInput) => {
     if (!appUser) return;
@@ -134,7 +193,7 @@ export default function App() {
         appUser.streakDays,
       );
       setAppUser(updatedUser);
-      setCurrentScreen("home");
+      navigateHome();
       showToast(
         wasFirstSetup
           ? "Настройки готовы. Можно начинать первый текст."
@@ -163,7 +222,7 @@ export default function App() {
         ...appUser,
         subscription,
       });
-      setCurrentScreen("home");
+      navigateHome();
       showToast(
         appUser.subscription.activeSubscription?.planType === "monthly" &&
           planType === "yearly"
@@ -217,7 +276,10 @@ export default function App() {
                 result.firstTextCompletedAt ?? currentUser.firstTextCompletedAt,
               homeProgress: {
                 ...currentUser.homeProgress,
-                lesson: getLessonProgressFromReadingStatus("completed"),
+                lesson: getLessonProgress(
+                  "completed",
+                  currentUser.homeProgress.review.status,
+                ),
                 reading: { status: "completed" },
               },
             }
@@ -242,16 +304,16 @@ export default function App() {
 
   const openLesson = () => {
     if (shouldForceSettings) {
-      setCurrentScreen("settings");
+      navigateTo("settings");
       return;
     }
 
-    setCurrentScreen("reading");
+    navigateTo(lessonCurrentStep === "vocabulary" ? "vocabulary" : "reading");
   };
 
   const openMaterials = (tab: MaterialsTab) => {
     setMaterialsInitialTab(tab);
-    setCurrentScreen("materials");
+    navigateTo("materials");
   };
 
   const handleNavChange = (nextScreen: string) => {
@@ -265,7 +327,10 @@ export default function App() {
       showToast("Открой настройки, чтобы продолжить.", "onboarding");
       return;
     }
-    setCurrentScreen(target);
+    if (target === "materials") {
+      setMaterialsInitialTab("vocabulary");
+    }
+    navigateTo(target, { root: true });
   };
 
   const handleDisabledNavClick = () => {
@@ -288,12 +353,14 @@ export default function App() {
             onNavigate={handleNavChange}
             onOpenLesson={openLesson}
             onOpenMaterials={openMaterials}
-            onOpenSubscription={() => setCurrentScreen("subscription")}
+            onOpenSubscription={() => navigateTo("subscription")}
             userName={appUser?.firstName}
             streakDays={streakDays}
             lessonStatus={lessonStatus}
             lessonCurrentStep={lessonCurrentStep}
             readingStatus={readingStatus}
+            reviewStatus={reviewStatus}
+            reviewDueCount={appUser?.homeProgress.review.dueCount ?? 0}
             isFirstSetup={shouldForceSettings}
             subscription={appUser?.subscription}
             readingMinutes={appUser?.settings?.dailyReadingMinutes ?? null}
@@ -302,7 +369,7 @@ export default function App() {
       case "reading":
         return (
           <ReadingScreen
-            onBack={() => setCurrentScreen("home")}
+            onBack={navigateBack}
             onCompleteText={handleCompleteReadingText}
             onReadingStatusChange={updateReadingHomeStatus}
             userLevel={appUser?.settings?.englishLevel ?? null}
@@ -310,18 +377,24 @@ export default function App() {
           />
         );
       case "vocabulary":
-        return <VocabularyScreen onBack={() => setCurrentScreen("home")} />;
+        return (
+          <VocabularyScreen
+            onBack={navigateBack}
+            onOpenVocabularyMaterials={() => openMaterials("vocabulary")}
+            onReviewStatusChange={updateReviewHomeStatus}
+          />
+        );
       case "materials":
         return (
           <MaterialsScreen
-            onBack={() => setCurrentScreen("home")}
+            onBack={navigateBack}
             initialTab={materialsInitialTab}
           />
         );
       case "settings":
         return (
           <SettingsScreen
-            onBack={() => setCurrentScreen("home")}
+            onBack={navigateBack}
             onSave={handleSaveSettings}
             initialSettings={appUser?.settings}
             isSaving={isSavingSettings}
@@ -335,7 +408,7 @@ export default function App() {
         return appUser ? (
           <SubscriptionScreen
             subscription={appUser.subscription}
-            onBack={() => setCurrentScreen("home")}
+            onBack={navigateBack}
             onActivate={handleActivateSubscription}
             activatingPlan={activatingPlan}
           />
@@ -346,12 +419,14 @@ export default function App() {
             onNavigate={handleNavChange}
             onOpenLesson={openLesson}
             onOpenMaterials={openMaterials}
-            onOpenSubscription={() => setCurrentScreen("subscription")}
+            onOpenSubscription={() => navigateTo("subscription")}
             userName={appUser?.firstName}
             streakDays={streakDays}
             lessonStatus={lessonStatus}
             lessonCurrentStep={lessonCurrentStep}
             readingStatus={readingStatus}
+            reviewStatus={reviewStatus}
+            reviewDueCount={appUser?.homeProgress.review.dueCount ?? 0}
             isFirstSetup={shouldForceSettings}
             subscription={appUser?.subscription}
             readingMinutes={appUser?.settings?.dailyReadingMinutes ?? null}

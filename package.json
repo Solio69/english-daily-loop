@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "preview:telegram": "vite preview --host=0.0.0.0 --port=3000 --strictPort",
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",

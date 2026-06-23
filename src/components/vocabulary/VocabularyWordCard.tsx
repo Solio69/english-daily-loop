@@ -32,6 +32,8 @@ export const VocabularyWordCard: React.FC<VocabularyWordCardProps> = ({
       ? "Требует подтверждения"
       : word.status === "learned"
         ? "Изучено"
+        : word.status === "active"
+          ? "В повторении"
         : "Не изучено";
   const isApprovalMode = mode === "approval";
   const highlightTokens = getVocabularyHighlightTokens(word);
