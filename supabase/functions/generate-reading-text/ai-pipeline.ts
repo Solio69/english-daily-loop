@@ -9,6 +9,8 @@ import {
 import {
   OpenRouterError,
   excludeModel,
+  getFailedOpenRouterModel,
+  getOpenRouterErrorLogMetadata,
   requestOpenRouter,
   type PromptMessage,
 } from "../_shared/openrouter.ts";
@@ -206,8 +208,16 @@ export const generateReadingTextWithOpenRouter = async ({
         models: remainingModels,
         promptVersion: READING_TEXT_PROMPT_VERSION,
         stage,
+        ...getOpenRouterErrorLogMetadata(error),
         error: lastErrorMessage,
       });
+
+      if (stage === "provider_response" && remainingModels.length > 1) {
+        const failedModel = getFailedOpenRouterModel(error, remainingModels);
+        remainingModels = excludeModel(remainingModels, failedModel);
+        continue;
+      }
+
       throw new AiGenerationError(stage, lastErrorMessage);
     }
 

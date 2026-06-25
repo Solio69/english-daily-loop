@@ -81,10 +81,10 @@ const READING_CONFIG_BY_MINUTES: Record<
   ReadingMinutes,
   Omit<ReadingGenerationConfig, "validationWordMin" | "validationWordMax">
 > = {
-  3: { wordMin: 120, wordMax: 180, maxTokens: 450 },
-  5: { wordMin: 220, wordMax: 320, maxTokens: 750 },
-  10: { wordMin: 450, wordMax: 650, maxTokens: 1300 },
-  15: { wordMin: 700, wordMax: 950, maxTokens: 1900 },
+  3: { wordMin: 120, wordMax: 180, maxTokens: 700 },
+  5: { wordMin: 220, wordMax: 320, maxTokens: 1050 },
+  10: { wordMin: 450, wordMax: 650, maxTokens: 1800 },
+  15: { wordMin: 700, wordMax: 950, maxTokens: 2600 },
 };
 
 const parseEnglishLevel = (value: unknown): EnglishLevel => {

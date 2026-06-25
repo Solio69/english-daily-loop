@@ -416,6 +416,12 @@ Vocabulary tab:
 - Examples highlight matching word/forms with `--primary`.
 - Expanded cards scroll into view when opened so the card stays visible above bottom navigation.
 - Ready/confirmed states use `--primary`, not green.
+- Closed ready rows keep word + translation on the left and the trailing chevron on the right.
+- An `active` ready word replaces the generic status chip with a compact warm
+  `reviewStep` chip and a muted `lastReviewedAt → nextReviewDate` line below it.
+- Review dates use the short Russian format (`23 июн.`) and the `Europe/Moscow`
+  calendar date. `not_started`, `learned` and incomplete review data keep their
+  regular status chip.
 
 ## Vocabulary Review Screen
 

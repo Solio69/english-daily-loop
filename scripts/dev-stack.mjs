@@ -155,6 +155,30 @@ function prepareEnv() {
   process.stdout.write("Preparing Telegram dev mode...\n");
 }
 
+// TODO: Local infra guard; fail before publishing tunnel URLs if Docker/Supabase origins are unavailable.
+async function assertLocalOriginReady(label, url) {
+  const deadline = Date.now() + 15_000;
+  let lastError = "Unknown error.";
+
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(url, { method: "HEAD" });
+      if (response.status < 500) {
+        return;
+      }
+      lastError = `HTTP ${response.status}`;
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+
+  throw new Error(
+    `${label} is not reachable at ${url}. Last error: ${lastError}`,
+  );
+}
+
 // TODO: Local Telegram WebView is served from a production-like bundle to avoid Vite dev client stalls through quick tunnels.
 async function buildFrontend() {
   process.stdout.write("[frontend-build] building frontend bundle for Telegram...\n");
@@ -233,7 +257,7 @@ function startTunnel(kind, target, label) {
 function startApiTunnel() {
   if (existsSync(cloudflaredExecutable)) {
     process.stdout.write(
-      "[tunnel] starting api tunnel (localhost:55421)...\n",
+      "[tunnel] starting api tunnel (127.0.0.1:54321)...\n",
     );
     startTunnel("api", localApiTunnelTarget, "tunnel-api");
     return true;
@@ -247,7 +271,9 @@ function startApiTunnel() {
 
 function startFrontendTunnel() {
   if (existsSync(cloudflaredExecutable)) {
-    process.stdout.write("[tunnel] starting frontend tunnel (localhost:3000)...\n");
+    process.stdout.write(
+      "[tunnel] starting frontend tunnel (127.0.0.1:3000)...\n",
+    );
     startTunnel("frontend", localFrontendTunnelTarget, "tunnel-frontend");
     return true;
   }
@@ -317,12 +343,17 @@ async function main() {
   prepareEnv();
   await startSupabase();
   startEdgeFunctions();
+  await assertLocalOriginReady(
+    "Supabase API",
+    `${localApiTunnelTarget}/rest/v1/`,
+  );
   const apiTunnelStarted = startApiTunnel();
   if (apiTunnelStarted) {
     await waitForTunnelUrl("api");
   }
   await buildFrontend();
   startFrontend();
+  await assertLocalOriginReady("Frontend preview", localFrontendTunnelTarget);
   startFrontendTunnel();
   await startContainerLogs();
 

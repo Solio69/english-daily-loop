@@ -145,7 +145,7 @@ AI attempt metadata хранится `90` дней; scheduled cleanup выпол
 Обязательные переменные:
 
 ```env
-VITE_SUPABASE_URL="http://127.0.0.1:55421"
+VITE_SUPABASE_URL="http://127.0.0.1:54321"
 VITE_SUPABASE_ANON_KEY="YOUR_SUPABASE_ANON_KEY"
 VITE_DEV_TOOLS_ENABLED="false"
 OPENROUTER_API_KEY="YOUR_OPENROUTER_API_KEY"
@@ -157,8 +157,8 @@ DEV_TOOLS_ENABLED="false"
 
 ```env
 OPENROUTER_MODEL_PRIMARY="openai/gpt-oss-20b:free"
-OPENROUTER_MODEL_FALLBACK="qwen/qwen3.6-plus:free"
-OPENROUTER_MODEL_TERTIARY="qwen/qwen3.6-plus:free"
+OPENROUTER_MODEL_FALLBACK="qwen/qwen3-next-80b-a3b-instruct:free"
+OPENROUTER_MODEL_TERTIARY="google/gemma-4-26b-a4b-it:free"
 ```
 
 Правило безопасности: во frontend доступны только переменные с префиксом `VITE_`. AI-ключи, Telegram token и service role key должны оставаться только на серверной стороне.

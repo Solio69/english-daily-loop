@@ -10,6 +10,8 @@ import {
 import {
   OpenRouterError,
   excludeModel,
+  getFailedOpenRouterModel,
+  getOpenRouterErrorLogMetadata,
   requestOpenRouter,
   type PromptMessage,
 } from "../_shared/openrouter.ts";
@@ -358,11 +360,13 @@ export const generateVocabularyCardsBatch = async ({
         models: remainingModels,
         promptVersion: VOCABULARY_CARD_PROMPT_VERSION,
         stage,
+        ...getOpenRouterErrorLogMetadata(error),
         error: lastErrorMessage,
       });
 
       if (stage === "provider_response" && remainingModels.length > 1) {
-        remainingModels = excludeModel(remainingModels, remainingModels[0]);
+        const failedModel = getFailedOpenRouterModel(error, remainingModels);
+        remainingModels = excludeModel(remainingModels, failedModel);
         continue;
       }
 

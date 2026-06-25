@@ -8,6 +8,8 @@ export type PromptMessage = {
 };
 
 type OpenRouterChoice = {
+  finish_reason?: string | null;
+  native_finish_reason?: string | null;
   message?: {
     content?: string | Array<{ type?: string; text?: string }>;
   };
@@ -17,7 +19,14 @@ type OpenRouterResponse = {
   model?: string;
   choices?: OpenRouterChoice[];
   error?: {
+    code?: string | number;
     message?: string;
+  };
+  usage?: {
+    completion_tokens?: number;
+    completion_tokens_details?: {
+      reasoning_tokens?: number;
+    };
   };
 };
 
@@ -32,17 +41,68 @@ type RequestOpenRouterParams = {
 
 export class OpenRouterError extends Error {
   stage: OpenRouterFailureStage;
+  model: string | null;
+  finishReason: string | null;
+  completionTokens: number | null;
+  reasoningTokens: number | null;
+  providerStatus: number | null;
+  providerErrorCode: string | null;
 
-  constructor(stage: OpenRouterFailureStage, message: string) {
+  constructor(
+    stage: OpenRouterFailureStage,
+    message: string,
+    metadata: {
+      model?: string | null;
+      finishReason?: string | null;
+      completionTokens?: number | null;
+      reasoningTokens?: number | null;
+      providerStatus?: number | null;
+      providerErrorCode?: string | number | null;
+    } = {},
+  ) {
     super(message);
     this.stage = stage;
+    this.model = metadata.model ?? null;
+    this.finishReason = metadata.finishReason ?? null;
+    this.completionTokens = metadata.completionTokens ?? null;
+    this.reasoningTokens = metadata.reasoningTokens ?? null;
+    this.providerStatus = metadata.providerStatus ?? null;
+    this.providerErrorCode =
+      metadata.providerErrorCode == null
+        ? null
+        : String(metadata.providerErrorCode);
   }
 }
 
+export const getOpenRouterErrorLogMetadata = (error: unknown) => ({
+  providerModel: error instanceof OpenRouterError ? error.model : null,
+  finishReason: error instanceof OpenRouterError ? error.finishReason : null,
+  completionTokens:
+    error instanceof OpenRouterError ? error.completionTokens : null,
+  reasoningTokens:
+    error instanceof OpenRouterError ? error.reasoningTokens : null,
+  providerStatus:
+    error instanceof OpenRouterError ? error.providerStatus : null,
+  providerErrorCode:
+    error instanceof OpenRouterError ? error.providerErrorCode : null,
+});
+
+export const getFailedOpenRouterModel = (
+  error: unknown,
+  remainingModels: string[],
+): string => {
+  if (error instanceof OpenRouterError && error.model) {
+    return error.model;
+  }
+
+  return remainingModels[0];
+};
+
 export const OPENROUTER_PROVIDER = "openrouter";
 export const DEFAULT_PRIMARY_MODEL = "openai/gpt-oss-20b:free";
-export const DEFAULT_FALLBACK_MODEL = "qwen/qwen3.6-plus:free";
-export const DEFAULT_TERTIARY_MODEL = "qwen/qwen3.6-plus:free";
+export const DEFAULT_FALLBACK_MODEL =
+  "qwen/qwen3-next-80b-a3b-instruct:free";
+export const DEFAULT_TERTIARY_MODEL = "google/gemma-4-26b-a4b-it:free";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const ALLOWED_OPENROUTER_MODELS = new Set([
@@ -124,6 +184,8 @@ export const requestOpenRouter = async ({
           models,
           temperature,
           max_tokens: maxTokens,
+          reasoning: { effort: "low", exclude: true },
+          response_format: { type: "json_object" },
           messages,
         }),
       });
@@ -158,15 +220,10 @@ export const requestOpenRouter = async ({
       const details =
         payload.error?.message ??
         `OpenRouter request failed with status ${response.status}.`;
-      throw new OpenRouterError("provider_response", details);
-    }
-
-    const content = extractOpenRouterContent(payload);
-    if (!content) {
-      throw new OpenRouterError(
-        "provider_response",
-        "OpenRouter returned empty content.",
-      );
+      throw new OpenRouterError("provider_response", details, {
+        providerStatus: response.status,
+        providerErrorCode: payload.error?.code ?? null,
+      });
     }
 
     const usedModel = payload.model?.trim() || models[0];
@@ -174,6 +231,25 @@ export const requestOpenRouter = async ({
       throw new OpenRouterError(
         "provider_response",
         "OpenRouter returned an unsupported model.",
+        { model: usedModel },
+      );
+    }
+
+    const choice = payload.choices?.[0];
+    const responseMetadata = {
+      model: usedModel,
+      finishReason:
+        choice?.finish_reason ?? choice?.native_finish_reason ?? null,
+      completionTokens: payload.usage?.completion_tokens ?? null,
+      reasoningTokens:
+        payload.usage?.completion_tokens_details?.reasoning_tokens ?? null,
+    };
+    const content = extractOpenRouterContent(payload);
+    if (!content) {
+      throw new OpenRouterError(
+        "provider_response",
+        "OpenRouter returned empty content.",
+        responseMetadata,
       );
     }
 

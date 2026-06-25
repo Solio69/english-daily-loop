@@ -49,9 +49,9 @@ export async function startSupabase() {
   }
 
   process.stdout.write("\nSupabase is ready.\n");
-  process.stdout.write("Studio: http://127.0.0.1:55423\n");
-  process.stdout.write("API:    http://127.0.0.1:55421\n");
+  process.stdout.write("Studio: http://127.0.0.1:54323\n");
+  process.stdout.write("API:    http://127.0.0.1:54321\n");
   process.stdout.write(
-    "DB:     postgresql://postgres:postgres@127.0.0.1:55422/postgres\n\n",
+    "DB:     postgresql://postgres:postgres@127.0.0.1:54322/postgres\n\n",
   );
 }

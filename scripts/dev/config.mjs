@@ -10,8 +10,9 @@ export const commands = {
 
 export const localProjectId = "english-daily-loop";
 export const envFilePath = ".env.local";
-export const localFrontendTunnelTarget = "http://localhost:3000";
-export const localApiTunnelTarget = "http://localhost:55421";
+// TODO: Local Telegram tunnels must use IPv4 loopback; localhost can resolve to ::1 on Windows.
+export const localFrontendTunnelTarget = "http://127.0.0.1:3000";
+export const localApiTunnelTarget = "http://127.0.0.1:54321";
 // TODO: Local tool path is machine-specific; keep downloaded cloudflared binary out of git.
 export const cloudflaredExecutable = isWindows
   ? ".\\tools\\cloudflared.exe"

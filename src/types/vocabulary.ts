@@ -80,15 +80,15 @@ export type VocabularyWordCard = {
   examples: string[];
   status: VocabularyWordStatus;
   cardStatus: Extract<VocabularyCardStatus, "needs_approval" | "ready">;
+  reviewStep: VocabularyReviewStep | null;
+  nextReviewDate: string | null;
+  lastReviewedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
 
 export type VocabularyReviewCard = VocabularyWordCard & {
   cardStatus: Extract<VocabularyCardStatus, "ready">;
-  reviewStep: VocabularyReviewStep | null;
-  nextReviewDate: string | null;
-  lastReviewedAt: string | null;
   reviewCount: number;
   isOptional: boolean;
   actions: VocabularyReviewActionOption[];

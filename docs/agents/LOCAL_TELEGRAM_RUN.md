@@ -77,7 +77,7 @@
 
 1. Поднимает локальный Supabase (`npx supabase start`).
 2. Запускает Edge Functions (`npx supabase functions serve ...`).
-3. Поднимает HTTPS tunnel для Supabase API (`localhost:55421`).
+3. Поднимает HTTPS tunnel для Supabase API (`127.0.0.1:54321`).
 4. Автоматически обновляет `VITE_SUPABASE_URL` в `.env.local` значением API tunnel URL.
 5. Собирает frontend (`pnpm build`).
 6. Запускает frontend через Vite preview (`pnpm preview:telegram`) на `localhost:3000`.
@@ -105,8 +105,12 @@
 
 Локальные tunnel targets:
 
-- frontend: `localhost:3000`
-- API: `localhost:55421`
+- frontend: `127.0.0.1:3000`
+- API: `127.0.0.1:54321`
+
+`dev:telegram` специально использует `127.0.0.1` для tunnel origins вместо `localhost`: на Windows `localhost` может резолвиться в IPv6 `::1`, пока Supabase local слушает IPv4. Если в логах Cloudflared есть `dial tcp [::1]`, значит tunnel target снова указывает на `localhost`.
+
+Перед печатью tunnel URL скрипт проверяет, что локальные API и frontend origins отвечают. Это защищает от обновления `.env.local` и BotFather публичным URL, который не достает до локального сервиса.
 
 Frontend собирается после получения API tunnel URL, чтобы production-like bundle использовал актуальный публичный адрес Supabase API.
 

@@ -11,6 +11,7 @@
 - Вектор по данным: Supabase (Postgres).
 - Локальная инфраструктура уже настроена: Docker + WSL + Supabase local.
 - Локальный Telegram-запуск: `npm run dev:telegram` (Supabase + Edge Functions + API tunnel + автообновление `VITE_SUPABASE_URL` в `.env.local` + frontend build + Vite preview + frontend tunnel + логи DB/API + startup summary).
+- Локальные Supabase-порты: API `54321`, DB `54322`, Studio `54323`, Mailpit `54324`, Analytics `54327`, Pooler `54329`; tunnels используют `127.0.0.1`, чтобы не зависеть от IPv6-резолва `localhost` на Windows.
 - Отдельного backend-сервера (Express) сейчас нет; backend-слой представлен Supabase API + Edge Functions.
 - Папка `tools/` используется для локальных утилит запуска (например, `cloudflared.exe`) и не коммитится.
 
@@ -134,6 +135,8 @@
   - текущий prompt version: `reading-text-v1`
   - OpenRouter model chain проходит server-side allowlist до списания попытки
   - генерация через OpenRouter `models` parameter с цепочкой free-моделей `primary -> fallback -> tertiary`
+  - запрос требует `response_format = json_object` и ограничивает reasoning через `reasoning = { effort: "low", exclude: true }`; пустой provider response исключает фактически ответившую модель и запускает следующий маршрут
+  - provider diagnostics логируют только безопасные metadata (`model`, `finish_reason`, HTTP status/error code, completion/reasoning token counts), без raw content и reasoning text
   - динамический `max_tokens` и диапазон слов по времени чтения
   - output validation проверяет JSON, title/body, `estimatedMinutes`, `level`, длину с допуском примерно `±20%` и базовые content-safety patterns
   - observability AI-попыток хранится в `reading_generation_attempts` как metadata без полного prompt, raw provider response, полного generated text, Telegram `initData`, secrets и stack trace
@@ -173,8 +176,8 @@
 - Дневной лимит генерации считается только на сервере в Edge Functions чтения по активной подписке из `user_subscriptions`; фронт только отображает полученные `dailyLimit/remainingAttempts`.
 - Текущие дефолтные OpenRouter-модели:
   - primary: `openai/gpt-oss-20b:free`
-  - fallback: `qwen/qwen3.6-plus:free`
-  - tertiary: `qwen/qwen3.6-plus:free`.
+  - fallback: `qwen/qwen3-next-80b-a3b-instruct:free`
+  - tertiary: `google/gemma-4-26b-a4b-it:free`.
 - Требуемые server env для AI:
   - `OPENROUTER_API_KEY`
   - опционально `OPENROUTER_MODEL_PRIMARY`
@@ -217,10 +220,10 @@
 - После неуспешной генерации экран чтения повторно запрашивает `get-reading-state`, чтобы синхронизировать активный текст и оставшиеся попытки с сервером.
 - Экран чтения показывает источник текста (`AI` + модель или `DB`) через metadata `ReadingText.source/generation`.
 - Настройка времени чтения влияет на размер AI-текста:
-  - `3` мин: `120-180` слов, `max_tokens: 450`
-  - `5` мин: `220-320` слов, `max_tokens: 750`
-  - `10` мин: `450-650` слов, `max_tokens: 1300`
-  - `15` мин: `700-950` слов, `max_tokens: 1900`.
+  - `3` мин: `120-180` слов, `max_tokens: 700`
+  - `5` мин: `220-320` слов, `max_tokens: 1050`
+  - `10` мин: `450-650` слов, `max_tokens: 1800`
+  - `15` мин: `700-950` слов, `max_tokens: 2600`.
 - При bootstrap настройки пользователя должны приходить с backend, если `settings_completed_at` уже заполнен.
 - `users.first_text_completed_at` используется только для онбординга; ежедневный факт прочтения хранится отдельно в `user_daily_reading_completions`.
 - Экран настроек содержит уровень английского и время чтения, использует mobile-first glass UI; dev tools панель отображается по существующим dev-флагам.

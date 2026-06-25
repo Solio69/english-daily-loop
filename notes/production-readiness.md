@@ -48,7 +48,7 @@
 
 ## 6) OpenRouter/free model reliability
 - Free-модели могут быть временно недоступны или менять доступные endpoints.
-- В MVP цепочка free-моделей для чтения: `openai/gpt-oss-20b:free` -> `qwen/qwen3.6-plus:free`.
+- В MVP цепочка free-моделей для чтения: `openai/gpt-oss-20b:free` -> `qwen/qwen3-next-80b-a3b-instruct:free` -> `google/gemma-4-26b-a4b-it:free`.
 - Для infra/provider ошибок используется OpenRouter `models` parameter, а app-level валидация JSON/длины остается в Edge Function.
 - Перед production стоит:
   - проверить платный/стабильный fallback

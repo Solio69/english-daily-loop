@@ -31,6 +31,20 @@ type VocabularyWordRow = {
   examples: string[];
   status: "not_started" | "active" | "learned";
   card_status: "needs_approval" | "ready";
+  review_step:
+    | "1_day"
+    | "3_days"
+    | "7_days"
+    | "14_days"
+    | "1_month"
+    | "2_months"
+    | "3_months"
+    | "4_months"
+    | "5_months"
+    | "6_months"
+    | null;
+  next_review_date: string | null;
+  last_reviewed_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -48,6 +62,9 @@ const toVocabularyWord = (row: VocabularyWordRow) => ({
   examples: row.examples,
   status: row.status,
   cardStatus: row.card_status,
+  reviewStep: row.review_step,
+  nextReviewDate: row.next_review_date,
+  lastReviewedAt: row.last_reviewed_at,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 });
@@ -79,7 +96,7 @@ Deno.serve(async (req: Request) => {
       "[get-vocabulary-words]",
     );
     const selectColumns =
-      "id, word, translation, part_of_speech, is_verb, is_regular_verb, verb_forms, examples, status, card_status, created_at, updated_at";
+      "id, word, translation, part_of_speech, is_verb, is_regular_verb, verb_forms, examples, status, card_status, review_step, next_review_date, last_reviewed_at, created_at, updated_at";
 
     const [
       { data: needsApprovalRows, error: needsApprovalError },
