@@ -59,6 +59,7 @@ Supabase Edge Function, базой и внешней AI-моделью.
 - `supabase/functions/complete-reading-text/index.ts` — транзакционно завершает активный текст через RPC `complete_daily_reading_text`, сохраняет snapshot текста в историю, удаляет активный текст, заполняет `users.first_text_completed_at` для онбординга, если это первый прочитанный текст, и возвращает актуальный `streakDays`.
 - `supabase/functions/get-reading-history/index.ts` — возвращает историю прочитанных текстов текущего пользователя с cursor-пагинацией.
 - `supabase/functions/auth-telegram/index.ts` — в bootstrap пользователя отдает `homeProgress.lesson`, `homeProgress.reading.status` и `streakDays` для главного экрана.
+- `supabase/functions/_shared/reading-streak.ts` — server helper для streak чтения: считает непрерывную серию от текущей московской даты по `user_daily_reading_completions`; если completion-marker за сегодня отсутствует, возвращает `0`.
 
 ## 4) OpenRouter
 Server env:

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { navigationReducer } from "../src/hooks/useScreenNavigation";
 
-type TestScreen = "home" | "vocabulary" | "materials";
+type TestScreen = "home" | "reading" | "vocabulary" | "materials";
 
 test("keeps nested navigation history and returns one screen at a time", () => {
   let state: { current: TestScreen; history: TestScreen[] } = {
@@ -16,6 +16,7 @@ test("keeps nested navigation history and returns one screen at a time", () => {
     root: false,
     rootScreen: "home",
   });
+
   state = navigationReducer(state, {
     type: "navigate",
     target: "materials",
@@ -48,6 +49,31 @@ test("root navigation starts a fresh history stack", () => {
 
   assert.deepEqual(state, {
     current: "materials",
+    history: ["home"],
+  });
+});
+
+test("daily lesson redirect replaces completed reading with vocabulary step", () => {
+  let state: { current: TestScreen; history: TestScreen[] } = {
+    current: "home",
+    history: [],
+  };
+
+  state = navigationReducer(state, {
+    type: "navigate",
+    target: "reading",
+    root: false,
+    rootScreen: "home",
+  });
+  state = navigationReducer(state, {
+    type: "navigate",
+    target: "vocabulary",
+    root: true,
+    rootScreen: "home",
+  });
+
+  assert.deepEqual(state, {
+    current: "vocabulary",
     history: ["home"],
   });
 });

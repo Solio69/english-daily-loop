@@ -48,6 +48,7 @@ Telegram Mini App для ежедневной практики английск�
 
 - `src/screens` — UI-экраны приложения.
 - `src/components` — общие UI-компоненты и feature-компоненты экранов.
+- `src/hooks` — app-level и feature hooks для профиля пользователя, toast, действий приложения и локальной UI-логики.
 - `src/services` — клиентский сервисный слой, который вызывает Supabase и Edge Functions.
 - `src/types` — общие frontend/domain типы.
 - `supabase/migrations` — схема базы данных.
@@ -78,11 +79,11 @@ Telegram Mini App для ежедневной практики английск�
 - `approve-vocabulary-cards` — подтверждает все AI-карточки текущего пользователя, которые ждут проверки.
 - `get-vocabulary-review-state` — возвращает точный snapshot дневной очереди, прогресс, следующую карточку и действия словаря.
 - `review-vocabulary-word` — атомарно применяет выбранный интервал и завершает дневной план после последней обязательной карточки.
-- `dev-tools` — локальные dev-действия для текущего Telegram-пользователя; управляет попытками генерации, чтением, повторением слов и подписками; работает только при `DEV_TOOLS_ENABLED="true"`.
+- `dev-tools` — локальные dev-действия для текущего Telegram-пользователя; управляет попытками генерации, чтением, повторением слов, batch-переносом дневной очереди на выбранный шаг и подписками; работает только при `DEV_TOOLS_ENABLED="true"`.
 
 Все чувствительные операции выполняются на сервере. `TELEGRAM_BOT_TOKEN`, `SUPABASE_SERVICE_ROLE_KEY` и `OPENROUTER_API_KEY` нельзя использовать в клиентском коде. Неожиданные внутренние ошибки Edge Functions логируются на сервере, а клиент получает безопасный код и сообщение без SQL/provider details.
 
-Общая server-инфраструктура Edge Functions находится в `supabase/functions/_shared/server.ts`: CORS, POST guard, JSON parsing, чтение env, Telegram `initData` validation, `AppError` и единый формат JSON-ответов. Общий OpenRouter client/model allowlist находится в `supabase/functions/_shared/openrouter.ts`, общие AI text helpers — в `supabase/functions/_shared/ai-text.ts`. Лимиты подготовки карточек вынесены в `supabase/functions/_shared/vocabulary-card-generation.ts`, а snapshot повторения и home progress — в `supabase/functions/_shared/vocabulary-review-state.ts` и `supabase/functions/_shared/home-progress.ts`.
+Общая server-инфраструктура Edge Functions находится в `supabase/functions/_shared/server.ts`: CORS, POST guard, JSON parsing, чтение env, Telegram `initData` validation, `AppError` и единый формат JSON-ответов. Общий OpenRouter client/model allowlist находится в `supabase/functions/_shared/openrouter.ts`, общие AI text helpers — в `supabase/functions/_shared/ai-text.ts`. Лимиты подготовки карточек вынесены в `supabase/functions/_shared/vocabulary-card-generation.ts`, snapshot повторения и home progress — в `supabase/functions/_shared/vocabulary-review-state.ts` и `supabase/functions/_shared/home-progress.ts`, streak чтения — в `supabase/functions/_shared/reading-streak.ts`.
 Prompt/output слой словарных карточек находится рядом с функцией подготовки: `supabase/functions/prepare-vocabulary-cards/ai-pipeline.ts`. Сохранение подготовленных карточек и merge pending-дубликатов в существующие канонические карточки вынесены в `supabase/functions/prepare-vocabulary-cards/card-persistence.ts`.
 
 ## Данные
@@ -122,7 +123,7 @@ AI attempt metadata хранится `90` дней; scheduled cleanup выпол
 - `public.save_pending_vocabulary_word_with_source(...)` — сохраняет pending-слово и источник из активного текста с advisory lock по пользователю.
 - `public.claim_vocabulary_card_generation_attempt(...)` — атомарно проверяет дневной лимит подготовки карточек и создает attempt с advisory lock по пользователю и дате.
 - `public.review_vocabulary_word(...)` — применяет действие повторения, обновляет интервалы и создает дневной completion-marker.
-- `public.get_or_create_vocabulary_review_state(...)` — атомарно считает очередь и фиксирует завершение пустого или выполненного плана.
+- `public.get_or_create_vocabulary_review_state(...)` — атомарно считает очередь, фиксирует завершение пустого или выполненного плана и возвращает отдельные счетчики для обязательного плана и экрана повторения.
 
 Текущие MVP-лимиты:
 
@@ -274,6 +275,7 @@ pnpm build
 ## Разработка
 
 - Новую работу с данными лучше выносить в `src/services`, а не напрямую в UI-компоненты.
+- App-level orchestration держать в hooks: профиль пользователя и refresh — в `useAppUserProfile`, toast — в `useToast`, пользовательские действия и локальные обновления `homeProgress` — в `useAppUserActions`.
 - Общие типы держать в `src/types`.
 - Дизайн-токены и общие glass utilities держать в `src/index.css`; актуальные UI-правила главной фиксировать в `docs/agents/DESIGN_SYSTEM.md`.
 - Для внутренних экранов с back navigation использовать `ScreenHeader`; для встроенных статусов использовать `InlineStatusCard`; для загрузок использовать `LoadingState`.

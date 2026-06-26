@@ -1,6 +1,10 @@
 // @ts-nocheck
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import {
+  getMoscowDate,
+  getReadingCompletionStreak,
+} from "../_shared/reading-streak.ts";
+import {
   AppError,
   DEFAULT_INTERNAL_ERROR_MESSAGE,
   assertPostRequest,
@@ -35,7 +39,6 @@ type SubscriptionRow = {
   ends_at: string;
 };
 
-const MOSCOW_TIME_ZONE = "Europe/Moscow";
 const FREE_LIMITS = {
   dailyReadingGenerations: 3,
   vocabularyWordsLimit: 30,
@@ -43,40 +46,6 @@ const FREE_LIMITS = {
 const PAID_LIMITS = {
   dailyReadingGenerations: 10,
   vocabularyWordsLimit: 300,
-};
-const getMoscowDate = (): string => {
-  const parts = new Intl.DateTimeFormat("en", {
-    timeZone: MOSCOW_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-
-  const values = Object.fromEntries(
-    parts
-      .filter((part) => part.type !== "literal")
-      .map((part) => [part.type, part.value]),
-  );
-
-  return `${values.year}-${values.month}-${values.day}`;
-};
-
-const parseDateToUtc = (value: string): Date => {
-  const [year, month, day] = value.split("-").map(Number);
-  return new Date(Date.UTC(year, month - 1, day));
-};
-
-const formatUtcDate = (date: Date): string => {
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(date.getUTCDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
-
-const getPreviousDate = (value: string): string => {
-  const date = parseDateToUtc(value);
-  date.setUTCDate(date.getUTCDate() - 1);
-  return formatUtcDate(date);
 };
 
 const mapSubscription = (row: SubscriptionRow | null) =>
@@ -164,45 +133,6 @@ const getSubscriptionSummary = async (
     activeSubscription: mapSubscription(activeSubscription),
     scheduledSubscription: mapSubscription(scheduledSubscription),
   };
-};
-
-const getReadingCompletionStreak = async (
-  supabase: ReturnType<typeof createClient>,
-  userId: string,
-) => {
-  const today = getMoscowDate();
-  const { data: completionRows, error: completionError } = await supabase
-    .from("user_daily_reading_completions")
-    .select("completed_date")
-    .eq("user_id", userId)
-    .lte("completed_date", today)
-    .order("completed_date", { ascending: false });
-
-  if (completionError) {
-    console.error("[auth-telegram] failed to load streak", {
-      appUserId: userId,
-      completionError: completionError.message,
-    });
-    fail(500, "STREAK_LOAD_FAILED", "Failed to load streak.");
-  }
-
-  let streakDays = 0;
-  let expectedDate = today;
-
-  for (const row of completionRows ?? []) {
-    if (row.completed_date !== expectedDate) {
-      if (streakDays === 0) {
-        break;
-      }
-
-      break;
-    }
-
-    streakDays += 1;
-    expectedDate = getPreviousDate(expectedDate);
-  }
-
-  return streakDays;
 };
 
 Deno.serve(async (req: Request) => {
@@ -303,7 +233,12 @@ Deno.serve(async (req: Request) => {
       getUserSettings(supabase, appUser.id),
       getSubscriptionSummary(supabase, appUser.id),
       getSharedHomeProgress(supabase, appUser.id, "[auth-telegram]"),
-      getReadingCompletionStreak(supabase, appUser.id),
+      getReadingCompletionStreak(
+        supabase,
+        appUser.id,
+        getMoscowDate(),
+        "[auth-telegram]",
+      ),
     ]);
 
     return successResponse(200, {

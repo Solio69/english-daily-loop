@@ -76,6 +76,8 @@
 - Миграция `supabase/migrations/20260528120000_add_vocabulary_card_generation_attempts.sql` добавляет `public.vocabulary_card_generation_attempts`, RPC `claim_vocabulary_card_generation_attempt(...)` и scheduled cleanup job `cleanup_vocabulary_card_generation_attempts` для удаления attempt metadata подготовки карточек старше `90` дней.
 - Миграция `supabase/migrations/20260618120000_add_vocabulary_review_flow.sql` добавляет статусы и поля повторения, таблицу дневных completion-marker и RPC `review_vocabulary_word(...)`.
 - Миграция `supabase/migrations/20260622120000_harden_vocabulary_review_state.sql` добавляет RPC `get_or_create_vocabulary_review_state(...)` для атомарного snapshot очереди и фиксирует реактивацию существующих `learned`-слов без увеличения словаря.
+- Миграция `supabase/migrations/20260626120000_add_dev_vocabulary_review_batch_step.sql` добавляет server-only RPC `dev_complete_vocabulary_reviews_at_step(...)` для локального переноса всей очереди повторения на выбранный шаг.
+- Миграция `supabase/migrations/20260626130000_add_vocabulary_review_display_counts.sql` добавляет display-счетчики повторения для экрана `Слова`, не меняя семантику обязательного дневного плана для главной.
 - В проекте есть базовые миграции и сиды для локальной разработки (dev user + моковые тексты).
 - Миграция `supabase/migrations/20260424113000_drop_daily_review_words_from_user_settings.sql` удаляет устаревшее поле `daily_review_words` из `public.user_settings`.
 - Миграция `supabase/migrations/20260513120000_drop_daily_exercise_minutes_from_user_settings.sql` удаляет поле `daily_exercise_minutes` из `public.user_settings`.
@@ -88,10 +90,11 @@
   - `public.claim_vocabulary_card_generation_attempt(...)` — атомарная проверка лимита и списание попытки подготовки словарных карточек.
   - `public.review_vocabulary_word(...)` — атомарный переход по шкале повторения и создание дневного completion-marker.
   - `public.get_or_create_vocabulary_review_state(...)` — точный snapshot очереди и фиксация завершения пустого плана с advisory lock по пользователю и дате.
+  - `public.dev_complete_vocabulary_reviews_at_step(...)` — local dev-only перенос обязательной очереди повторения на абсолютный шаг с созданием дневного completion-marker.
 - Корневой `tsconfig.json` исключает `supabase/functions`, потому что Edge Functions работают в Deno-рантайме и не должны проверяться frontend `tsc`.
 - Общая server-инфраструктура Edge Functions находится в `supabase/functions/_shared/server.ts`: CORS, POST guard, JSON parsing, env helpers, Telegram `initData` validation, безопасные JSON-ответы и `AppError`.
 - Общая server-логика лимита, подсчета и обновления metadata попыток подготовки словарных карточек находится в `supabase/functions/_shared/vocabulary-card-generation.ts`.
-- Общие server helper'ы повторения находятся в `supabase/functions/_shared/vocabulary-review.ts`, `supabase/functions/_shared/vocabulary-review-state.ts` и `supabase/functions/_shared/home-progress.ts`.
+- Общие server helper'ы повторения и прогресса находятся в `supabase/functions/_shared/vocabulary-review.ts`, `supabase/functions/_shared/vocabulary-review-state.ts`, `supabase/functions/_shared/home-progress.ts` и `supabase/functions/_shared/reading-streak.ts`.
 - Edge Functions `auth-telegram`, `save-user-settings`, `activate-subscription`, `complete-reading-text`, `dev-tools`, `get-reading-state`, `get-reading-history`, `generate-reading-text`, `save-vocabulary-word`, `get-vocabulary-state`, `get-vocabulary-words`, `get-vocabulary-review-state`, `review-vocabulary-word`, `prepare-vocabulary-cards`, `approve-vocabulary-card` и `approve-vocabulary-cards` используют общий helper для Telegram auth/error/env/http слоя; бизнес-валидация остается внутри конкретных функций.
 - Telegram auth реализована через Edge Function `supabase/functions/auth-telegram/index.ts`:
   - серверная валидация `initData` (подпись + `auth_date`)
@@ -163,7 +166,8 @@
 - Локальные dev tools реализованы через Edge Function `supabase/functions/dev-tools/index.ts`:
   - серверная валидация `Telegram initData`
   - обязательный server env gate `DEV_TOOLS_ENABLED="true"`
-  - actions: `reset_generation_attempts`, `reset_vocabulary_card_attempts`, `reset_vocabulary_review_progress`, `make_vocabulary_reviews_due_today`, `clear_today_vocabulary_review_completion`, `delete_today_reading_completion`, `reset_subscriptions`
+  - actions: `reset_generation_attempts`, `reset_vocabulary_card_attempts`, `reset_vocabulary_review_progress`, `make_vocabulary_reviews_due_today`, `complete_today_vocabulary_reviews_at_step`, `clear_today_vocabulary_review_completion`, `delete_today_reading_completion`, `reset_subscriptions`
+  - `complete_today_vocabulary_reviews_at_step` принимает `reviewStep` и переносит все обязательные карточки текущего дня на выбранный абсолютный шаг через RPC `dev_complete_vocabulary_reviews_at_step`
   - `delete_today_reading_completion` удаляет дневной progress-marker и все завершенные сегодня тексты текущего пользователя
   - frontend-панель показывается только при `VITE_DEV_TOOLS_ENABLED="true"`.
 - Текущие MVP-лимиты подписок:
@@ -189,6 +193,7 @@
 - Общие UI primitives находятся в `src/components`: `ScreenHeader` для внутренних экранов с back navigation, `LoadingState` для glass-загрузок, `InlineStatusCard` для встроенных статусов и `Button` для CTA/control кнопок.
 - Базовый `Layout` сделан full-bleed под Telegram Mini App: без внешнего app shell, с `100dvh`, CSS-переменными темы и фиксированной нижней навигацией.
 - Тема приложения управляется через `src/context/ThemeContext.tsx`: preference `system | light | dark` хранится в `localStorage`, дефолт `system` берет тему из `Telegram.WebApp.colorScheme`, а вне Telegram использует `prefers-color-scheme`; `index.html` содержит ранний theme bootstrap, чтобы выставить `.dark` до React-рендера.
+- App-level состояние профиля, toast и пользовательские действия вынесены в hooks: `useAppUserProfile`, `useToast`, `useAppUserActions`; `App` остается composition root для навигации и сборки экранов.
 - Главная страница реализована как compact mobile-first экран: header с приветствием, трехпозиционным переключателем темы, теплой кнопкой настроек, кнопкой подписки на уровне имени пользователя, карточкой дневного прогресса `Текст` + `Повторение` со streak, карточкой плана на сегодня и карточкой `Мои материалы`.
 - Нижняя навигация содержит 4 пункта: `Главная`, `Текст`, `Слова`, `Материалы`; пункт `Материалы` открывает экран `Мои материалы` и подсвечивается на этом экране.
 - Bootstrap пользователя в `src/services/userService.ts` авторизуется через `auth-telegram` по Telegram `initData`; `AppUser` содержит `subscription`, `homeProgress` и `streakDays`.
@@ -210,12 +215,13 @@
 - Экран `Слова` реализует дневное повторение через `get-vocabulary-review-state` и `review-vocabulary-word`; очередь сортируется как новые → просроченные → сегодняшние, дневного cap нет.
 - Состояния учебного прогресса слова: `not_started | active | learned`; шкала интервалов: `1 день`, `3 дня`, `7 дней`, `14 дней`, `1–6 месяцев`, затем `learned`.
 - Завершение обязательной очереди фиксируется в `user_daily_vocabulary_review_completions`; новые карточки после completion доступны дополнительно и не открывают завершенный план заново.
+- `get-vocabulary-review-state` возвращает `required*`-счетчики для обязательного плана и `display*`-счетчики для экрана `Слова`; если completion-marker уже есть, главная остается завершенной, а экран повторения показывает дополнительные новые карточки в общем прогрессе.
 - Для связи слов с текстами активные и завершенные тексты имеют стабильный `reading_text_id`; при завершении чтения RPC `complete_daily_reading_text` переносит этот id из `user_active_reading_texts` в `user_completed_reading_texts`.
 - Сохранение pending-слова выполняется через RPC `save_pending_vocabulary_word_with_source` с advisory lock по пользователю; лимит словаря проверяется server-side по активной подписке (`free: 30`, `paid: 300`), прямых записей словаря с клиента нет.
 - AI-карточка слова хранит базовую форму, перевод, часть речи, данные глагола при необходимости и 3 английских примера по уровню пользователя; подготовка карточек сохраняет валидную часть batch-а, мержит совпадения по канонической форме, не блокирует карточку только из-за некорректного echo-поля `level` от AI и оставляет слова с невалидным или отсутствующим AI-ответом в `pending`.
 - На главной есть компактная карточка `Мои материалы`; пункт нижней навигации `Материалы` открывает экран материалов, плитка `Тексты` открывает экран материалов на табе текстов, плитка `Словарь` открывает таб словаря и показывает краткое состояние по `get-vocabulary-state`: `Добавить: N`, `Подтвердить: N` или `В словаре: N`.
 - На главной карточка урока использует `homeProgress.lesson.status` и `homeProgress.lesson.currentStep`; daily lesson последовательно ведет на чтение, затем на повторение слов.
-- Счетчик с иконкой огонька на главной использует `streakDays`, который сервер считает как серию подряд идущих завершений чтения по timezone `Europe/Moscow`.
+- Счетчик с иконкой огонька на главной использует `streakDays`, который сервер считает как серию подряд идущих завершений чтения по timezone `Europe/Moscow`; `useAppUserProfile` обновляет профиль при возврате в приложение и смене московской даты, чтобы пропущенный день сбрасывал видимую серию без ручного перезапуска.
 - Если генерация упала, новая попытка уже списана, новый текст не сохраняется, а ранее активный текст остается доступен после завершения состояния загрузки.
 - После неуспешной генерации экран чтения повторно запрашивает `get-reading-state`, чтобы синхронизировать активный текст и оставшиеся попытки с сервером.
 - Экран чтения показывает источник текста (`AI` + модель или `DB`) через metadata `ReadingText.source/generation`.

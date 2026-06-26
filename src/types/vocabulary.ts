@@ -108,6 +108,9 @@ export type VocabularyReviewState = {
   remainingRequiredCount: number;
   newAvailableCount: number;
   extraAvailableCount: number;
+  displayTotalCount: number;
+  displayReviewedCount: number;
+  displayRemainingCount: number;
   completedAt: string | null;
   dictionaryActions: {
     pendingCount: number;

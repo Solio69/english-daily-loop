@@ -18,6 +18,10 @@
 - После завершения обязательной очереди создается дневной completion-marker.
 - Карточки, подтвержденные после завершения дня, доступны как дополнительные новые
   слова, но не открывают завершенный план заново.
+- Карточки, подтвержденные до завершения обязательной очереди, входят в план дня и
+  увеличивают счетчики на главной.
+- Карточки, подтвержденные после завершения обязательной очереди, увеличивают
+  display-счетчики на экране `Слова`, но не меняют completed-состояние главной.
 - Если обязательных карточек нет, сервер фиксирует завершенный день с
   `reviewed_count = 0`.
 - `learned`-карточки остаются в БД и словаре, но не попадают в очередь повторения.
@@ -163,7 +167,8 @@ status = active и nextReviewDate <= today
 Миграции:
 
 - `supabase/migrations/20260618120000_add_vocabulary_review_flow.sql`;
-- `supabase/migrations/20260622120000_harden_vocabulary_review_state.sql`.
+- `supabase/migrations/20260622120000_harden_vocabulary_review_state.sql`;
+- `supabase/migrations/20260626130000_add_vocabulary_review_display_counts.sql`.
 
 ## 6) Transactional RPC
 
@@ -182,6 +187,8 @@ status = active и nextReviewDate <= today
 - выбирает следующую карточку по правилам алгоритма;
 - создает completion-marker, если обязательная очередь пуста;
 - после завершения дня возвращает новые карточки как optional;
+- возвращает `required*`-счетчики для обязательного плана и `display*`-счетчики
+  для экрана `Слова`;
 - не ограничивает расчет размером клиентской выборки.
 
 ## 7) Edge Functions
@@ -243,16 +250,26 @@ Daily lesson состоит из двух последовательных ша�
 получит статус `completed`. `homeProgress.review` содержит `status`, `dueCount` и
 `reviewedTodayCount`.
 
+Главная использует обязательные `required*`-счетчики. Экран `Слова` использует
+`displayTotalCount`, `displayReviewedCount` и `displayRemainingCount`, чтобы
+показывать дополнительные новые карточки после закрытия плана.
+
 ## 10) Dev tools и проверки
 
 Локальные действия:
 
 - `reset_vocabulary_review_progress`;
 - `make_vocabulary_reviews_due_today`;
+- `complete_today_vocabulary_reviews_at_step`;
 - `clear_today_vocabulary_review_completion`.
 
 Они доступны только при клиентском `VITE_DEV_TOOLS_ENABLED="true"` и серверном
 `DEV_TOOLS_ENABLED="true"`.
+
+`complete_today_vocabulary_reviews_at_step` принимает абсолютный `reviewStep`,
+переносит всю обязательную очередь текущего дня на этот шаг и создает дневной
+completion-marker. Действие выполняется через server-only RPC
+`dev_complete_vocabulary_reviews_at_step(...)`.
 
 Unit-тесты проверяют начальные/финальные подписи интервалов, навигационный стек и
 русские формы счетчиков. Запуск: `pnpm test`.

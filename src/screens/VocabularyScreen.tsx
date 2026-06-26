@@ -16,6 +16,7 @@ import {
   VocabularyReviewState,
   VocabularyReviewStatus,
 } from "../types/vocabulary";
+import { getVocabularyReviewProgressCounts } from "../utils/vocabularyReviewProgress";
 
 type VocabularyScreenProps = {
   onBack: () => void;
@@ -107,9 +108,9 @@ export const VocabularyScreen: React.FC<VocabularyScreenProps> = ({
     }
   };
 
-  const totalCount = reviewState?.requiredTotalCount ?? 0;
-  const remainingCount = reviewState?.remainingRequiredCount ?? 0;
-  const reviewedCount = Math.max(totalCount - remainingCount, 0);
+  const { totalCount, reviewedCount, remainingCount } = reviewState
+    ? getVocabularyReviewProgressCounts(reviewState)
+    : { totalCount: 0, reviewedCount: 0, remainingCount: 0 };
   const currentCard = reviewState?.currentCard ?? null;
   const dictionaryActions = reviewState?.dictionaryActions ?? {
     pendingCount: 0,

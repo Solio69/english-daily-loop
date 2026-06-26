@@ -2,7 +2,10 @@ import React, { Suspense, lazy, useState } from "react";
 import { Button } from "../components/Button";
 import { LoadingState } from "../components/LoadingState";
 import { ScreenHeader } from "../components/ScreenHeader";
-import type { DevToolAction } from "../services/devToolsService";
+import type {
+  DevToolAction,
+  DevToolActionOptions,
+} from "../services/devToolsService";
 import { SaveUserSettingsInput, UserSettings } from "../types/user";
 
 const DevToolsPanel = lazy(() =>
@@ -19,7 +22,10 @@ type SettingsScreenProps = {
   isFirstSetup?: boolean;
   showDevTools?: boolean;
   runningDevToolAction?: DevToolAction | null;
-  onRunDevToolAction?: (action: DevToolAction) => void;
+  onRunDevToolAction?: (
+    action: DevToolAction,
+    options?: DevToolActionOptions,
+  ) => void;
 };
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({

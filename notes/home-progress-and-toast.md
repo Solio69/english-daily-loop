@@ -39,10 +39,18 @@
 - `completed` — обязательная очередь пуста и дневной completion-marker сохранен;
 - если карточек на день нет, completion-marker создается с `reviewed_count = 0`;
 - новые карточки после completion доступны дополнительно и не открывают план заново.
+- `homeProgress.review` использует счетчики обязательного плана. Дополнительные
+  карточки после completion отображаются в display-счетчиках экрана `Слова`, но не
+  меняют статус и счетчики главной.
 
 Текущая модель streak:
 - `streakDays` считается сервером по серии подряд идущих дат в `user_daily_reading_completions`
 - timezone серии: `Europe/Moscow`
+- серия начинается с текущей московской даты; если completion-marker за сегодня отсутствует,
+  `streakDays = 0`
+- расчет находится в `supabase/functions/_shared/reading-streak.ts`
+- `useAppUserProfile` обновляет профиль при возврате в приложение, переходе страницы в visible-state
+  и смене московской даты, чтобы главная не держала устаревшую серию после пропуска дня
 
 ## 3) Где это используется
 Backend:
@@ -56,6 +64,9 @@ Backend:
 Frontend:
 - `src/types/homeProgress.ts`
 - `src/types/user.ts`
+- `src/hooks/useAppUserProfile.ts`
+- `src/hooks/useAppUserActions.ts`
+- `src/hooks/useToast.ts`
 - `src/services/userService.ts`
 - `src/services/materialsService.ts`
 - `src/App.tsx`
@@ -127,6 +138,7 @@ Header главной:
 - показывает `streakDays`
 - после завершения текста обновляется на клиенте сразу из ответа `complete-reading-text`
 - после нового bootstrap получает актуальное значение из `auth-telegram`
+- после смены московской даты обновляется через повторный запрос профиля
 
 Локальные обновления на клиенте:
 - после генерации текста `lesson.status` и `reading.status` переходят в `in_progress`
@@ -139,6 +151,7 @@ Header главной:
 ## 5) Toast component
 App-level сообщения проходят через единый компонент:
 - `src/components/Toast.tsx`
+- `src/hooks/useToast.ts`
 
 Позиционирование:
 - toast фиксируется сверху viewport

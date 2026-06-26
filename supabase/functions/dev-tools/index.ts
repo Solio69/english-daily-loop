@@ -19,9 +19,22 @@ type DevToolAction =
   | "reset_vocabulary_card_attempts"
   | "reset_vocabulary_review_progress"
   | "make_vocabulary_reviews_due_today"
+  | "complete_today_vocabulary_reviews_at_step"
   | "clear_today_vocabulary_review_completion"
   | "delete_today_reading_completion"
   | "reset_subscriptions";
+
+type VocabularyReviewStep =
+  | "1_day"
+  | "3_days"
+  | "7_days"
+  | "14_days"
+  | "1_month"
+  | "2_months"
+  | "3_months"
+  | "4_months"
+  | "5_months"
+  | "6_months";
 
 type UserRow = {
   id: string;
@@ -37,6 +50,7 @@ const parseAction = (value: unknown): DevToolAction => {
     value === "reset_vocabulary_card_attempts" ||
     value === "reset_vocabulary_review_progress" ||
     value === "make_vocabulary_reviews_due_today" ||
+    value === "complete_today_vocabulary_reviews_at_step" ||
     value === "clear_today_vocabulary_review_completion" ||
     value === "delete_today_reading_completion" ||
     value === "reset_subscriptions"
@@ -45,6 +59,25 @@ const parseAction = (value: unknown): DevToolAction => {
   }
 
   fail(400, "INVALID_DEV_TOOL_ACTION", "Dev tool action is invalid.");
+};
+
+const parseReviewStep = (value: unknown): VocabularyReviewStep => {
+  if (
+    value === "1_day" ||
+    value === "3_days" ||
+    value === "7_days" ||
+    value === "14_days" ||
+    value === "1_month" ||
+    value === "2_months" ||
+    value === "3_months" ||
+    value === "4_months" ||
+    value === "5_months" ||
+    value === "6_months"
+  ) {
+    return value;
+  }
+
+  fail(400, "INVALID_REVIEW_STEP", "Review step is invalid.");
 };
 
 const getMoscowDate = (): string => {
@@ -237,6 +270,71 @@ const clearTodayVocabularyReviewCompletion = async (
   return { dailyVocabularyReviewCompletions: count ?? 0 };
 };
 
+const completeTodayVocabularyReviewsAtStep = async (
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  today: string,
+  reviewStep: VocabularyReviewStep,
+) => {
+  const { data, error } = await supabase.rpc(
+    "dev_complete_vocabulary_reviews_at_step",
+    {
+      p_user_id: userId,
+      p_review_date: today,
+      p_review_step: reviewStep,
+    },
+  );
+
+  if (error) {
+    console.error("[dev-tools] failed to complete vocabulary reviews at step", {
+      userId,
+      today,
+      reviewStep,
+      error: error.message,
+    });
+    fail(
+      500,
+      "DEV_TOOL_ACTION_FAILED",
+      "Failed to complete vocabulary reviews at selected step.",
+    );
+  }
+
+  const result = data as
+    | {
+        ok: true;
+        reviewDate: string;
+        reviewStep: VocabularyReviewStep;
+        nextReviewDate: string;
+        processedCount: number;
+        reviewedTodayCount: number;
+      }
+    | {
+        ok: false;
+        code: string;
+        message: string;
+      }
+    | null;
+
+  if (!result) {
+    fail(
+      500,
+      "DEV_TOOL_ACTION_FAILED",
+      "Failed to complete vocabulary reviews at selected step.",
+    );
+  }
+
+  if (!result.ok) {
+    fail(400, result.code, result.message);
+  }
+
+  return {
+    vocabularyReviewsCompletedAtStep: result.processedCount,
+    vocabularyReviewsCompletedToday: result.reviewedTodayCount,
+    reviewStep: result.reviewStep,
+    nextReviewDate: result.nextReviewDate,
+  };
+};
+
 const deleteTodayReadingCompletions = async (
   supabase: ReturnType<typeof createClient>,
   userId: string,
@@ -322,9 +420,14 @@ Deno.serve(async (req: Request) => {
     const body = await parseJsonBody<{
       initData?: unknown;
       action?: unknown;
+      reviewStep?: unknown;
     }>(req);
 
     const action = parseAction(body?.action);
+    const reviewStep =
+      action === "complete_today_vocabulary_reviews_at_step"
+        ? parseReviewStep(body?.reviewStep)
+        : null;
     const tgUser = await getTelegramUserFromBody(
       body,
       env.TELEGRAM_BOT_TOKEN,
@@ -340,7 +443,7 @@ Deno.serve(async (req: Request) => {
     const appUser = await getAppUser(supabase, tgUser.id);
     const today = getMoscowDate();
 
-    const deleted =
+    const changes =
       action === "reset_generation_attempts"
         ? await resetGenerationAttempts(supabase, appUser.id, today)
         : action === "reset_vocabulary_card_attempts"
@@ -349,6 +452,13 @@ Deno.serve(async (req: Request) => {
           ? await resetVocabularyReviewProgress(supabase, appUser.id)
         : action === "make_vocabulary_reviews_due_today"
           ? await makeVocabularyReviewsDueToday(supabase, appUser.id, today)
+        : action === "complete_today_vocabulary_reviews_at_step"
+          ? await completeTodayVocabularyReviewsAtStep(
+              supabase,
+              appUser.id,
+              today,
+              reviewStep,
+            )
         : action === "clear_today_vocabulary_review_completion"
           ? await clearTodayVocabularyReviewCompletion(
               supabase,
@@ -362,7 +472,7 @@ Deno.serve(async (req: Request) => {
     return successResponse(200, {
       action,
       today,
-      deleted,
+      changes,
     });
   } catch (error) {
     if (error instanceof AppError) {

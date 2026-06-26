@@ -1,15 +1,32 @@
 import React from "react";
-import { BookMarked, CalendarClock, RotateCcw, Trash2, WalletCards } from "lucide-react";
-import type { DevToolAction } from "../services/devToolsService";
+import {
+  BookMarked,
+  CalendarClock,
+  CheckCheck,
+  RotateCcw,
+  Trash2,
+  WalletCards,
+} from "lucide-react";
+import type {
+  DevToolAction,
+  DevToolActionOptions,
+} from "../services/devToolsService";
+import type { VocabularyReviewStep } from "../types/vocabulary";
+import { getReviewStepLabel } from "../utils/vocabularyReviewPresentation";
 
 type DevToolsPanelProps = {
   runningAction: DevToolAction | null;
-  onRunAction: (action: DevToolAction) => void;
+  onRunAction: (action: DevToolAction, options?: DevToolActionOptions) => void;
 };
+
+type SimpleDevToolAction = Exclude<
+  DevToolAction,
+  "complete_today_vocabulary_reviews_at_step"
+>;
 
 // TODO: Keep local-only actions behind both VITE_DEV_TOOLS_ENABLED and DEV_TOOLS_ENABLED.
 const ACTIONS: Array<{
-  action: DevToolAction;
+  action: SimpleDevToolAction;
   label: string;
   description: string;
   icon: React.ComponentType<{ size?: number; className?: string }>;
@@ -58,6 +75,19 @@ const ACTIONS: Array<{
   },
 ];
 
+const REVIEW_STEP_OPTIONS: VocabularyReviewStep[] = [
+  "1_day",
+  "3_days",
+  "7_days",
+  "14_days",
+  "1_month",
+  "2_months",
+  "3_months",
+  "4_months",
+  "5_months",
+  "6_months",
+];
+
 export const DevToolsPanel: React.FC<DevToolsPanelProps> = ({
   runningAction,
   onRunAction,
@@ -70,6 +100,42 @@ export const DevToolsPanel: React.FC<DevToolsPanelProps> = ({
       <p className="text-xs text-amber-700/80 dark:text-amber-200/80">
         Локальные действия для текущего Telegram-пользователя.
       </p>
+    </div>
+
+    <div className="mb-2 rounded-xl bg-white p-3 shadow-sm dark:bg-gray-800">
+      <div className="flex items-start gap-3">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-200">
+          <CheckCheck size={16} />
+        </span>
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold text-gray-900 dark:text-white">
+            {runningAction === "complete_today_vocabulary_reviews_at_step"
+              ? "Выполняем..."
+              : "Повторить все слова"}
+          </span>
+          <span className="block text-xs text-gray-500 dark:text-gray-400">
+            Переносит сегодняшнюю очередь на выбранный шаг.
+          </span>
+        </span>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        {REVIEW_STEP_OPTIONS.map((reviewStep) => (
+          <button
+            key={reviewStep}
+            type="button"
+            onClick={() =>
+              onRunAction("complete_today_vocabulary_reviews_at_step", {
+                reviewStep,
+              })
+            }
+            disabled={Boolean(runningAction)}
+            className="min-h-9 rounded-xl border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-amber-900/50 dark:bg-amber-900/30 dark:text-amber-100 dark:hover:bg-amber-900/50"
+          >
+            {getReviewStepLabel(reviewStep)}
+          </button>
+        ))}
+      </div>
     </div>
 
     <div className="space-y-2">
