@@ -67,11 +67,11 @@ Telegram Mini App для ежедневной практики английск�
 - `auth-telegram` — валидирует Telegram `initData`, создает или находит пользователя, возвращает настройки, подписку, прогресс главного экрана и streak.
 - `save-user-settings` — валидирует пользователя на сервере и сохраняет настройки в `user_settings`.
 - `activate-subscription` — транзакционно активирует MVP-подписку за 0 рублей.
-- `get-reading-state` — возвращает состояние экрана чтения: активный текст, лимиты, использованные попытки и факт завершения чтения за день.
-- `generate-reading-text` — атомарно списывает попытку, вызывает OpenRouter, валидирует ответ модели и сохраняет активный текст.
-- `complete-reading-text` — транзакционно завершает активный текст, сохраняет snapshot текста в историю, удаляет активный текст и обновляет streak.
+- `get-reading-state` — возвращает состояние экрана чтения: активный текст текущей московской даты, лимиты, использованные попытки и факт завершения чтения за день.
+- `generate-reading-text` — атомарно списывает попытку, вызывает OpenRouter, валидирует ответ модели и сохраняет активный текст с `reading_date`.
+- `complete-reading-text` — транзакционно завершает активный текст текущей московской даты, сохраняет snapshot текста в историю, удаляет active text и обновляет streak.
 - `get-reading-history` — возвращает историю прочитанных текстов текущего пользователя с cursor-пагинацией.
-- `save-vocabulary-word` — валидирует активный текст, проверяет лимит словаря и быстро сохраняет слово как `not_started` + `pending`.
+- `save-vocabulary-word` — валидирует активный текст текущей московской даты, проверяет лимит словаря и быстро сохраняет слово как `not_started` + `pending`.
 - `get-vocabulary-state` — возвращает количество pending/needs_approval/ready слов в словаре пользователя и состояние дневного лимита подготовки AI-карточек.
 - `get-vocabulary-words` — возвращает AI-карточки на подтверждение и подтвержденные карточки словаря.
 - `prepare-vocabulary-cards` — batch-ом до 5 pending-слов списывает дневную попытку подготовки карточек, готовит AI-карточки, пробует следующую allowlist-модель при невалидном AI-ответе или provider-ошибке, сохраняет валидные карточки, отправляет их на подтверждение и мержит pending-дубликаты в существующие канонические карточки.
@@ -83,7 +83,7 @@ Telegram Mini App для ежедневной практики английск�
 
 Все чувствительные операции выполняются на сервере. `TELEGRAM_BOT_TOKEN`, `SUPABASE_SERVICE_ROLE_KEY` и `OPENROUTER_API_KEY` нельзя использовать в клиентском коде. Неожиданные внутренние ошибки Edge Functions логируются на сервере, а клиент получает безопасный код и сообщение без SQL/provider details.
 
-Общая server-инфраструктура Edge Functions находится в `supabase/functions/_shared/server.ts`: CORS, POST guard, JSON parsing, чтение env, Telegram `initData` validation, `AppError` и единый формат JSON-ответов. Общий OpenRouter client/model allowlist находится в `supabase/functions/_shared/openrouter.ts`, общие AI text helpers — в `supabase/functions/_shared/ai-text.ts`. Лимиты подготовки карточек вынесены в `supabase/functions/_shared/vocabulary-card-generation.ts`, snapshot повторения и home progress — в `supabase/functions/_shared/vocabulary-review-state.ts` и `supabase/functions/_shared/home-progress.ts`, streak чтения — в `supabase/functions/_shared/reading-streak.ts`.
+Общая server-инфраструктура Edge Functions находится в `supabase/functions/_shared/server.ts`: CORS, POST guard, JSON parsing, чтение env, Telegram `initData` validation, `AppError` и единый формат JSON-ответов. Общий helper московской учебной даты находится в `supabase/functions/_shared/moscow-date.ts`. Общий OpenRouter client/model allowlist находится в `supabase/functions/_shared/openrouter.ts`, общие AI text helpers — в `supabase/functions/_shared/ai-text.ts`. Лимиты подготовки карточек вынесены в `supabase/functions/_shared/vocabulary-card-generation.ts`, snapshot повторения и home progress — в `supabase/functions/_shared/vocabulary-review-state.ts` и `supabase/functions/_shared/home-progress.ts`, streak чтения — в `supabase/functions/_shared/reading-streak.ts`.
 Prompt/output слой словарных карточек находится рядом с функцией подготовки: `supabase/functions/prepare-vocabulary-cards/ai-pipeline.ts`. Сохранение подготовленных карточек и merge pending-дубликатов в существующие канонические карточки вынесены в `supabase/functions/prepare-vocabulary-cards/card-persistence.ts`.
 
 ## Данные
@@ -118,9 +118,9 @@ AI attempt metadata хранится `90` дней; scheduled cleanup выпол
 Критичные операции, где важна защита от параллельных запросов, вынесены в Postgres RPC:
 
 - `public.claim_reading_generation_attempt(...)` — проверяет дневной лимит и создает attempt одним DB-действием.
-- `public.complete_daily_reading_text(...)` — завершает active text, пишет дневной completion-marker, сохраняет snapshot текста в историю, удаляет active text и обновляет onboarding-флаг.
+- `public.complete_daily_reading_text(...)` — завершает active text текущей даты, пишет дневной completion-marker, сохраняет snapshot текста в историю, удаляет active text и обновляет onboarding-флаг.
 - `public.activate_mvp_subscription(...)` — активирует или планирует MVP-подписку с advisory lock по пользователю.
-- `public.save_pending_vocabulary_word_with_source(...)` — сохраняет pending-слово и источник из активного текста с advisory lock по пользователю.
+- `public.save_pending_vocabulary_word_with_source(...)` — сохраняет pending-слово и источник из active text текущей даты с advisory lock по пользователю.
 - `public.claim_vocabulary_card_generation_attempt(...)` — атомарно проверяет дневной лимит подготовки карточек и создает attempt с advisory lock по пользователю и дате.
 - `public.review_vocabulary_word(...)` — применяет действие повторения, обновляет интервалы и создает дневной completion-marker.
 - `public.get_or_create_vocabulary_review_state(...)` — атомарно считает очередь, фиксирует завершение пустого или выполненного плана и возвращает отдельные счетчики для обязательного плана и экрана повторения.

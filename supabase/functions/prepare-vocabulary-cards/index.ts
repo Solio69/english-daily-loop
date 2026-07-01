@@ -18,6 +18,7 @@ import {
   getUserEnglishLevel,
   type ServiceClient,
 } from "../_shared/app.ts";
+import { getMoscowDate } from "../_shared/moscow-date.ts";
 import {
   DEFAULT_FALLBACK_MODEL,
   DEFAULT_PRIMARY_MODEL,
@@ -31,7 +32,6 @@ import { saveGeneratedCard } from "./card-persistence.ts";
 import {
   claimVocabularyCardGenerationAttempt,
   getDailyVocabularyCardGenerationLimit,
-  getMoscowDate,
   getVocabularyCardGenerationState,
   markVocabularyCardAttemptFailed,
   markVocabularyCardAttemptSucceeded,

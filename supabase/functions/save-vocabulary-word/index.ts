@@ -17,6 +17,7 @@ import {
   getUserEnglishLevel,
   type ServiceClient,
 } from "../_shared/app.ts";
+import { getMoscowDate } from "../_shared/moscow-date.ts";
 import {
   normalizeVocabularyWord,
   type VocabularyCardStatus,
@@ -44,6 +45,8 @@ type SaveVocabularyWordResult =
 
 const FREE_VOCABULARY_WORDS_LIMIT = 30;
 const PAID_VOCABULARY_WORDS_LIMIT = 300;
+const ACTIVE_TEXT_UNAVAILABLE_MESSAGE =
+  "Текст изменился или уже недоступен. Обнови экран.";
 
 const parseString = (
   value: unknown,
@@ -99,6 +102,7 @@ const savePendingVocabularyWordWithSource = async (
     userId: string;
     word: string;
     readingTextId: string;
+    readingDate: string;
     wordIndex: number;
     originalWord: string;
     vocabularyLimit: number;
@@ -110,6 +114,7 @@ const savePendingVocabularyWordWithSource = async (
       p_user_id: params.userId,
       p_word: params.word,
       p_reading_text_id: params.readingTextId,
+      p_reading_date: params.readingDate,
       p_word_index: params.wordIndex,
       p_original_word: params.originalWord,
       p_vocabulary_limit: params.vocabularyLimit,
@@ -189,11 +194,13 @@ Deno.serve(async (req: Request) => {
       tgUser.id,
       "[save-vocabulary-word]",
     );
+    const today = getMoscowDate();
 
     const { data: activeTextRow, error: activeTextError } = await supabase
       .from("user_active_reading_texts")
       .select("reading_text_id, body")
       .eq("user_id", appUser.id)
+      .eq("reading_date", today)
       .maybeSingle();
 
     if (activeTextError) {
@@ -208,7 +215,7 @@ Deno.serve(async (req: Request) => {
       fail(
         409,
         "NO_ACTIVE_READING_TEXT",
-        "Текст изменился или уже недоступен. Обнови экран.",
+        ACTIVE_TEXT_UNAVAILABLE_MESSAGE,
       );
     }
 
@@ -217,7 +224,7 @@ Deno.serve(async (req: Request) => {
       fail(
         409,
         "ACTIVE_TEXT_CHANGED",
-        "Текст изменился или уже недоступен. Обнови экран.",
+        ACTIVE_TEXT_UNAVAILABLE_MESSAGE,
       );
     }
 
@@ -239,6 +246,7 @@ Deno.serve(async (req: Request) => {
       userId: appUser.id,
       word: selectedWord,
       readingTextId,
+      readingDate: today,
       wordIndex,
       originalWord: selectedWord,
       vocabularyLimit,
@@ -250,6 +258,17 @@ Deno.serve(async (req: Request) => {
           429,
           finalSave.code,
           "Лимит словаря исчерпан. Перейди на другой тариф, чтобы добавить больше слов.",
+        );
+      }
+
+      if (
+        finalSave.code === "NO_ACTIVE_READING_TEXT" ||
+        finalSave.code === "ACTIVE_TEXT_CHANGED"
+      ) {
+        fail(
+          409,
+          finalSave.code,
+          ACTIVE_TEXT_UNAVAILABLE_MESSAGE,
         );
       }
 

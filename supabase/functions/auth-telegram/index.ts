@@ -1,9 +1,7 @@
 // @ts-nocheck
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
-import {
-  getMoscowDate,
-  getReadingCompletionStreak,
-} from "../_shared/reading-streak.ts";
+import { getMoscowDate } from "../_shared/moscow-date.ts";
+import { getReadingCompletionStreak } from "../_shared/reading-streak.ts";
 import {
   AppError,
   DEFAULT_INTERNAL_ERROR_MESSAGE,

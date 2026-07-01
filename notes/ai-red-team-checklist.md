@@ -19,7 +19,7 @@ Checklist используется:
 - Edge Function logs: нет секретов, полного prompt, raw provider response, полного generated text или Telegram `initData`
 
 Невалидный output не должен попадать в `public.user_active_reading_texts`.
-Ранее активный текст должен оставаться доступным после ошибки генерации.
+Ранее активный текст текущей московской даты должен оставаться доступным после ошибки генерации.
 
 ## 3) Provider response cases
 | Case | Ожидаемое поведение |
@@ -59,8 +59,8 @@ Checklist используется:
 | --- | --- |
 | App-level validation failed | новый active text не сохраняется |
 | Provider failed after attempt claim | attempt остается списанным и получает `status = 'failed'` |
-| Provider failed after previous active text exists | предыдущий active text остается доступным |
-| Valid text generated | active text сохраняется, attempt получает `status = 'succeeded'` |
+| Provider failed after previous active text exists for today | предыдущий active text текущей московской даты остается доступным |
+| Valid text generated | active text сохраняется с `reading_date`, attempt получает `status = 'succeeded'` |
 | DB save failed | attempt получает `failure_stage = 'db_save'` |
 
 ## 7) Privacy and logging cases
@@ -79,7 +79,8 @@ Checklist используется:
 | Клиент пытается передать `telegram_user_id` в body | user определяется только из валидного `initData` |
 | Клиент пытается выбрать model в body | model игнорируется, используется server env + allowlist |
 | Пользователь делает параллельные генерации | лимит списывается атомарно через RPC |
-| Пользователь вызывает генерацию после завершения чтения за день, но попытки еще есть | генерация разрешена, новый active text сохраняется |
+| Пользователь вызывает генерацию после завершения чтения за день, но попытки еще есть | генерация разрешена, новый active text сохраняется с текущей московской датой |
+| Пользователь открывает экран чтения после смены московской даты с незавершенным текстом прошлой даты | старый active text не отображается как текущий дневной план |
 | Пользователь вызывает генерацию после исчерпания дневного лимита | ответ `GENERATION_ATTEMPTS_EXHAUSTED` |
 
 ## 9) Признаки fail
@@ -88,7 +89,7 @@ Checklist используется:
 - prompt, raw provider response, generated text, `initData`, stack trace или secrets попали в logs/attempt metadata
 - `failure_stage` не помогает понять этап отказа
 - server env model config списывает попытку при ошибке allowlist
-- ошибка генерации удаляет или портит предыдущий active text
+- ошибка генерации удаляет или портит предыдущий active text текущей московской даты
 - frontend показывает SQL/provider/internal details пользователю
 
 ## 10) Production follow-up

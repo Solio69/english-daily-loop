@@ -14,10 +14,8 @@ import {
   createServiceClient,
   getAppUserByTelegramId,
 } from "../_shared/app.ts";
-import {
-  getMoscowDate,
-  getReviewActionOptions,
-} from "../_shared/vocabulary-review.ts";
+import { getMoscowDate } from "../_shared/moscow-date.ts";
+import { getReviewActionOptions } from "../_shared/vocabulary-review.ts";
 import {
   loadVocabularyReviewSnapshot,
   type VocabularyReviewWordRow,

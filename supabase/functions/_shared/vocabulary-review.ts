@@ -25,8 +25,6 @@ export type VocabularyReviewActionOption = {
   label: string;
 };
 
-export const MOSCOW_TIME_ZONE = "Europe/Moscow";
-
 const REVIEW_STEPS: Array<{ step: VocabularyReviewStep; label: string }> = [
   { step: "1_day", label: "1 день" },
   { step: "3_days", label: "3 дня" },
@@ -48,23 +46,6 @@ const getStepIndex = (step: VocabularyReviewStep | null): number => {
 
 const getOptionLabel = (index: number): string =>
   REVIEW_STEPS[index]?.label ?? "изучено";
-
-export const getMoscowDate = (): string => {
-  const parts = new Intl.DateTimeFormat("en", {
-    timeZone: MOSCOW_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-
-  const values = Object.fromEntries(
-    parts
-      .filter((part) => part.type !== "literal")
-      .map((part) => [part.type, part.value]),
-  );
-
-  return `${values.year}-${values.month}-${values.day}`;
-};
 
 export const getReviewActionOptions = (
   status: VocabularyReviewStatus,

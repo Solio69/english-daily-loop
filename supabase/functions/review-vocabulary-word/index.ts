@@ -15,10 +15,8 @@ import {
   createServiceClient,
   getAppUserByTelegramId,
 } from "../_shared/app.ts";
-import {
-  getMoscowDate,
-  type VocabularyReviewAction,
-} from "../_shared/vocabulary-review.ts";
+import { getMoscowDate } from "../_shared/moscow-date.ts";
+import { type VocabularyReviewAction } from "../_shared/vocabulary-review.ts";
 
 const LOG_PREFIX = "[review-vocabulary-word]";
 

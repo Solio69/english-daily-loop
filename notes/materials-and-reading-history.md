@@ -49,14 +49,15 @@ RLS включен, frontend policies не добавлены. Доступ ид
 
 RPC:
 - берет advisory lock по пользователю и дате
-- читает active text с `for update`
+- читает active text даты завершения с `for update`
 - пишет дневной completion-marker для прогресса/streak
 - сохраняет отдельный snapshot текста в `user_completed_reading_texts`
-- удаляет active text из `user_active_reading_texts`
+- удаляет active text даты завершения из `user_active_reading_texts`
 - заполняет `users.first_text_completed_at` для онбординга
 
-Миграция актуальной версии RPC:
+Миграции актуальной версии RPC:
 - `supabase/migrations/20260427181100_complete_daily_reading_text_history.sql`
+- `supabase/migrations/20260701120000_scope_active_reading_text_by_date.sql`
 
 ## 5) Edge Function
 Историю отдает Edge Function:

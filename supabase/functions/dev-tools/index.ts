@@ -13,6 +13,7 @@ import {
   parseJsonBody,
   successResponse,
 } from "../_shared/server.ts";
+import { getMoscowDate } from "../_shared/moscow-date.ts";
 
 type DevToolAction =
   | "reset_generation_attempts"
@@ -40,8 +41,6 @@ type UserRow = {
   id: string;
   telegram_user_id: number;
 };
-
-const MOSCOW_TIME_ZONE = "Europe/Moscow";
 
 // TODO: Local dev-only Edge Function; keep server env gate mandatory before DB mutations.
 const parseAction = (value: unknown): DevToolAction => {
@@ -78,23 +77,6 @@ const parseReviewStep = (value: unknown): VocabularyReviewStep => {
   }
 
   fail(400, "INVALID_REVIEW_STEP", "Review step is invalid.");
-};
-
-const getMoscowDate = (): string => {
-  const parts = new Intl.DateTimeFormat("en", {
-    timeZone: MOSCOW_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-
-  const values = Object.fromEntries(
-    parts
-      .filter((part) => part.type !== "literal")
-      .map((part) => [part.type, part.value]),
-  );
-
-  return `${values.year}-${values.month}-${values.day}`;
 };
 
 const getAppUser = async (

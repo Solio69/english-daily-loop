@@ -1,8 +1,8 @@
 /// <reference path="../deno-globals.d.ts" />
 
 import type { ServiceClient } from "./app.ts";
+import { getMoscowDate } from "./moscow-date.ts";
 import { fail } from "./server.ts";
-import { getMoscowDate } from "./vocabulary-review.ts";
 import { loadVocabularyReviewSnapshot } from "./vocabulary-review-state.ts";
 
 type ReadingHomeStatus = "not_started" | "in_progress" | "completed";
@@ -29,6 +29,7 @@ export const getHomeProgress = async (
       .from("user_active_reading_texts")
       .select("user_id")
       .eq("user_id", userId)
+      .eq("reading_date", today)
       .maybeSingle(),
     loadVocabularyReviewSnapshot(supabase, userId, today, logPrefix),
   ]);

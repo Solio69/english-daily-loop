@@ -41,24 +41,6 @@ type ClaimVocabularyCardGenerationAttemptResult =
 
 const FREE_DAILY_CARD_GENERATION_LIMIT = 5;
 const PAID_DAILY_CARD_GENERATION_LIMIT = 20;
-const MOSCOW_TIME_ZONE = "Europe/Moscow";
-
-export const getMoscowDate = (): string => {
-  const parts = new Intl.DateTimeFormat("en", {
-    timeZone: MOSCOW_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-
-  const values = Object.fromEntries(
-    parts
-      .filter((part) => part.type !== "literal")
-      .map((part) => [part.type, part.value]),
-  );
-
-  return `${values.year}-${values.month}-${values.day}`;
-};
 
 const sanitizeAttemptErrorMessage = (message: string): string =>
   message

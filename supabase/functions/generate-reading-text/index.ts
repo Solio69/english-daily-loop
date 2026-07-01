@@ -12,6 +12,7 @@ import {
   parseJsonBody,
   successResponse,
 } from "../_shared/server.ts";
+import { getMoscowDate } from "../_shared/moscow-date.ts";
 import {
   AiGenerationError,
   DEFAULT_FALLBACK_MODEL,
@@ -76,7 +77,6 @@ const AI_ERROR_MESSAGE =
   "Не удалось сгенерировать текст. Попробуй еще раз позже.";
 const FREE_DAILY_GENERATION_LIMIT = 3;
 const PAID_DAILY_GENERATION_LIMIT = 10;
-const MOSCOW_TIME_ZONE = "Europe/Moscow";
 const READING_CONFIG_BY_MINUTES: Record<
   ReadingMinutes,
   Omit<ReadingGenerationConfig, "validationWordMin" | "validationWordMax">
@@ -173,23 +173,6 @@ const toAttemptUpdatePayload = (
   fallback_used: metadata.fallbackUsed,
   output_word_count: metadata.outputWordCount,
 });
-
-const getMoscowDate = (): string => {
-  const parts = new Intl.DateTimeFormat("en", {
-    timeZone: MOSCOW_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-
-  const values = Object.fromEntries(
-    parts
-      .filter((part) => part.type !== "literal")
-      .map((part) => [part.type, part.value]),
-  );
-
-  return `${values.year}-${values.month}-${values.day}`;
-};
 
 const getDailyGenerationLimit = async (
   supabase: ReturnType<typeof createClient>,
@@ -455,6 +438,7 @@ Deno.serve(async (req: Request) => {
           provider: OPENROUTER_PROVIDER,
           model: generated.usedModel,
           fallback_used: fallbackUsed,
+          reading_date: today,
           generated_at: new Date().toISOString(),
         },
         { onConflict: "user_id" },

@@ -15,8 +15,8 @@ import {
   createServiceClient,
   getAppUserByTelegramId,
 } from "../_shared/app.ts";
+import { getMoscowDate } from "../_shared/moscow-date.ts";
 import {
-  getMoscowDate,
   getVocabularyCardGenerationState,
 } from "../_shared/vocabulary-card-generation.ts";
 

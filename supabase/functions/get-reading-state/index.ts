@@ -12,6 +12,7 @@ import {
   parseJsonBody,
   successResponse,
 } from "../_shared/server.ts";
+import { getMoscowDate } from "../_shared/moscow-date.ts";
 
 type UserRow = {
   id: string;
@@ -37,24 +38,6 @@ type VocabularyWordSourceRow = {
 
 const FREE_DAILY_GENERATION_LIMIT = 3;
 const PAID_DAILY_GENERATION_LIMIT = 10;
-const MOSCOW_TIME_ZONE = "Europe/Moscow";
-
-const getMoscowDate = (): string => {
-  const parts = new Intl.DateTimeFormat("en", {
-    timeZone: MOSCOW_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-
-  const values = Object.fromEntries(
-    parts
-      .filter((part) => part.type !== "literal")
-      .map((part) => [part.type, part.value]),
-  );
-
-  return `${values.year}-${values.month}-${values.day}`;
-};
 
 const getDailyGenerationLimit = async (
   supabase: ReturnType<typeof createClient>,
@@ -159,6 +142,7 @@ Deno.serve(async (req: Request) => {
           "user_id, reading_text_id, title, body, level, estimated_minutes, provider, model, fallback_used, generated_at",
         )
         .eq("user_id", appUser.id)
+        .eq("reading_date", today)
         .maybeSingle(),
     ]);
 

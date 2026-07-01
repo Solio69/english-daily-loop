@@ -81,13 +81,13 @@ subscription таблицам, а также к server-only RPC. Доступ и
 
 `get-reading-state`:
 - валидирует Telegram `initData`
-- возвращает активный текст, дневной лимит, использованные/оставшиеся попытки и флаг завершения чтения за день
+- возвращает active text текущей московской даты, дневной лимит, использованные/оставшиеся попытки и флаг завершения чтения за день
 - считает дневной цикл по timezone `Europe/Moscow`
 - возвращает клиенту безопасное сообщение для неожиданных внутренних ошибок
 
 `complete-reading-text`:
 - валидирует Telegram `initData`
-- завершает активный текст через RPC `complete_daily_reading_text`
+- завершает active text текущей московской даты через RPC `complete_daily_reading_text`
 - сохраняет snapshot прочитанного текста в `user_completed_reading_texts`
 - возвращает актуальный `streakDays`
 - возвращает клиенту безопасное сообщение для неожиданных внутренних ошибок
@@ -138,7 +138,7 @@ subscription таблицам, а также к server-only RPC. Доступ и
 
 `public.complete_daily_reading_text(...)`:
 - берет transaction-level advisory lock на пользователя и дату завершения
-- проверяет наличие active text
+- проверяет наличие active text для даты завершения
 - пишет дневной completion-marker для progress/streak
 - копирует active text в историю завершенных текстов отдельной записью
 - удаляет active text
