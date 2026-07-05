@@ -2,6 +2,7 @@ import React from "react";
 import { InlineStatusCard } from "../InlineStatusCard";
 import { LoadingState } from "../LoadingState";
 import { useVocabularyMaterials } from "../../hooks/useVocabularyMaterials";
+import { SHOW_VOCABULARY_CARD_APPROVAL_FLOW } from "../../constants/vocabularyFeatures";
 import { VocabularyApproveAllAction } from "./VocabularyApproveAllAction";
 import { VocabularyApproveAllCardsModal } from "./VocabularyApproveAllCardsModal";
 import { VocabularySummaryCard } from "./VocabularySummaryCard";
@@ -9,9 +10,13 @@ import { VocabularyWordCard } from "./VocabularyWordCard";
 
 type VocabularyTabProps = {
   isActive: boolean;
+  onVocabularyReviewStateChange?: () => Promise<unknown>;
 };
 
-export const VocabularyTab: React.FC<VocabularyTabProps> = ({ isActive }) => {
+export const VocabularyTab: React.FC<VocabularyTabProps> = ({
+  isActive,
+  onVocabularyReviewStateChange,
+}) => {
   const [isApproveAllModalOpen, setIsApproveAllModalOpen] =
     React.useState(false);
   const {
@@ -29,9 +34,10 @@ export const VocabularyTab: React.FC<VocabularyTabProps> = ({ isActive }) => {
     prepareCards,
     approveCard,
     approveAllCards,
-  } = useVocabularyMaterials(isActive);
+  } = useVocabularyMaterials(isActive, onVocabularyReviewStateChange);
 
   const needsApprovalCount = vocabularyWords?.needsApproval.length ?? 0;
+  const isApprovalFlowVisible = SHOW_VOCABULARY_CARD_APPROVAL_FLOW;
 
   const handleConfirmApproveAll = async () => {
     setIsApproveAllModalOpen(false);
@@ -61,7 +67,8 @@ export const VocabularyTab: React.FC<VocabularyTabProps> = ({ isActive }) => {
             onPrepareCards={prepareCards}
           />
 
-          {vocabularyWords.needsApproval.length > 0 && (
+          {isApprovalFlowVisible &&
+          vocabularyWords.needsApproval.length > 0 ? (
             <section className="space-y-2">
               <h2 className="font-heading text-sm font-semibold text-[var(--text-secondary)]">
                 Требуют подтверждения
@@ -99,7 +106,7 @@ export const VocabularyTab: React.FC<VocabularyTabProps> = ({ isActive }) => {
                 />
               ))}
             </section>
-          )}
+          ) : null}
 
           {vocabularyWords.ready.length > 0 && (
             <section className="space-y-2">
@@ -124,7 +131,7 @@ export const VocabularyTab: React.FC<VocabularyTabProps> = ({ isActive }) => {
         </>
       )}
 
-      {isApproveAllModalOpen ? (
+      {isApprovalFlowVisible && isApproveAllModalOpen ? (
         <VocabularyApproveAllCardsModal
           count={needsApprovalCount}
           isApproving={isApprovingAllCards}

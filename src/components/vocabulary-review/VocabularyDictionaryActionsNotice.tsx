@@ -5,6 +5,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import React from "react";
+import { SHOW_VOCABULARY_CARD_APPROVAL_FLOW } from "../../constants/vocabularyFeatures";
 
 type VocabularyDictionaryActionsNoticeProps = {
   pendingCount: number;
@@ -15,7 +16,11 @@ type VocabularyDictionaryActionsNoticeProps = {
 export const VocabularyDictionaryActionsNotice: React.FC<
   VocabularyDictionaryActionsNoticeProps
 > = ({ pendingCount, needsApprovalCount, onOpen }) => {
-  if (pendingCount <= 0 && needsApprovalCount <= 0) return null;
+  const visibleNeedsApprovalCount = SHOW_VOCABULARY_CARD_APPROVAL_FLOW
+    ? needsApprovalCount
+    : 0;
+
+  if (pendingCount <= 0 && visibleNeedsApprovalCount <= 0) return null;
 
   return (
     <button
@@ -41,13 +46,13 @@ export const VocabularyDictionaryActionsNotice: React.FC<
               {pendingCount} подготовить
             </span>
           )}
-          {pendingCount > 0 && needsApprovalCount > 0 && (
+          {pendingCount > 0 && visibleNeedsApprovalCount > 0 && (
             <span className="text-[var(--text-muted)]">•</span>
           )}
-          {needsApprovalCount > 0 && (
+          {visibleNeedsApprovalCount > 0 && (
             <span className="inline-flex items-center gap-1 text-[var(--primary)]">
               <CircleCheck size={14} strokeWidth={2.2} />
-              {needsApprovalCount} подтвердить
+              {visibleNeedsApprovalCount} подтвердить
             </span>
           )}
         </div>

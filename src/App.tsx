@@ -183,6 +183,7 @@ export default function App() {
           <MaterialsScreen
             onBack={navigateBack}
             initialTab={materialsInitialTab}
+            onVocabularyReviewStateChange={refreshCurrentUser}
           />
         );
       case "settings":

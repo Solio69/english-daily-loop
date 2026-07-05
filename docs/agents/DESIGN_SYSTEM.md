@@ -263,6 +263,8 @@ First setup helper:
 Dev tools:
 
 - Dev tools panel is rendered by the existing dev flags and keeps its own technical UI.
+- The panel is collapsed by default; the header toggles local actions and shows the running state.
+- Keep the dev tools surface compact and amber-toned so it reads as a local technical block, not a product feature.
 
 ## Text Screen
 
@@ -340,7 +342,7 @@ Rules:
 - Text area is fixed `h-10`.
 - Vocabulary status reserves two lines:
   - `Добавить: N`
-  - `Подтвердить: M`
+  - `В словаре: N`
 - Do not let loading/ready/pending vocabulary status change tile height.
 
 ## Materials Screen
@@ -385,32 +387,21 @@ Vocabulary tab:
 - Error state reuses `InlineStatusCard` with `variant="error"`.
 - Summary header uses icon + title `Словарь`.
 - If `totalCount === 0`, show the helper copy `Добавленные из текстов слова будут появляться здесь.` under the title.
-- If `totalCount > 0`, show two side-by-side status cards under the summary header:
+- If `totalCount > 0`, show the compact `Добавить` status card under the summary header:
   - Keep cards compact; avoid tall dashboard tiles.
-  - Left card uses `Layers`; right card uses `CircleCheck`.
+  - Card uses `Layers`.
   - Active pending state uses warm accent: `N добавить` + `слово/слова/слов без карточки/карточек`.
-  - Active approval state uses warm accent: `M подтвердить` + `ждет/ждут подтверждения`.
   - Zero pending state uses primary/cyan ready-state: `Все готовы` + `слов без карточек нет`.
-  - Zero approval state uses primary/cyan ready-state: `Подтверждено` + `карточек на проверку нет`.
   - Do not show a separate totals line with `Всего` / `В словаре` inside the summary card.
-  - Do not show a separate all-prepared info row below the two status cards.
+  - Do not show a separate all-prepared info row below the status card.
 - Main pending action is a fixed-height warm split block: left side shows `TriangleAlert` with pending-word context and a highlighted attempts line `Осталось: remaining/dailyLimit попытка/попытки/попыток`; right side is a compact coral `Готовить` CTA with `Sparkles`; do not use arrows or chevrons because the action does not navigate.
 - The attempts line is plain emphasized text without a separate outline/chip. Available attempts use warm accent; exhausted attempts use coral/error accent.
 - When card preparation attempts are exhausted, keep the pending action visible, disable the CTA and show `Завтра` inside the button instead of a separate exhausted-warning block.
 - During card preparation, keep the same button dimensions and replace `Sparkles` with an inline spinner icon.
 - Preparation errors are shown directly below the pending action and above the compact info panel via `InlineStatusCard`.
-- Do not duplicate `needsApprovalCount` below the pending action; it belongs in the top status band.
 - If there are pending words, show a compact inline info panel below the action in the style of `ReadingInfoCard`.
-- Approval section header shows only `Требуют подтверждения`; the bulk approval action sits directly below it as a fixed-height warm split block.
-- Bulk approval action uses the same visual grammar as the pending preparation block: left side has `TriangleAlert`, title `Подтвердить все N AI-карточку/AI-карточки/AI-карточек`, compact warning copy `AI может ошибаться. Проверь карточки перед добавлением.`, and right side has a coral `Подтвердить` CTA with `CircleCheckBig`.
-- Bulk approval opens a compact bottom confirmation modal with glass surface, warm icon/title accent, subtitle with card count, an info panel in the style of `VocabularyGenerationInfo`, secondary `Отменить` action and coral `Подтвердить` CTA; do not show a separate close control.
-- During bulk approval, keep the bulk action button dimensions stable and replace the check icon with an inline `LoaderCircle` spinner.
-- While bulk approval is running, closed approval rows are not expandable; individual approval actions stay visually busy/disabled.
-- Bulk approval errors are shown inside the approval section via `InlineStatusCard` with `variant="error"`.
-- Closed approval rows are compact:
-  - word + translation on the left
-  - chips `Требует подтверждения` and `AI карточка` on the right
-  - trailing chevron for expand
+- Approval UI is hidden behind the TODO feature flag `SHOW_VOCABULARY_CARD_APPROVAL_FLOW` until the card editing/review flow is implemented.
+- Edit action UI is hidden behind the TODO feature flag `SHOW_VOCABULARY_CARD_EDIT_ACTION` until the card editing flow is implemented.
 - Expanded word cards are split into summary/details/examples/actions components.
 - Expanded details show part of speech and verb forms; status is not duplicated inside the expanded body.
 - Examples highlight matching word/forms with `--primary`.
@@ -450,12 +441,12 @@ Progress card:
 
 Dictionary actions notice:
 
-- Render only when pending or needs-approval cards exist.
+- Render only when pending cards exist.
 - Keep it separate from the review word card.
 - Use `BookMarked` without a bordered icon container.
 - Title and trailing `ChevronRight` use warm accent.
 - Copy: `Открой словарь, чтобы добавить новые слова в повторение`.
-- Bottom line shows compact `N подготовить` and/or `M подтвердить` actions.
+- Bottom line shows compact `N подготовить` action.
 
 Closed review card:
 

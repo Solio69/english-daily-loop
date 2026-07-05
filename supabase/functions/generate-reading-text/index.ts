@@ -15,9 +15,7 @@ import {
 import { getMoscowDate } from "../_shared/moscow-date.ts";
 import {
   AiGenerationError,
-  DEFAULT_FALLBACK_MODEL,
-  DEFAULT_PRIMARY_MODEL,
-  DEFAULT_TERTIARY_MODEL,
+  DEFAULT_READING_MODEL_CHAIN,
   OPENROUTER_PROVIDER,
   READING_TEXT_PROMPT_VERSION,
   generateReadingTextWithOpenRouter,
@@ -316,19 +314,20 @@ Deno.serve(async (req: Request) => {
       "TELEGRAM_BOT_TOKEN",
       "OPENROUTER_API_KEY",
     ]);
-    const primaryModel =
-      getOptionalEnv("OPENROUTER_MODEL_PRIMARY") || DEFAULT_PRIMARY_MODEL;
-    const fallbackModel =
-      getOptionalEnv("OPENROUTER_MODEL_FALLBACK") || DEFAULT_FALLBACK_MODEL;
-    const tertiaryModel =
-      getOptionalEnv("OPENROUTER_MODEL_TERTIARY") || DEFAULT_TERTIARY_MODEL;
+    const modelChainEnv = getOptionalEnv("OPENROUTER_MODEL_CHAIN");
+    const primaryModel = getOptionalEnv("OPENROUTER_MODEL_PRIMARY");
+    const fallbackModel = getOptionalEnv("OPENROUTER_MODEL_FALLBACK");
+    const tertiaryModel = getOptionalEnv("OPENROUTER_MODEL_TERTIARY");
     let models: string[];
     try {
-      models = getOpenRouterModelChain(
-        primaryModel,
-        fallbackModel,
-        tertiaryModel,
-      );
+      models = modelChainEnv
+        ? getOpenRouterModelChain(...modelChainEnv.split(","))
+        : getOpenRouterModelChain(
+            ...DEFAULT_READING_MODEL_CHAIN,
+            primaryModel || "",
+            fallbackModel || "",
+            tertiaryModel || "",
+          );
     } catch (error) {
       console.error("[generate-reading-text] invalid model configuration", {
         error: error instanceof Error ? error.message : "Unknown model error.",

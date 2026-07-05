@@ -79,6 +79,7 @@
 - Миграция `supabase/migrations/20260626120000_add_dev_vocabulary_review_batch_step.sql` добавляет server-only RPC `dev_complete_vocabulary_reviews_at_step(...)` для локального переноса всей очереди повторения на выбранный шаг.
 - Миграция `supabase/migrations/20260626130000_add_vocabulary_review_display_counts.sql` добавляет display-счетчики повторения для экрана `Слова`, не меняя семантику обязательного дневного плана для главной.
 - Миграция `supabase/migrations/20260701120000_scope_active_reading_text_by_date.sql` добавляет `reading_date` в `public.user_active_reading_texts`, ограничивает active text текущей московской датой и обновляет RPC завершения чтения/сохранения словаря.
+- Миграция `supabase/migrations/20260705130000_promote_vocabulary_needs_approval_cards.sql` переводит существующие `needs_approval`-карточки в текущий `ready` + `not_started` flow повторения.
 - В проекте есть базовые миграции и сиды для локальной разработки (dev user + моковые тексты).
 - Миграция `supabase/migrations/20260424113000_drop_daily_review_words_from_user_settings.sql` удаляет устаревшее поле `daily_review_words` из `public.user_settings`.
 - Миграция `supabase/migrations/20260513120000_drop_daily_exercise_minutes_from_user_settings.sql` удаляет поле `daily_exercise_minutes` из `public.user_settings`.
@@ -138,13 +139,13 @@
   - общие AI text helpers находятся в `supabase/functions/_shared/ai-text.ts`
   - текущий prompt version: `reading-text-v1`
   - OpenRouter model chain проходит server-side allowlist до списания попытки
-  - генерация через OpenRouter `models` parameter с цепочкой free-моделей `primary -> fallback -> tertiary`
+  - генерация через OpenRouter `models` parameter с allowlist-цепочкой free-моделей
   - запрос требует `response_format = json_object` и ограничивает reasoning через `reasoning = { effort: "low", exclude: true }`; пустой provider response исключает фактически ответившую модель и запускает следующий маршрут
   - provider diagnostics логируют только безопасные metadata (`model`, `finish_reason`, HTTP status/error code, completion/reasoning token counts), без raw content и reasoning text
   - динамический `max_tokens` и диапазон слов по времени чтения
   - output validation проверяет JSON, title/body, `estimatedMinutes`, `level`, длину с допуском примерно `±20%` и базовые content-safety patterns
   - observability AI-попыток хранится в `reading_generation_attempts` как metadata без полного prompt, raw provider response, полного generated text, Telegram `initData`, secrets и stack trace
-  - timeout запроса к OpenRouter: `45` секунд
+  - timeout одного запроса к OpenRouter: `25` секунд, общий budget генерации текста: `90` секунд
   - сохранение последнего успешного непрочитанного текста в `user_active_reading_texts` с `reading_date` текущей московской даты
   - единый контракт ответа (`ok/data` или `ok/error`).
 - Состояние экрана чтения реализовано через Edge Function `supabase/functions/get-reading-state/index.ts`:
@@ -179,15 +180,19 @@
   - paid: `20` batch-попыток в день
   - 1 попытка = 1 запрос `prepare-vocabulary-cards` для batch до `5` pending-слов; если pending-слов нет, попытка не списывается, AI/provider/validation ошибка попытку списывает.
 - Дневной лимит генерации считается только на сервере в Edge Functions чтения по активной подписке из `user_subscriptions`; фронт только отображает полученные `dailyLimit/remainingAttempts`.
-- Текущие дефолтные OpenRouter-модели:
-  - primary: `openai/gpt-oss-20b:free`
-  - fallback: `qwen/qwen3-next-80b-a3b-instruct:free`
-  - tertiary: `google/gemma-4-26b-a4b-it:free`.
+- Текущая дефолтная OpenRouter-цепочка для генерации текста:
+  - `qwen/qwen3-next-80b-a3b-instruct:free`
+  - `nvidia/nemotron-nano-9b-v2:free`
+  - `google/gemma-4-31b-it:free`
+  - `google/gemma-4-26b-a4b-it:free`
+  - `openai/gpt-oss-20b:free`.
 - Требуемые server env для AI:
   - `OPENROUTER_API_KEY`
+  - опционально `OPENROUTER_MODEL_CHAIN`
   - опционально `OPENROUTER_MODEL_PRIMARY`
-  - опционально `OPENROUTER_MODEL_FALLBACK`.
+  - опционально `OPENROUTER_MODEL_FALLBACK`
   - опционально `OPENROUTER_MODEL_TERTIARY`.
+- `OPENROUTER_MODEL_CHAIN` задает полный порядок моделей для генерации текста; `OPENROUTER_MODEL_PRIMARY/FALLBACK/TERTIARY` используются как дополнительные модели после дефолтной цепочки, если `OPENROUTER_MODEL_CHAIN` не задан.
 - Для стабильной DX в редакторе: у функции используется `// @ts-nocheck`, а для Deno-окружения есть `supabase/functions/deno.json` и `supabase/functions/deno-globals.d.ts`.
 - На фронте подключен Telegram WebApp SDK (`index.html`) и типы `window.Telegram.WebApp` (`src/types/telegram-webapp.d.ts`).
 - UI-слой использует Tailwind CSS 4 через Vite plugin, дизайн-токены в `src/index.css`, локальные шрифты `@fontsource/inter` и `@fontsource/manrope`, иконки `lucide-react`.
@@ -204,15 +209,17 @@
 - `readingService` вызывает `get-reading-state`, `generate-reading-text` и `complete-reading-text`; текущий UI генерации не использует прямой RPC fallback `get_random_reading_text`.
 - Экран `Текст` реализован как контейнер `src/screens/ReadingScreen.tsx` плюс презентационные компоненты `src/components/reading/*`; idle, active text, loading, error и completed состояния используют mobile-first glass UI.
 - Парсинг отображаемого текста и нормализация кликабельных слов вынесены в `src/utils/readingText.ts`; `wordIndex` используется flow сохранения словаря и должен оставаться стабильным для selectable words.
-- `materialsService` вызывает `get-reading-history`; экран `Мои материалы` показывает завершенные тексты с табами `Тексты` и `Словарь`, где доступны подготовка, подтверждение и просмотр карточек словаря.
-- UI словаря в `Мои материалы` использует `src/components/vocabulary/*`: summary-карточку состояния словаря с двумя compact status cards `Добавить` / `Подтвердить`, где активные значения используют warm-состояние, а нулевые значения показываются как blue ready-state `Все готовы` / `Подтверждено` с иконками `Layers` / `CircleCheck`; fixed-height action `Готовить` для pending-слов, compact info panel, bulk action `Подтвердить все N AI-карточку/карточки/карточек` с confirmation modal для карточек на проверке, compact list rows, раскрываемые карточки с деталями/примерами/actions и `InlineStatusCard` для встроенных ошибок.
-- Ошибки подготовки словарных карточек показываются внутри summary-карточки под action `Готовить` и над compact info panel; ошибки массового подтверждения показываются внутри секции `Требуют подтверждения`; ошибки загрузки, одиночного подтверждения и просмотра словаря остаются встроенными статусами через `InlineStatusCard`.
+- `materialsService` вызывает `get-reading-history`; экран `Мои материалы` показывает завершенные тексты с табами `Тексты` и `Словарь`, где доступны подготовка и просмотр карточек словаря.
+- UI словаря в `Мои материалы` использует `src/components/vocabulary/*`: summary-карточку состояния словаря с compact status card `Добавить`, где активное значение использует warm-состояние, а нулевое значение показывает blue ready-state `Все готовы` с иконкой `Layers`; fixed-height action `Готовить` для pending-слов, compact info panel, compact list rows, раскрываемые карточки с деталями/примерами/actions и `InlineStatusCard` для встроенных ошибок.
+- Редактирование словарных карточек не доступно в пользовательском UI; заготовка action-кнопки скрыта в `src/components/vocabulary/VocabularyWordActions.tsx` через TODO-флаг до реализации полного flow редактирования.
+- Подтверждение AI-карточек не доступно в пользовательском UI; заготовка approval-flow скрыта через TODO-флаг `SHOW_VOCABULARY_CARD_APPROVAL_FLOW` до реализации проверки/редактирования карточек.
+- Ошибки подготовки словарных карточек показываются внутри summary-карточки под action `Готовить` и над compact info panel; ошибки загрузки и просмотра словаря остаются встроенными статусами через `InlineStatusCard`.
 - Сохранение словаря реализовано через `public.user_vocabulary_words`, `public.user_vocabulary_word_sources` и Edge Function `save-vocabulary-word`: слово добавляется только из активного текста текущей московской даты без AI, сохраняется как `not_started` + `card_status = pending`.
-- Карточки слов готовятся отдельно в табе `Словарь` через Edge Function `prepare-vocabulary-cards`, batch-ом до `5` pending-слов за запрос; перед AI-запросом сервер списывает попытку через RPC `claim_vocabulary_card_generation_attempt`; валидные AI-карточки получают `card_status = needs_approval`, а слова без валидной карточки остаются в `pending`.
+- Карточки слов готовятся отдельно в табе `Словарь` через Edge Function `prepare-vocabulary-cards`, batch-ом до `5` pending-слов за запрос; перед AI-запросом сервер списывает попытку через RPC `claim_vocabulary_card_generation_attempt`; валидные AI-карточки получают `card_status = ready` и `status = not_started`, а слова без валидной карточки остаются в `pending`.
 - Если AI приводит pending-слово к канонической форме, которая уже есть у пользователя, подготовка карточек переносит `user_vocabulary_word_sources` и удаляет pending-дубликат; прогресс `active`-слова сохраняется, а `learned`-слово возвращается в `not_started`.
 - Prompt/output слой подготовки словарных карточек находится в `supabase/functions/prepare-vocabulary-cards/ai-pipeline.ts`; сохранение подготовленных карточек и merge pending-дубликатов находятся в `supabase/functions/prepare-vocabulary-cards/card-persistence.ts`; общий OpenRouter client/model allowlist переиспользуется из `supabase/functions/_shared/openrouter.ts`.
-- Пользователь подтверждает AI-карточку через Edge Function `approve-vocabulary-card` или подтверждает все карточки на проверке через `approve-vocabulary-cards`; только после этого карточка получает `card_status = ready` и попадает в основной список словаря.
-- Подтвержденная `ready`-карточка получает `status = not_started` и сразу доступна в очереди повторения текущего дня.
+- Edge Functions `approve-vocabulary-card` и `approve-vocabulary-cards` остаются server-side заделом для будущего flow проверки карточек; текущий пользовательский UI их не показывает.
+- `ready`-карточка сразу доступна в очереди повторения текущего дня.
 - Экран `Слова` реализует дневное повторение через `get-vocabulary-review-state` и `review-vocabulary-word`; очередь сортируется как новые → просроченные → сегодняшние, дневного cap нет.
 - Состояния учебного прогресса слова: `not_started | active | learned`; шкала интервалов: `1 день`, `3 дня`, `7 дней`, `14 дней`, `1–6 месяцев`, затем `learned`.
 - Завершение обязательной очереди фиксируется в `user_daily_vocabulary_review_completions`; новые карточки после completion доступны дополнительно и не открывают завершенный план заново.
@@ -220,7 +227,7 @@
 - Для связи слов с текстами активные и завершенные тексты имеют стабильный `reading_text_id`; active text также хранит `reading_date`, а при завершении чтения RPC `complete_daily_reading_text` переносит этот id из `user_active_reading_texts` в `user_completed_reading_texts`.
 - Сохранение pending-слова выполняется через RPC `save_pending_vocabulary_word_with_source` с advisory lock по пользователю и проверкой `reading_date`; лимит словаря проверяется server-side по активной подписке (`free: 30`, `paid: 300`), прямых записей словаря с клиента нет.
 - AI-карточка слова хранит базовую форму, перевод, часть речи, данные глагола при необходимости и 3 английских примера по уровню пользователя; подготовка карточек сохраняет валидную часть batch-а, мержит совпадения по канонической форме, не блокирует карточку только из-за некорректного echo-поля `level` от AI и оставляет слова с невалидным или отсутствующим AI-ответом в `pending`.
-- На главной есть компактная карточка `Мои материалы`; пункт нижней навигации `Материалы` открывает экран материалов, плитка `Тексты` открывает экран материалов на табе текстов, плитка `Словарь` открывает таб словаря и показывает краткое состояние по `get-vocabulary-state`: `Добавить: N`, `Подтвердить: N` или `В словаре: N`.
+- На главной есть компактная карточка `Мои материалы`; пункт нижней навигации `Материалы` открывает экран материалов, плитка `Тексты` открывает экран материалов на табе текстов, плитка `Словарь` открывает таб словаря и показывает краткое состояние по `get-vocabulary-state`: `Добавить: N` или `В словаре: N`.
 - На главной карточка урока использует `homeProgress.lesson.status` и `homeProgress.lesson.currentStep`; daily lesson последовательно ведет на чтение, затем на повторение слов.
 - Счетчик с иконкой огонька на главной использует `streakDays`, который сервер считает как серию подряд идущих завершений чтения по timezone `Europe/Moscow`; `useAppUserProfile` обновляет профиль при возврате в приложение и смене московской даты, чтобы пропущенный день сбрасывал видимую серию без ручного перезапуска.
 - Если генерация упала, новая попытка уже списана, новый текст не сохраняется, а ранее активный текст текущей даты остается доступен после завершения состояния загрузки.
@@ -233,7 +240,7 @@
   - `15` мин: `700-950` слов, `max_tokens: 2600`.
 - При bootstrap настройки пользователя должны приходить с backend, если `settings_completed_at` уже заполнен.
 - `users.first_text_completed_at` используется только для онбординга; ежедневный факт прочтения хранится отдельно в `user_daily_reading_completions`.
-- Экран настроек содержит уровень английского и время чтения, использует mobile-first glass UI; dev tools панель отображается по существующим dev-флагам.
+- Экран настроек содержит уровень английского и время чтения, использует mobile-first glass UI; dev tools панель отображается по существующим dev-флагам и свернута по умолчанию.
 - В состоянии "настройки сохранены, но первый текст еще не прочитан" раздел `Слова` заблокирован, но `Главная` и `Текст` доступны.
 - После нажатия "Завершить текст" active text текущей даты сохраняется в историю и удаляется; генерация в текущий день остается доступна, пока не исчерпан дневной лимит генераций.
 - Для прогресса дня и streak достаточно первого завершенного текста за дату; `user_completed_reading_texts` может хранить несколько завершенных текстов с одинаковым `completed_date`, различающихся `completed_at`.

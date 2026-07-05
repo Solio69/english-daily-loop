@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   DEFAULT_FALLBACK_MODEL,
   DEFAULT_PRIMARY_MODEL,
+  DEFAULT_READING_MODEL_CHAIN,
   DEFAULT_TERTIARY_MODEL,
   OpenRouterError,
   getOpenRouterModelChain,
@@ -10,7 +11,7 @@ import {
 } from "../supabase/functions/_shared/openrouter.ts";
 import { generateReadingTextWithOpenRouter } from "../supabase/functions/generate-reading-text/ai-pipeline.ts";
 
-test("default OpenRouter model chain contains three current unique models", () => {
+test("default OpenRouter base model chain contains three current unique models", () => {
   assert.deepEqual(
     getOpenRouterModelChain(
       DEFAULT_PRIMARY_MODEL,
@@ -27,6 +28,19 @@ test("default OpenRouter model chain contains three current unique models", () =
   assert.throws(
     () => getOpenRouterModelChain("qwen/qwen3.6-plus:free"),
     /Unsupported OpenRouter model/,
+  );
+});
+
+test("default reading generation model chain contains current unique models", () => {
+  assert.deepEqual(
+    getOpenRouterModelChain(...DEFAULT_READING_MODEL_CHAIN),
+    [
+      "qwen/qwen3-next-80b-a3b-instruct:free",
+      "nvidia/nemotron-nano-9b-v2:free",
+      "google/gemma-4-31b-it:free",
+      "google/gemma-4-26b-a4b-it:free",
+      "openai/gpt-oss-20b:free",
+    ],
   );
 });
 

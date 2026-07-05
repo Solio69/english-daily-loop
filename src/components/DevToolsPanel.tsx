@@ -3,6 +3,7 @@ import {
   BookMarked,
   CalendarClock,
   CheckCheck,
+  ChevronDown,
   RotateCcw,
   Trash2,
   WalletCards,
@@ -24,12 +25,17 @@ type SimpleDevToolAction = Exclude<
   "complete_today_vocabulary_reviews_at_step"
 >;
 
+type DevToolIcon = React.ComponentType<{
+  size?: number;
+  className?: string;
+}>;
+
 // TODO: Keep local-only actions behind both VITE_DEV_TOOLS_ENABLED and DEV_TOOLS_ENABLED.
 const ACTIONS: Array<{
   action: SimpleDevToolAction;
   label: string;
   description: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: DevToolIcon;
 }> = [
   {
     action: "reset_generation_attempts",
@@ -88,83 +94,171 @@ const REVIEW_STEP_OPTIONS: VocabularyReviewStep[] = [
   "6_months",
 ];
 
-export const DevToolsPanel: React.FC<DevToolsPanelProps> = ({
+const DEV_TOOLS_PANEL_ID = "dev-tools-panel-actions";
+
+type DevToolsHeaderProps = {
+  isExpanded: boolean;
+  runningAction: DevToolAction | null;
+  panelId: string;
+  onToggle: () => void;
+};
+
+const DevToolsHeader: React.FC<DevToolsHeaderProps> = ({
+  isExpanded,
+  runningAction,
+  panelId,
+  onToggle,
+}) => (
+  <button
+    type="button"
+    aria-expanded={isExpanded}
+    aria-controls={panelId}
+    onClick={onToggle}
+    className="flex w-full items-center justify-between gap-3 rounded-xl text-left transition active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-amber-50 dark:focus-visible:ring-offset-gray-950"
+  >
+    <span className="min-w-0">
+      <span className="block text-sm font-semibold text-amber-800 dark:text-amber-200">
+        Dev tools
+      </span>
+      <span className="mt-0.5 block text-xs text-amber-700/80 dark:text-amber-200/80">
+        {runningAction
+          ? "Выполняем локальное действие..."
+          : "Локальные действия для текущего Telegram-пользователя."}
+      </span>
+    </span>
+    <ChevronDown
+      size={18}
+      className={`shrink-0 text-amber-700 transition-transform dark:text-amber-200 ${
+        isExpanded ? "rotate-180" : ""
+      }`}
+      aria-hidden="true"
+    />
+  </button>
+);
+
+type VocabularyReviewBatchActionProps = {
+  runningAction: DevToolAction | null;
+  onRunAction: (action: DevToolAction, options?: DevToolActionOptions) => void;
+};
+
+const VocabularyReviewBatchAction: React.FC<VocabularyReviewBatchActionProps> = ({
   runningAction,
   onRunAction,
 }) => (
-  <section className="rounded-2xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/50 dark:bg-amber-900/20">
-    <div className="mb-3">
-      <h2 className="text-sm font-semibold text-amber-800 dark:text-amber-200">
-        Dev tools
-      </h2>
-      <p className="text-xs text-amber-700/80 dark:text-amber-200/80">
-        Локальные действия для текущего Telegram-пользователя.
-      </p>
-    </div>
-
-    <div className="mb-2 rounded-xl bg-white p-3 shadow-sm dark:bg-gray-800">
-      <div className="flex items-start gap-3">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-200">
-          <CheckCheck size={16} />
+  <div className="mb-2 rounded-xl bg-white p-3 shadow-sm dark:bg-gray-800">
+    <div className="flex items-start gap-3">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-200">
+        <CheckCheck size={16} />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-sm font-semibold text-gray-900 dark:text-white">
+          {runningAction === "complete_today_vocabulary_reviews_at_step"
+            ? "Выполняем..."
+            : "Повторить все слова"}
         </span>
-        <span className="min-w-0">
-          <span className="block text-sm font-semibold text-gray-900 dark:text-white">
-            {runningAction === "complete_today_vocabulary_reviews_at_step"
-              ? "Выполняем..."
-              : "Повторить все слова"}
-          </span>
-          <span className="block text-xs text-gray-500 dark:text-gray-400">
-            Переносит сегодняшнюю очередь на выбранный шаг.
-          </span>
+        <span className="block text-xs text-gray-500 dark:text-gray-400">
+          Переносит сегодняшнюю очередь на выбранный шаг.
         </span>
-      </div>
-
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        {REVIEW_STEP_OPTIONS.map((reviewStep) => (
-          <button
-            key={reviewStep}
-            type="button"
-            onClick={() =>
-              onRunAction("complete_today_vocabulary_reviews_at_step", {
-                reviewStep,
-              })
-            }
-            disabled={Boolean(runningAction)}
-            className="min-h-9 rounded-xl border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-amber-900/50 dark:bg-amber-900/30 dark:text-amber-100 dark:hover:bg-amber-900/50"
-          >
-            {getReviewStepLabel(reviewStep)}
-          </button>
-        ))}
-      </div>
+      </span>
     </div>
 
-    <div className="space-y-2">
-      {ACTIONS.map(({ action, label, description, icon: Icon }) => {
-        const isRunning = runningAction === action;
-        const isDisabled = Boolean(runningAction);
-
-        return (
-          <button
-            key={action}
-            type="button"
-            onClick={() => onRunAction(action)}
-            disabled={isDisabled}
-            className="flex w-full items-center gap-3 rounded-xl bg-white px-3 py-2 text-left shadow-sm transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-gray-800 dark:hover:bg-gray-700"
-          >
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-200">
-              <Icon size={16} />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold text-gray-900 dark:text-white">
-                {isRunning ? "Выполняем..." : label}
-              </span>
-              <span className="block text-xs text-gray-500 dark:text-gray-400">
-                {description}
-              </span>
-            </span>
-          </button>
-        );
-      })}
+    <div className="mt-3 grid grid-cols-2 gap-2">
+      {REVIEW_STEP_OPTIONS.map((reviewStep) => (
+        <button
+          key={reviewStep}
+          type="button"
+          onClick={() =>
+            onRunAction("complete_today_vocabulary_reviews_at_step", {
+              reviewStep,
+            })
+          }
+          disabled={Boolean(runningAction)}
+          className="min-h-9 rounded-xl border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-amber-900/50 dark:bg-amber-900/30 dark:text-amber-100 dark:hover:bg-amber-900/50"
+        >
+          {getReviewStepLabel(reviewStep)}
+        </button>
+      ))}
     </div>
-  </section>
+  </div>
 );
+
+type SimpleDevToolButtonProps = {
+  action: SimpleDevToolAction;
+  label: string;
+  description: string;
+  icon: DevToolIcon;
+  runningAction: DevToolAction | null;
+  onRunAction: (action: DevToolAction, options?: DevToolActionOptions) => void;
+};
+
+const SimpleDevToolButton: React.FC<SimpleDevToolButtonProps> = ({
+  action,
+  label,
+  description,
+  icon: Icon,
+  runningAction,
+  onRunAction,
+}) => {
+  const isRunning = runningAction === action;
+  const isDisabled = Boolean(runningAction);
+
+  return (
+    <button
+      type="button"
+      onClick={() => onRunAction(action)}
+      disabled={isDisabled}
+      className="flex w-full items-center gap-3 rounded-xl bg-white px-3 py-2 text-left shadow-sm transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-gray-800 dark:hover:bg-gray-700"
+    >
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-200">
+        <Icon size={16} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold text-gray-900 dark:text-white">
+          {isRunning ? "Выполняем..." : label}
+        </span>
+        <span className="block text-xs text-gray-500 dark:text-gray-400">
+          {description}
+        </span>
+      </span>
+    </button>
+  );
+};
+
+export const DevToolsPanel: React.FC<DevToolsPanelProps> = ({
+  runningAction,
+  onRunAction,
+}) => {
+  const [isExpanded, setIsExpanded] = React.useState(false);
+  const toggleExpanded = () => setIsExpanded((current) => !current);
+
+  return (
+    <section className="rounded-2xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/50 dark:bg-amber-900/20">
+      <DevToolsHeader
+        isExpanded={isExpanded}
+        runningAction={runningAction}
+        panelId={DEV_TOOLS_PANEL_ID}
+        onToggle={toggleExpanded}
+      />
+
+      {isExpanded ? (
+        <div id={DEV_TOOLS_PANEL_ID} className="mt-3">
+          <VocabularyReviewBatchAction
+            runningAction={runningAction}
+            onRunAction={onRunAction}
+          />
+
+          <div className="space-y-2">
+            {ACTIONS.map((action) => (
+              <SimpleDevToolButton
+                key={action.action}
+                {...action}
+                runningAction={runningAction}
+                onRunAction={onRunAction}
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+};

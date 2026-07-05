@@ -65,14 +65,18 @@ Supabase Edge Function, базой и внешней AI-моделью.
 ## 4) OpenRouter
 Server env:
 - `OPENROUTER_API_KEY` — обязательный, только в `.env.local`
-- `OPENROUTER_MODEL_PRIMARY` — опциональный
-- `OPENROUTER_MODEL_FALLBACK` — опциональный
-- `OPENROUTER_MODEL_TERTIARY` — опциональный
+- `OPENROUTER_MODEL_CHAIN` — опциональный comma-separated список моделей для генерации текста
+- `OPENROUTER_MODEL_PRIMARY` / `OPENROUTER_MODEL_FALLBACK` /
+  `OPENROUTER_MODEL_TERTIARY` — опциональные добавления к дефолтной цепочке,
+  используются после текущих дефолтных моделей, если `OPENROUTER_MODEL_CHAIN`
+  не задан
 
 Текущие дефолты:
-- primary: `openai/gpt-oss-20b:free`
-- fallback: `qwen/qwen3-next-80b-a3b-instruct:free`
-- tertiary: `google/gemma-4-26b-a4b-it:free`
+- `qwen/qwen3-next-80b-a3b-instruct:free`
+- `nvidia/nemotron-nano-9b-v2:free`
+- `google/gemma-4-31b-it:free`
+- `google/gemma-4-26b-a4b-it:free`
+- `openai/gpt-oss-20b:free`
 
 Текущая стратегия:
 - prompt version: `reading-text-v1`
@@ -83,7 +87,9 @@ Server env:
 - OpenRouter делает router-level failover для provider/infra ошибок
 - пустой content и другие app-detected `provider_response` ошибки исключают фактически ответившую модель и запускают запрос по оставшейся цепочке
 - если успешный ответ пришел, но не прошел app-level валидацию JSON, длины или content safety, Edge Function исключает использованную модель и повторяет запрос по оставшемуся списку
-- timeout запроса к OpenRouter: `45` секунд
+- timeout одного запроса к OpenRouter: `25` секунд
+- общий budget генерации текста: `90` секунд
+- `provider_response` и `provider_request` ошибки пробуют следующую модель, пока в цепочке есть кандидаты и общий budget не исчерпан
 - server logs для provider response содержат только безопасные metadata: модель, `finish_reason`, provider HTTP status/error code, completion token count и reasoning token count; raw response, generated content и reasoning text не логируются
 - `reading_generation_attempts` хранит metadata попытки: `prompt_version`, `model_chain`, target/validation word ranges, `max_tokens`, `output_word_count`, `fallback_used`, `duration_ms`, `failure_stage`, `error_code`, sanitized `error_message`
 

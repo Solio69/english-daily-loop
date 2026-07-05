@@ -12,6 +12,7 @@ import {
 import React, { useEffect, useState } from "react";
 import { Button } from "../components/Button";
 import { ThemeToggle } from "../components/ThemeToggle";
+import { SHOW_VOCABULARY_CARD_APPROVAL_FLOW } from "../constants/vocabularyFeatures";
 import { getVocabularyState } from "../services/vocabularyService";
 import {
   LessonCurrentStep,
@@ -126,9 +127,13 @@ const getVocabularyTileText = (
     return { text: "Словарь доступен", isAttention: false };
   }
 
-  if (state.pendingCount > 0 && state.needsApprovalCount > 0) {
+  const needsApprovalCount = SHOW_VOCABULARY_CARD_APPROVAL_FLOW
+    ? state.needsApprovalCount
+    : 0;
+
+  if (state.pendingCount > 0 && needsApprovalCount > 0) {
     return {
-      text: `Добавить: ${state.pendingCount} Подтвердить: ${state.needsApprovalCount}`,
+      text: `Добавить: ${state.pendingCount} Подтвердить: ${needsApprovalCount}`,
       isAttention: true,
     };
   }
@@ -137,9 +142,9 @@ const getVocabularyTileText = (
     return { text: `Добавить: ${state.pendingCount}`, isAttention: true };
   }
 
-  if (state.needsApprovalCount > 0) {
+  if (needsApprovalCount > 0) {
     return {
-      text: `Подтвердить: ${state.needsApprovalCount}`,
+      text: `Подтвердить: ${needsApprovalCount}`,
       isAttention: true,
     };
   }
@@ -148,7 +153,7 @@ const getVocabularyTileText = (
 };
 
 const splitVocabularyTileText = (text: string): string[] =>
-  text.includes(" Подтвердить")
+  SHOW_VOCABULARY_CARD_APPROVAL_FLOW && text.includes(" Подтвердить")
     ? text.replace(" Подтвердить", "\nПодтвердить").split("\n")
     : [text];
 

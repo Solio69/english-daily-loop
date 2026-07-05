@@ -168,7 +168,7 @@ export const VocabularyScreen: React.FC<VocabularyScreenProps> = ({
                 Слов для повторения пока нет
               </h2>
               <p className="mt-1 text-sm leading-5 text-[var(--text-secondary)]">
-                Добавляй слова из текстов и подтверждай карточки в материалах.
+                Добавляй слова из текстов и готовь карточки в материалах.
               </p>
             </section>
           ) : (

@@ -23,7 +23,7 @@ const failedSaveResult: CardSaveResult = {
   reactivated: false,
 };
 
-const toCardUpdatePayload = (
+const toReadyCardUpdatePayload = (
   card: VocabularyCardBatchItem,
 ): Record<string, unknown> => ({
   word: card.word,
@@ -33,7 +33,17 @@ const toCardUpdatePayload = (
   is_regular_verb: card.isRegularVerb,
   verb_forms: card.verbForms,
   examples: card.examples,
-  card_status: "needs_approval",
+  status: "not_started",
+  card_status: "ready",
+  review_step: null,
+  next_review_date: null,
+  last_reviewed_at: null,
+  review_count: 0,
+  forgot_count: 0,
+  same_step_count: 0,
+  next_step_count: 0,
+  jump_step_count: 0,
+  learned_at: null,
 });
 
 const findExistingCanonicalWord = async (
@@ -72,7 +82,7 @@ const updatePendingWordWithCard = async (
 ): Promise<CardSaveResult> => {
   const { error } = await supabase
     .from("user_vocabulary_words")
-    .update(toCardUpdatePayload(card))
+    .update(toReadyCardUpdatePayload(card))
     .eq("id", pendingWordId)
     .eq("user_id", userId)
     .eq("card_status", "pending");
@@ -116,7 +126,7 @@ const mergePendingDuplicateIntoCanonicalWord = async (
   }
 
   if (existingWord.card_status === "pending") {
-    Object.assign(existingUpdatePayload, toCardUpdatePayload(card), {
+    Object.assign(existingUpdatePayload, toReadyCardUpdatePayload(card), {
       word: existingWord.word,
     });
   }

@@ -32,6 +32,7 @@ type UseVocabularyMaterialsResult = {
 
 export const useVocabularyMaterials = (
   isEnabled: boolean,
+  onVocabularyReviewStateChange?: () => Promise<unknown>,
 ): UseVocabularyMaterialsResult => {
   const [vocabularyState, setVocabularyState] =
     useState<VocabularyState | null>(null);
@@ -56,6 +57,19 @@ export const useVocabularyMaterials = (
     setVocabularyState(state);
     setVocabularyWords(words);
   }, []);
+
+  const notifyVocabularyReviewStateChange = useCallback(async () => {
+    try {
+      await onVocabularyReviewStateChange?.();
+    } catch (error) {
+      console.error("[useVocabularyMaterials] failed to refresh review state", {
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unknown review state refresh error.",
+      });
+    }
+  }, [onVocabularyReviewStateChange]);
 
   useEffect(() => {
     if (!isEnabled) return;
@@ -125,6 +139,7 @@ export const useVocabularyMaterials = (
           : currentState,
       );
       await refreshVocabularyData();
+      await notifyVocabularyReviewStateChange();
 
       if (result.preparedCount === 0 && result.failedCount > 0) {
         setPrepareError({
@@ -167,6 +182,7 @@ export const useVocabularyMaterials = (
     try {
       await approveVocabularyCard(wordId);
       await refreshVocabularyData();
+      await notifyVocabularyReviewStateChange();
       setExpandedWordId(null);
     } catch (error) {
       setError({
@@ -192,6 +208,7 @@ export const useVocabularyMaterials = (
     try {
       await approveVocabularyCards();
       await refreshVocabularyData();
+      await notifyVocabularyReviewStateChange();
       setExpandedWordId(null);
     } catch (error) {
       setApproveAllError({

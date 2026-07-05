@@ -18,6 +18,7 @@ import {
 export {
   DEFAULT_FALLBACK_MODEL,
   DEFAULT_PRIMARY_MODEL,
+  DEFAULT_READING_MODEL_CHAIN,
   DEFAULT_TERTIARY_MODEL,
   OPENROUTER_PROVIDER,
   getOpenRouterModelChain,
@@ -72,7 +73,8 @@ type GenerateReadingTextParams = {
 
 export const READING_TEXT_PROMPT_VERSION = "reading-text-v1";
 
-const MODEL_TIMEOUT_MS = 45_000;
+const MODEL_TIMEOUT_MS = 25_000;
+const GENERATION_TIMEOUT_MS = 90_000;
 
 const buildPromptMessages = (
   targetLevel: EnglishLevel,
@@ -186,9 +188,19 @@ export const generateReadingTextWithOpenRouter = async ({
   const messages = buildPromptMessages(targetLevel, readingMinutes, config);
   let remainingModels = [...models];
   let lastErrorMessage = "Unknown generation error.";
+  const startedAt = Date.now();
 
   while (remainingModels.length > 0) {
     let routed: { content: string; usedModel: string };
+    const elapsedMs = Date.now() - startedAt;
+    const remainingBudgetMs = GENERATION_TIMEOUT_MS - elapsedMs;
+
+    if (remainingBudgetMs <= 0) {
+      throw new AiGenerationError(
+        "provider_request",
+        "AI-модели не ответили в общий лимит времени. Попробуй еще раз чуть позже.",
+      );
+    }
 
     try {
       routed = await requestOpenRouter({
@@ -197,7 +209,7 @@ export const generateReadingTextWithOpenRouter = async ({
         messages,
         maxTokens: config.maxTokens,
         temperature: 0.7,
-        timeoutMs: MODEL_TIMEOUT_MS,
+        timeoutMs: Math.min(MODEL_TIMEOUT_MS, remainingBudgetMs),
       });
     } catch (error) {
       lastErrorMessage =
@@ -208,11 +220,17 @@ export const generateReadingTextWithOpenRouter = async ({
         models: remainingModels,
         promptVersion: READING_TEXT_PROMPT_VERSION,
         stage,
+        elapsedMs,
+        remainingBudgetMs,
         ...getOpenRouterErrorLogMetadata(error),
         error: lastErrorMessage,
       });
 
-      if (stage === "provider_response" && remainingModels.length > 1) {
+      if (
+        (stage === "provider_response" || stage === "provider_request") &&
+        remainingModels.length > 1 &&
+        Date.now() - startedAt < GENERATION_TIMEOUT_MS
+      ) {
         const failedModel = getFailedOpenRouterModel(error, remainingModels);
         remainingModels = excludeModel(remainingModels, failedModel);
         continue;

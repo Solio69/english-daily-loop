@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import React from "react";
 import { InlineStatusCard } from "../InlineStatusCard";
+import { SHOW_VOCABULARY_CARD_APPROVAL_FLOW } from "../../constants/vocabularyFeatures";
 import { VocabularyState } from "../../types/vocabulary";
 
 type VocabularySummaryCardProps = {
@@ -135,29 +136,39 @@ export const VocabularySummaryCard: React.FC<VocabularySummaryCardProps> = ({
 const VocabularyStatusCards: React.FC<VocabularyStatusCardsProps> = ({
   pendingCount,
   needsApprovalCount,
-}) => (
-  <div className="grid grid-cols-2 gap-2">
-    <VocabularyStatusCard
-      count={pendingCount}
-      icon={<Layers className="size-4 shrink-0" />}
-      actionLabel="добавить"
-      activeDescription={getRussianPlural(pendingCount, wordWithoutCardForms)}
-      readyTitle="Все готовы"
-      readyDescription="слов без карточек нет"
-    />
-    <VocabularyStatusCard
-      count={needsApprovalCount}
-      icon={<CircleCheck className="size-4 shrink-0" />}
-      actionLabel="подтвердить"
-      activeDescription={getRussianPlural(
-        needsApprovalCount,
-        approvalWaitingForms,
-      )}
-      readyTitle="Подтверждено"
-      readyDescription="карточек на проверку нет"
-    />
-  </div>
-);
+}) => {
+  const isApprovalFlowVisible = SHOW_VOCABULARY_CARD_APPROVAL_FLOW;
+
+  return (
+    <div
+      className={`grid gap-2 ${
+        isApprovalFlowVisible ? "grid-cols-2" : "grid-cols-1"
+      }`}
+    >
+      <VocabularyStatusCard
+        count={pendingCount}
+        icon={<Layers className="size-4 shrink-0" />}
+        actionLabel="добавить"
+        activeDescription={getRussianPlural(pendingCount, wordWithoutCardForms)}
+        readyTitle="Все готовы"
+        readyDescription="слов без карточек нет"
+      />
+      {isApprovalFlowVisible ? (
+        <VocabularyStatusCard
+          count={needsApprovalCount}
+          icon={<CircleCheck className="size-4 shrink-0" />}
+          actionLabel="подтвердить"
+          activeDescription={getRussianPlural(
+            needsApprovalCount,
+            approvalWaitingForms,
+          )}
+          readyTitle="Подтверждено"
+          readyDescription="карточек на проверку нет"
+        />
+      ) : null}
+    </div>
+  );
+};
 
 const VocabularyStatusCard: React.FC<VocabularyStatusCardProps> = ({
   count,
@@ -297,7 +308,7 @@ const VocabularyGenerationInfo: React.FC = () => (
           </li>
           <li className="flex gap-2">
             <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-[var(--primary)]" />
-            <span>После проверки они попадут в подтверждение.</span>
+            <span>Готовые карточки сразу попадут в словарь и повторение.</span>
           </li>
         </ul>
       </div>

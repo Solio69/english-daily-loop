@@ -103,12 +103,20 @@ export const DEFAULT_PRIMARY_MODEL = "openai/gpt-oss-20b:free";
 export const DEFAULT_FALLBACK_MODEL =
   "qwen/qwen3-next-80b-a3b-instruct:free";
 export const DEFAULT_TERTIARY_MODEL = "google/gemma-4-26b-a4b-it:free";
+export const DEFAULT_READING_MODEL_CHAIN = [
+  DEFAULT_FALLBACK_MODEL,
+  "nvidia/nemotron-nano-9b-v2:free",
+  "google/gemma-4-31b-it:free",
+  DEFAULT_TERTIARY_MODEL,
+  DEFAULT_PRIMARY_MODEL,
+];
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const ALLOWED_OPENROUTER_MODELS = new Set([
   DEFAULT_PRIMARY_MODEL,
   DEFAULT_FALLBACK_MODEL,
   DEFAULT_TERTIARY_MODEL,
+  ...DEFAULT_READING_MODEL_CHAIN,
 ]);
 
 export const getOpenRouterModelChain = (...values: string[]): string[] => {

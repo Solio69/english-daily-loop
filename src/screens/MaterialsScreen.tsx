@@ -16,6 +16,7 @@ import { CompletedReadingText, MaterialsTab } from "../types/materials";
 type MaterialsScreenProps = {
   onBack: () => void;
   initialTab?: MaterialsTab;
+  onVocabularyReviewStateChange?: () => Promise<unknown>;
 };
 
 const HISTORY_PAGE_LIMIT = 10;
@@ -63,6 +64,7 @@ const getModelLabel = (model: string): string => {
 export const MaterialsScreen: React.FC<MaterialsScreenProps> = ({
   onBack,
   initialTab = "vocabulary",
+  onVocabularyReviewStateChange,
 }) => {
   const [activeTab, setActiveTab] = useState<MaterialsTab>(initialTab);
   const [texts, setTexts] = useState<CompletedReadingText[]>([]);
@@ -319,7 +321,10 @@ export const MaterialsScreen: React.FC<MaterialsScreenProps> = ({
           )}
         </section>
       ) : (
-        <VocabularyTab isActive={activeTab === "vocabulary"} />
+        <VocabularyTab
+          isActive={activeTab === "vocabulary"}
+          onVocabularyReviewStateChange={onVocabularyReviewStateChange}
+        />
       )}
     </div>
   );
