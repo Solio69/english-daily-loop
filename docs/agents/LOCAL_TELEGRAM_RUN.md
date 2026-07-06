@@ -37,6 +37,7 @@
 - `VITE_SUPABASE_ANON_KEY`
 - `VITE_SUPABASE_URL` (будет автоматически обновляться скриптом `dev:telegram`)
 - `OPENROUTER_API_KEY`
+- `VITE_FEEDBACK_TELEGRAM_USERNAME`, если нужна ссылка обратной связи в настройках
 - `VITE_DEV_TOOLS_ENABLED` и `DEV_TOOLS_ENABLED`, если нужна локальная панель dev tools
 
 Важно: не коммитить `.env.local` в git.

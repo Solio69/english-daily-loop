@@ -1,4 +1,5 @@
 import React, { Suspense, lazy, useState } from "react";
+import { ExternalLink } from "lucide-react";
 import { Button } from "../components/Button";
 import { LoadingState } from "../components/LoadingState";
 import { ScreenHeader } from "../components/ScreenHeader";
@@ -7,6 +8,10 @@ import type {
   DevToolActionOptions,
 } from "../services/devToolsService";
 import { SaveUserSettingsInput, UserSettings } from "../types/user";
+import {
+  getTelegramProfileUrl,
+  openTelegramLink,
+} from "../utils/telegramLinks";
 
 const DevToolsPanel = lazy(() =>
   import("../components/DevToolsPanel").then((module) => ({
@@ -57,6 +62,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   );
   const [readingTime, setReadingTime] = useState(
     initialSettings?.dailyReadingMinutes ?? 3,
+  );
+  const feedbackTelegramUrl = getTelegramProfileUrl(
+    import.meta.env.VITE_FEEDBACK_TELEGRAM_USERNAME,
   );
 
   const handleSave = async () => {
@@ -148,6 +156,23 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             ))}
           </div>
         </section>
+
+        {feedbackTelegramUrl ? (
+          <section className="flex items-center justify-center gap-2 pt-1 text-sm">
+            <span className="font-medium text-[var(--text-muted)]">
+              Есть вопрос?
+            </span>
+            <button
+              type="button"
+              onClick={() => openTelegramLink(feedbackTelegramUrl)}
+              disabled={isSaving}
+              className="inline-flex items-center justify-center gap-1.5 rounded-[10px] px-1.5 py-1 font-heading text-sm font-semibold text-[var(--accent-warm)] transition duration-200 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-warm)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+            >
+              Написать разработчику
+              <ExternalLink size={16} strokeWidth={2.2} aria-hidden="true" />
+            </button>
+          </section>
+        ) : null}
       </div>
 
       <div className="mt-auto pt-6">

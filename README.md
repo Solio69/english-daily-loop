@@ -149,6 +149,7 @@ AI attempt metadata хранится `90` дней; scheduled cleanup выпол
 VITE_SUPABASE_URL="http://127.0.0.1:54321"
 VITE_SUPABASE_ANON_KEY="YOUR_SUPABASE_ANON_KEY"
 VITE_DEV_TOOLS_ENABLED="false"
+VITE_FEEDBACK_TELEGRAM_USERNAME=""
 OPENROUTER_API_KEY="YOUR_OPENROUTER_API_KEY"
 TELEGRAM_BOT_TOKEN="YOUR_TELEGRAM_BOT_TOKEN"
 DEV_TOOLS_ENABLED="false"
@@ -161,6 +162,8 @@ OPENROUTER_MODEL_CHAIN="qwen/qwen3-next-80b-a3b-instruct:free,nvidia/nemotron-na
 ```
 
 `OPENROUTER_MODEL_PRIMARY`, `OPENROUTER_MODEL_FALLBACK` и `OPENROUTER_MODEL_TERTIARY` можно использовать как дополнительные модели после дефолтной цепочки, если `OPENROUTER_MODEL_CHAIN` не задан.
+
+`VITE_FEEDBACK_TELEGRAM_USERNAME` задает публичную ссылку обратной связи в настройках. Укажи username без `@`, например `my_username`; если переменная пустая или не похожа на Telegram username, блок обратной связи не показывается.
 
 Правило безопасности: во frontend доступны только переменные с префиксом `VITE_`. AI-ключи, Telegram token и service role key должны оставаться только на серверной стороне.
 
@@ -308,6 +311,7 @@ pnpm build
 - `notes/vocabulary-save-flow.md` — словарь: сохранение слов из активного текста, AI-подготовка карточек и дневные попытки подготовки.
 - `notes/vocabulary-review.md` — алгоритм, дневная очередь, server-side progress и UI повторения слов.
 - `notes/subscriptions.md` — MVP-модель подписок.
+- `notes/feedback-link.md` — ссылка обратной связи из настроек в Telegram.
 - `notes/home-progress-and-toast.md` — прогресс главного экрана и toast-сообщения.
 - `notes/dev-mode-dx.md` — локальный Telegram-режим разработки и ограничения DX.
 - `notes/production-readiness.md` — что нужно пересмотреть перед production.
