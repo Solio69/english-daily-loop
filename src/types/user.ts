@@ -6,9 +6,12 @@ export type UserSettings = {
   dailyReadingMinutes: number;
 };
 
+export type AppRole = "admin" | "tester" | "user";
+
 export type AppUser = {
   id: string;
   telegramUserId: number;
+  role: AppRole;
   firstName: string | null;
   streakDays: number;
   settingsCompletedAt: string | null;

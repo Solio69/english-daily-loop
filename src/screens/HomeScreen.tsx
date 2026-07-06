@@ -29,7 +29,8 @@ type HomeScreenProps = {
   onNavigate: (screen: string) => void;
   onOpenLesson: () => void;
   onOpenMaterials: (tab: MaterialsTab) => void;
-  onOpenSubscription: () => void;
+  onOpenSubscription?: () => void;
+  showSubscriptionEntry?: boolean;
   userName?: string | null;
   streakDays?: number;
   lessonStatus?: LessonHomeStatus;
@@ -162,6 +163,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenLesson,
   onOpenMaterials,
   onOpenSubscription,
+  showSubscriptionEntry = false,
   userName,
   streakDays = 0,
   lessonStatus = "not_started",
@@ -300,16 +302,18 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             >
               {displayName}!
             </h1>
-            <button
-              type="button"
-              onClick={onOpenSubscription}
-              className={`glass-control mt-0.5 flex h-9 shrink-0 items-center gap-1.5 rounded-[15px] px-2.5 text-[12px] font-semibold leading-none transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] ${
-                isPaid ? "text-[var(--primary)]" : "text-[var(--accent-warm)]"
-              }`}
-            >
-              <SubscriptionIcon className="shrink-0" size={15} />
-              <span>{isPaid ? "Подписка" : "Купить"}</span>
-            </button>
+            {showSubscriptionEntry && onOpenSubscription && (
+              <button
+                type="button"
+                onClick={onOpenSubscription}
+                className={`glass-control mt-0.5 flex h-9 shrink-0 items-center gap-1.5 rounded-[15px] px-2.5 text-[12px] font-semibold leading-none transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] ${
+                  isPaid ? "text-[var(--primary)]" : "text-[var(--accent-warm)]"
+                }`}
+              >
+                <SubscriptionIcon className="shrink-0" size={15} />
+                <span>{isPaid ? "Подписка" : "Купить"}</span>
+              </button>
+            )}
           </div>
         </div>
 

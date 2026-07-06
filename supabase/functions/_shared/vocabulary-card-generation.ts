@@ -1,6 +1,7 @@
 /// <reference path="../deno-globals.d.ts" />
 
 import type { ServiceClient } from "./app.ts";
+import { getDailyVocabularyCardGenerationLimit as getAccessDailyVocabularyCardGenerationLimit } from "./access.ts";
 import { OPENROUTER_PROVIDER } from "./openrouter.ts";
 import { fail } from "./server.ts";
 
@@ -39,9 +40,6 @@ type ClaimVocabularyCardGenerationAttemptResult =
       remainingAttempts: number;
     };
 
-const FREE_DAILY_CARD_GENERATION_LIMIT = 5;
-const PAID_DAILY_CARD_GENERATION_LIMIT = 20;
-
 const sanitizeAttemptErrorMessage = (message: string): string =>
   message
     .replace(/[\r\n\t]+/g, " ")
@@ -54,26 +52,11 @@ export const getDailyVocabularyCardGenerationLimit = async (
   userId: string,
   logPrefix: string,
 ): Promise<number> => {
-  const nowIso = new Date().toISOString();
-  const { data, error } = await supabase
-    .from("user_subscriptions")
-    .select("id")
-    .eq("user_id", userId)
-    .lte("starts_at", nowIso)
-    .gt("ends_at", nowIso)
-    .limit(1);
-
-  if (error) {
-    console.error(`${logPrefix} failed to load subscription`, {
-      appUserId: userId,
-      error: error.message,
-    });
-    fail(500, "SUBSCRIPTION_LOAD_FAILED", "Failed to load subscription.");
-  }
-
-  return (data ?? []).length > 0
-    ? PAID_DAILY_CARD_GENERATION_LIMIT
-    : FREE_DAILY_CARD_GENERATION_LIMIT;
+  return getAccessDailyVocabularyCardGenerationLimit(
+    supabase,
+    userId,
+    logPrefix,
+  );
 };
 
 export const getUsedVocabularyCardGenerationAttempts = async (

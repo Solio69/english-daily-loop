@@ -13,6 +13,7 @@ import {
   successResponse,
 } from "../_shared/server.ts";
 import { getMoscowDate } from "../_shared/moscow-date.ts";
+import { getDailyReadingGenerationLimit } from "../_shared/access.ts";
 import {
   AiGenerationError,
   DEFAULT_READING_MODEL_CHAIN,
@@ -73,8 +74,6 @@ type ClaimGenerationAttemptResult =
 
 const AI_ERROR_MESSAGE =
   "Не удалось сгенерировать текст. Попробуй еще раз позже.";
-const FREE_DAILY_GENERATION_LIMIT = 3;
-const PAID_DAILY_GENERATION_LIMIT = 10;
 const READING_CONFIG_BY_MINUTES: Record<
   ReadingMinutes,
   Omit<ReadingGenerationConfig, "validationWordMin" | "validationWordMax">
@@ -171,32 +170,6 @@ const toAttemptUpdatePayload = (
   fallback_used: metadata.fallbackUsed,
   output_word_count: metadata.outputWordCount,
 });
-
-const getDailyGenerationLimit = async (
-  supabase: ReturnType<typeof createClient>,
-  user: UserRow,
-): Promise<number> => {
-  const nowIso = new Date().toISOString();
-  const { data, error } = await supabase
-    .from("user_subscriptions")
-    .select("id")
-    .eq("user_id", user.id)
-    .lte("starts_at", nowIso)
-    .gt("ends_at", nowIso)
-    .limit(1);
-
-  if (error) {
-    console.error("[generate-reading-text] failed to load subscription", {
-      appUserId: user.id,
-      error: error.message,
-    });
-    fail(500, "SUBSCRIPTION_LOAD_FAILED", "Failed to load subscription.");
-  }
-
-  return (data ?? []).length > 0
-    ? PAID_DAILY_GENERATION_LIMIT
-    : FREE_DAILY_GENERATION_LIMIT;
-};
 
 const claimGenerationAttempt = async (
   supabase: ReturnType<typeof createClient>,
@@ -354,9 +327,10 @@ Deno.serve(async (req: Request) => {
     );
     const settings = await getUserReadingSettingsFromDb(supabase, tgUser.id);
     const today = getMoscowDate();
-    const dailyLimit = await getDailyGenerationLimit(
+    const dailyLimit = await getDailyReadingGenerationLimit(
       supabase,
-      settings.appUser,
+      settings.appUserId,
+      "[generate-reading-text]",
     );
 
     const claimedAttempt = await claimGenerationAttempt(

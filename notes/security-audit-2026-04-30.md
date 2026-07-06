@@ -15,7 +15,7 @@
 
 ### Секреты и frontend
 - Во frontend используются только `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`,
-  `VITE_DEV_TOOLS_ENABLED` и dev-only `VITE_DEBUG_AUTH`.
+  dev-only `VITE_DEBUG_AUTH`.
 - `SUPABASE_SERVICE_ROLE_KEY`, `TELEGRAM_BOT_TOKEN` и `OPENROUTER_API_KEY`
   читаются только в Supabase Edge Functions через `Deno.env`.
 - `.gitignore` закрывает `.env*`, кроме `.env.example`.
@@ -48,12 +48,12 @@
 ### Postgres
 - RLS включен на пользовательских, reading-state, completion/history и subscription таблицах.
 - Критичные RPC выданы только `service_role`.
-- Добавлена hardening-миграция, которая явно отзывает прямой доступ `anon/authenticated`
+- Hardening-миграция явно отзывает прямой доступ `anon/authenticated`
   к защищенным таблицам и legacy RPC `get_random_reading_text`.
 
 ### Dev tools
-- Frontend-флаг `VITE_DEV_TOOLS_ENABLED` только показывает UI.
-- Реальное выполнение dev actions закрыто server env `DEV_TOOLS_ENABLED`.
+- Панель dev tools скрыта для не-admin пользователей.
+- Реальное выполнение dev actions закрыто server env `DEV_TOOLS_ENABLED` и server-side ролью `users.app_role = 'admin'`.
 - Dev actions фиксированы allowlist-ом и работают только с текущим Telegram-пользователем.
 
 ### AI pipeline
@@ -63,13 +63,13 @@
 - Ответ модели валидируется как JSON с ожидаемыми полями и диапазоном слов.
 - При ошибке генерации активный текст не перезаписывается.
 
-## Внесенные изменения
-- `notes/security-threat-model.md` - зафиксирована модель угроз MVP.
-- `supabase/migrations/20260430120000_harden_public_api_permissions.sql` -
-  добавлен DB hardening для public schema, защищенных таблиц и legacy RPC.
-- Edge Functions теперь не возвращают raw `error.message` для неожиданных внутренних ошибок.
+## Зафиксированный контур
+- `notes/security-threat-model.md` фиксирует модель угроз MVP.
+- `supabase/migrations/20260430120000_harden_public_api_permissions.sql`
+  закрывает public schema, защищенные таблицы и legacy RPC от прямого клиентского доступа.
+- Edge Functions не возвращают raw `error.message` для неожиданных внутренних ошибок.
   Подробности остаются в server logs, клиент получает стабильное безопасное сообщение.
-- `generate-reading-text` теперь возвращает `401 AUTH_VALIDATION_FAILED` для невалидного
+- `generate-reading-text` возвращает `401 AUTH_VALIDATION_FAILED` для невалидного
   Telegram `initData`, как остальные чувствительные функции.
 
 ## Ручная проверка

@@ -1,7 +1,13 @@
 ﻿import { supabase } from "../lib/supabase";
 import { SubscriptionSummary } from "../types/subscription";
 import { HomeProgress } from "../types/homeProgress";
-import { AppUser, SaveUserSettingsInput, UserSettings } from "../types/user";
+import {
+  AppRole,
+  AppUser,
+  SaveUserSettingsInput,
+  UserSettings,
+} from "../types/user";
+import { DEFAULT_FREE_SUBSCRIPTION_SUMMARY } from "../constants/subscriptionFallbacks";
 
 // TODO: Local debugging helper for Telegram auth traces.
 const AUTH_DEBUG_ENABLED =
@@ -10,6 +16,7 @@ const AUTH_DEBUG_ENABLED =
 type UserRow = {
   id: string;
   telegram_user_id: number;
+  role: AppRole;
   first_name: string | null;
   settings_completed_at: string | null;
   first_text_completed_at: string | null;
@@ -28,6 +35,7 @@ type AuthTelegramFunctionSuccess = {
     user: {
       id: string;
       telegramUserId: number;
+      role: AppRole;
       firstName: string | null;
       settingsCompletedAt: string | null;
       firstTextCompletedAt: string | null;
@@ -57,6 +65,7 @@ type SaveUserSettingsFunctionSuccess = {
     user: {
       id: string;
       telegramUserId: number;
+      role: AppRole;
       firstName: string | null;
       settingsCompletedAt: string | null;
       firstTextCompletedAt: string | null;
@@ -70,16 +79,6 @@ type SaveUserSettingsFunctionSuccess = {
 type SaveUserSettingsFunctionResponse =
   | SaveUserSettingsFunctionSuccess
   | AuthTelegramFunctionError;
-
-const FREE_SUBSCRIPTION_SUMMARY: SubscriptionSummary = {
-  tier: "free",
-  limits: {
-    dailyReadingGenerations: 3,
-    vocabularyWordsLimit: 30,
-  },
-  activeSubscription: null,
-  scheduledSubscription: null,
-};
 
 const DEFAULT_HOME_PROGRESS: HomeProgress = {
   lesson: {
@@ -108,7 +107,7 @@ const authLog = (message: string, details?: unknown): void => {
 const mapUser = (
   user: UserRow,
   settings: UserSettings | null = null,
-  subscription: SubscriptionSummary = FREE_SUBSCRIPTION_SUMMARY,
+  subscription: SubscriptionSummary = DEFAULT_FREE_SUBSCRIPTION_SUMMARY,
   homeProgress: HomeProgress = DEFAULT_HOME_PROGRESS,
   streakDays = 0,
 ): AppUser => {
@@ -123,6 +122,7 @@ const mapUser = (
   return {
     id: user.id,
     telegramUserId: user.telegram_user_id,
+    role: user.role,
     firstName: user.first_name,
     streakDays,
     settingsCompletedAt: user.settings_completed_at,
@@ -202,6 +202,7 @@ const getAuthenticatedUser = async (
   return {
     id: payload.data.user.id,
     telegram_user_id: payload.data.user.telegramUserId,
+    role: payload.data.user.role ?? "user",
     first_name: payload.data.user.firstName,
     streak_days: payload.data.streakDays,
     settings_completed_at: payload.data.user.settingsCompletedAt,
@@ -225,7 +226,7 @@ export const getCurrentAppUser = async (): Promise<AppUser> => {
   const settings = user.settings;
   const subscription =
     (user as Partial<AuthenticatedUserRow>).subscription ??
-    FREE_SUBSCRIPTION_SUMMARY;
+    DEFAULT_FREE_SUBSCRIPTION_SUMMARY;
   const homeProgress =
     (user as Partial<AuthenticatedUserRow>).homeProgress ??
     DEFAULT_HOME_PROGRESS;
@@ -283,6 +284,7 @@ export const saveCurrentUserSettings = async (
   const userRow: UserRow = {
     id: payload.data.user.id,
     telegram_user_id: payload.data.user.telegramUserId,
+    role: payload.data.user.role ?? "user",
     first_name: payload.data.user.firstName,
     settings_completed_at: payload.data.user.settingsCompletedAt,
     first_text_completed_at: payload.data.user.firstTextCompletedAt,

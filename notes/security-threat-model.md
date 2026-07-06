@@ -89,9 +89,10 @@ Edge Functions:
 - Текущий пользователь определяется из валидного `initData`, а не из body.
 - Все входные параметры из клиента проходят allowlist/range validation.
 - Frontend не пишет напрямую в защищенные пользовательские, reading и subscription таблицы.
-- Лимиты, подписки и дневной прогресс считаются на сервере.
+- Лимиты, роли, подписки и дневной прогресс считаются на сервере.
 - Критичные DB-операции выполняются через RLS/grants и транзакционные RPC.
-- Dev tools должны быть закрыты server env флагом, а не только frontend UI-флагом.
+- Dev tools должны быть закрыты server env флагом и ролью `admin`, а не только frontend UI-флагом.
+- Subscription activation должна быть закрыта server env флагом, пока пользовательский flow подписки выключен.
 - Ошибки клиенту возвращаются без секретов, stack trace и SQL/provider details.
 - Логи не должны содержать секреты, полный `initData` или чувствительные ключи.
 - AI observability хранит только metadata попытки; полный prompt, raw provider response, полный generated text и stack trace не пишутся в `reading_generation_attempts`.

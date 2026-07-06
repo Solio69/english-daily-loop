@@ -32,9 +32,9 @@
 ## 4) Generation attempts
 - Серверный учет дневного лимита реализован через `reading_generation_attempts`.
 - День считается по `Europe/Moscow`.
-- Текущий MVP-лимит зависит от активной подписки:
+- Текущий MVP-лимит зависит от effective access:
   - free: `3`
-  - paid: `10`
+  - paid/internal: `10`
 - Попытка считается списанной после записи attempt перед OpenRouter, независимо от успеха генерации.
 - Проверка дневного лимита и запись attempt объединены в RPC `claim_reading_generation_attempt`, который использует transaction-level advisory lock на `user_id + attempt_date`.
 - Перед production стоит:
@@ -71,6 +71,9 @@
   и server-only RPC.
 
 ## 9) MVP subscriptions
+- Пользовательский subscription flow скрыт, пока реальные платежи не подключены.
+- Edge Function `activate-subscription` закрыта server env `SUBSCRIPTION_FLOW_ENABLED`.
+- Роли `admin` и `tester` получают internal paid-like доступ через `users.app_role`.
 - Активация MVP-подписки выполняется транзакционно через RPC `activate_mvp_subscription`.
 - RPC использует advisory lock на пользователя, чтобы параллельные запросы оформления не создавали дубли active/scheduled подписок.
 - Перед production при подключении реальных платежей нужно будет связать эту операцию с платежным provider event/webhook и идемпотентным payment id.

@@ -60,7 +60,7 @@ subscription таблицам, а также к server-only RPC. Доступ и
 `auth-telegram`:
 - валидирует Telegram `initData`
 - создает или находит пользователя по `telegram_user_id`
-- возвращает `settings`, `subscription`, `homeProgress` и `streakDays`
+- возвращает `role`, `settings`, `subscription`, `homeProgress` и `streakDays`
 - разделяет ошибки Telegram validation и внутренние DB/server ошибки
 - возвращает клиенту безопасное сообщение для неожиданных внутренних ошибок
 
@@ -99,7 +99,9 @@ subscription таблицам, а также к server-only RPC. Доступ и
 - возвращает клиенту безопасное сообщение для неожиданных внутренних ошибок
 
 `activate-subscription`:
+- работает только при server env `SUBSCRIPTION_FLOW_ENABLED="true"`
 - валидирует Telegram `initData`
+- остается server-side заготовкой для будущего пользовательского subscription flow
 - активирует или планирует MVP-подписку через RPC `activate_mvp_subscription`
 - возвращает актуальный subscription summary
 - возвращает клиенту безопасное сообщение для неожиданных внутренних ошибок
@@ -126,6 +128,7 @@ subscription таблицам, а также к server-only RPC. Доступ и
 `dev-tools`:
 - валидирует Telegram `initData`
 - работает только при server env `DEV_TOOLS_ENABLED="true"`
+- требует `users.app_role = 'admin'`
 - выполняет фиксированный список локальных dev-действий для текущего Telegram-пользователя
 - не принимает произвольный SQL, а использует фиксированный список actions
 - возвращает клиенту безопасное сообщение для неожиданных внутренних ошибок

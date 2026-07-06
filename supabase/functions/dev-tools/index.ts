@@ -14,6 +14,7 @@ import {
   successResponse,
 } from "../_shared/server.ts";
 import { getMoscowDate } from "../_shared/moscow-date.ts";
+import { assertAdminRole } from "../_shared/access.ts";
 
 type DevToolAction =
   | "reset_generation_attempts"
@@ -42,7 +43,7 @@ type UserRow = {
   telegram_user_id: number;
 };
 
-// TODO: Local dev-only Edge Function; keep server env gate mandatory before DB mutations.
+// TODO: Keep DB-changing dev actions behind both the server env gate and admin role.
 const parseAction = (value: unknown): DevToolAction => {
   if (
     value === "reset_generation_attempts" ||
@@ -423,6 +424,7 @@ Deno.serve(async (req: Request) => {
       },
     );
     const appUser = await getAppUser(supabase, tgUser.id);
+    await assertAdminRole(supabase, appUser.id, "[dev-tools]");
     const today = getMoscowDate();
 
     const changes =

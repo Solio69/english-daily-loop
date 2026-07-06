@@ -30,7 +30,7 @@ type DevToolIcon = React.ComponentType<{
   className?: string;
 }>;
 
-// TODO: Keep local-only actions behind both VITE_DEV_TOOLS_ENABLED and DEV_TOOLS_ENABLED.
+// TODO: Keep DB-changing actions behind DEV_TOOLS_ENABLED and admin role.
 const ACTIONS: Array<{
   action: SimpleDevToolAction;
   label: string;

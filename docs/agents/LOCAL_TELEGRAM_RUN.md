@@ -38,7 +38,8 @@
 - `VITE_SUPABASE_URL` (будет автоматически обновляться скриптом `dev:telegram`)
 - `OPENROUTER_API_KEY`
 - `VITE_FEEDBACK_TELEGRAM_USERNAME`, если нужна ссылка обратной связи в настройках
-- `VITE_DEV_TOOLS_ENABLED` и `DEV_TOOLS_ENABLED`, если нужна локальная панель dev tools
+- `DEV_TOOLS_ENABLED`, если нужны dev tools действия для admin-пользователя
+- `SUBSCRIPTION_FLOW_ENABLED="false"`, пока пользовательский flow подписки выключен
 
 Важно: не коммитить `.env.local` в git.
 
@@ -115,14 +116,22 @@
 
 Frontend собирается после получения API tunnel URL, чтобы production-like bundle использовал актуальный публичный адрес Supabase API.
 
-Локальная панель dev tools доступна при двух включенных переменных:
+Локальная панель dev tools видна текущему Telegram-пользователю с ролью `admin`.
+Действия, которые меняют БД, выполняются только при включенной server env:
 
 ```env
-VITE_DEV_TOOLS_ENABLED="true"
 DEV_TOOLS_ENABLED="true"
 ```
 
-`VITE_DEV_TOOLS_ENABLED` показывает панель в интерфейсе, `DEV_TOOLS_ENABLED` разрешает Edge Function менять локальную БД.
+`DEV_TOOLS_ENABLED` разрешает Edge Function менять локальную БД, а server-side проверка `users.app_role = 'admin'` защищает actions от прямого вызова.
+
+Чтобы сделать текущего пользователя админом в локальной БД после применения миграций, выполни SQL в Supabase Studio:
+
+```sql
+update public.users
+set app_role = 'admin'
+where telegram_user_id = YOUR_TELEGRAM_USER_ID;
+```
 
 В интерфейсе dev tools панель свернута по умолчанию: раскрой заголовок `Dev tools`, чтобы увидеть локальные действия.
 
@@ -194,4 +203,4 @@ DEV_TOOLS_ENABLED="true"
   - `OPENROUTER_API_KEY`
   - любые секреты из `.env.local`
 - Все проверки `initData` делать только на сервере в Edge Functions, не в клиенте.
-- Локальная dev tools панель может отображаться по `VITE_DEV_TOOLS_ENABLED`, но действия с БД разрешает только server env `DEV_TOOLS_ENABLED`.
+- Локальная dev tools панель отображается только для `admin`, а действия с БД разрешает только server env `DEV_TOOLS_ENABLED` вместе с server-side проверкой `users.app_role = 'admin'`.

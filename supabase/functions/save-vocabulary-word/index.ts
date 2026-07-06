@@ -22,6 +22,7 @@ import {
   normalizeVocabularyWord,
   type VocabularyCardStatus,
 } from "../_shared/vocabulary.ts";
+import { getVocabularyWordsLimit } from "../_shared/access.ts";
 
 type ActiveReadingTextRow = {
   reading_text_id: string;
@@ -43,8 +44,6 @@ type SaveVocabularyWordResult =
       message: string;
     };
 
-const FREE_VOCABULARY_WORDS_LIMIT = 30;
-const PAID_VOCABULARY_WORDS_LIMIT = 300;
 const ACTIVE_TEXT_UNAVAILABLE_MESSAGE =
   "Текст изменился или уже недоступен. Обнови экран.";
 
@@ -68,32 +67,6 @@ const parseWordIndex = (value: unknown): number => {
   }
 
   return parsed;
-};
-
-const getVocabularyLimit = async (
-  supabase: ServiceClient,
-  userId: string,
-): Promise<number> => {
-  const nowIso = new Date().toISOString();
-  const { data, error } = await supabase
-    .from("user_subscriptions")
-    .select("id")
-    .eq("user_id", userId)
-    .lte("starts_at", nowIso)
-    .gt("ends_at", nowIso)
-    .limit(1);
-
-  if (error) {
-    console.error("[save-vocabulary-word] failed to load subscription", {
-      appUserId: userId,
-      error: error.message,
-    });
-    fail(500, "SUBSCRIPTION_LOAD_FAILED", "Failed to load subscription.");
-  }
-
-  return (data ?? []).length > 0
-    ? PAID_VOCABULARY_WORDS_LIMIT
-    : FREE_VOCABULARY_WORDS_LIMIT;
 };
 
 const savePendingVocabularyWordWithSource = async (
@@ -240,7 +213,11 @@ Deno.serve(async (req: Request) => {
     }
 
     await getUserEnglishLevel(supabase, appUser.id, "[save-vocabulary-word]");
-    const vocabularyLimit = await getVocabularyLimit(supabase, appUser.id);
+    const vocabularyLimit = await getVocabularyWordsLimit(
+      supabase,
+      appUser.id,
+      "[save-vocabulary-word]",
+    );
 
     const finalSave = await savePendingVocabularyWordWithSource(supabase, {
       userId: appUser.id,

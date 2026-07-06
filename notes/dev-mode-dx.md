@@ -32,7 +32,7 @@ Frontend собирается после получения API tunnel URL. По
 
 Локальный seed содержит базового dev-пользователя и моковые тексты. Переключение пользовательских сценариев через подмену Telegram-пользователя не используется.
 
-Для проверки состояний одного Telegram-пользователя используется локальная панель dev tools. Она вызывает Edge Function `dev-tools` и меняет состояние текущего пользователя в БД без `supabase db reset`.
+Для проверки состояний одного Telegram-пользователя используется панель dev tools. Она доступна только пользователю с `users.app_role = 'admin'`, вызывает Edge Function `dev-tools` и меняет состояние текущего пользователя в БД без `supabase db reset`.
 В интерфейсе панель свернута по умолчанию и раскрывается по заголовку `Dev tools`.
 
 Доступные сценарии словаря и повторения:
@@ -67,6 +67,6 @@ npx supabase migration up
 - Telegram `initData` проверяется только на сервере в Edge Functions.
 - `TELEGRAM_BOT_TOKEN`, `OPENROUTER_API_KEY` и `SUPABASE_SERVICE_ROLE_KEY` остаются только в `.env.local` и не попадают во frontend-код или git.
 - Локальный Telegram-режим не подменяет пользователя и не обходит серверную авторизацию.
-- Панель dev tools показывается только при `VITE_DEV_TOOLS_ENABLED="true"`.
-- Edge Function `dev-tools` выполняет локальные reset-действия только при server env `DEV_TOOLS_ENABLED="true"`.
+- Панель dev tools показывается только при роли `admin`.
+- Edge Function `dev-tools` выполняет reset-действия только при server env `DEV_TOOLS_ENABLED="true"` и server-side проверке `users.app_role = 'admin'`.
 - Доступные dev actions ограничены текущим Telegram-пользователем: попытки генерации, подготовка карточек, повторение слов, дневное чтение и MVP-подписки.

@@ -13,6 +13,7 @@ import {
   successResponse,
 } from "../_shared/server.ts";
 import { getMoscowDate } from "../_shared/moscow-date.ts";
+import { getDailyReadingGenerationLimit } from "../_shared/access.ts";
 
 type UserRow = {
   id: string;
@@ -34,35 +35,6 @@ type ActiveReadingTextRow = {
 
 type VocabularyWordSourceRow = {
   word_index: number;
-};
-
-const FREE_DAILY_GENERATION_LIMIT = 3;
-const PAID_DAILY_GENERATION_LIMIT = 10;
-
-const getDailyGenerationLimit = async (
-  supabase: ReturnType<typeof createClient>,
-  user: UserRow,
-): Promise<number> => {
-  const nowIso = new Date().toISOString();
-  const { data, error } = await supabase
-    .from("user_subscriptions")
-    .select("id")
-    .eq("user_id", user.id)
-    .lte("starts_at", nowIso)
-    .gt("ends_at", nowIso)
-    .limit(1);
-
-  if (error) {
-    console.error("[get-reading-state] failed to load subscription", {
-      appUserId: user.id,
-      error: error.message,
-    });
-    fail(500, "SUBSCRIPTION_LOAD_FAILED", "Failed to load subscription.");
-  }
-
-  return (data ?? []).length > 0
-    ? PAID_DAILY_GENERATION_LIMIT
-    : FREE_DAILY_GENERATION_LIMIT;
 };
 
 Deno.serve(async (req: Request) => {
@@ -118,7 +90,11 @@ Deno.serve(async (req: Request) => {
 
     const appUser = userRow as UserRow;
     const today = getMoscowDate();
-    const dailyLimit = await getDailyGenerationLimit(supabase, appUser);
+    const dailyLimit = await getDailyReadingGenerationLimit(
+      supabase,
+      appUser.id,
+      "[get-reading-state]",
+    );
 
     const [
       { count: attemptsCount, error: attemptsError },

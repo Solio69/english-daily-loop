@@ -261,8 +261,8 @@ Daily lesson состоит из двух последовательных ша�
 - `complete_today_vocabulary_reviews_at_step`;
 - `clear_today_vocabulary_review_completion`.
 
-Они доступны только при клиентском `VITE_DEV_TOOLS_ENABLED="true"` и серверном
-`DEV_TOOLS_ENABLED="true"`.
+Панель доступна только роли `users.app_role = 'admin'`, а действия выполняются
+только при серверном `DEV_TOOLS_ENABLED="true"`.
 
 `complete_today_vocabulary_reviews_at_step` принимает абсолютный `reviewStep`,
 переносит всю обязательную очередь текущего дня на этот шаг и создает дневной

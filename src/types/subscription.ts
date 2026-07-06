@@ -1,6 +1,7 @@
 export type SubscriptionPlanType = "monthly" | "yearly";
 
 export type SubscriptionTier = "free" | "paid";
+export type SubscriptionAccessType = "free" | "subscription" | "internal";
 
 export type SubscriptionLimits = {
   dailyReadingGenerations: number;
@@ -16,6 +17,7 @@ export type UserSubscription = {
 
 export type SubscriptionSummary = {
   tier: SubscriptionTier;
+  accessType: SubscriptionAccessType;
   limits: SubscriptionLimits;
   activeSubscription: UserSubscription | null;
   scheduledSubscription: UserSubscription | null;

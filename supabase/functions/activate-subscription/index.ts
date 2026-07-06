@@ -6,25 +6,20 @@ import {
   assertPostRequest,
   errorResponse,
   fail,
+  getOptionalEnv,
   getRequiredEnv,
   getTelegramUserFromBody,
   handleCorsPreflight,
   parseJsonBody,
   successResponse,
 } from "../_shared/server.ts";
+import { getSubscriptionSummary } from "../_shared/access.ts";
 
 type PlanType = "monthly" | "yearly";
 
 type UserRow = {
   id: string;
   telegram_user_id: number;
-};
-
-type SubscriptionRow = {
-  id: string;
-  plan_type: PlanType;
-  starts_at: string;
-  ends_at: string;
 };
 
 type ActivateMvpSubscriptionResult =
@@ -41,86 +36,12 @@ type ActivateMvpSubscriptionResult =
       message: string;
     };
 
-const FREE_LIMITS = {
-  dailyReadingGenerations: 3,
-  vocabularyWordsLimit: 30,
-};
-const PAID_LIMITS = {
-  dailyReadingGenerations: 10,
-  vocabularyWordsLimit: 300,
-};
-
 const parsePlanType = (value: unknown): PlanType => {
   if (value === "monthly" || value === "yearly") {
     return value;
   }
 
   fail(400, "INVALID_PLAN_TYPE", "Subscription plan type is invalid.");
-};
-
-const mapSubscription = (row: SubscriptionRow | null) =>
-  row
-    ? {
-        id: row.id,
-        planType: row.plan_type,
-        startsAt: row.starts_at,
-        endsAt: row.ends_at,
-      }
-    : null;
-
-const getSubscriptionSummary = async (
-  supabase: ReturnType<typeof createClient>,
-  userId: string,
-  nowIso: string,
-) => {
-  const [
-    { data: activeRows, error: activeError },
-    { data: scheduledRows, error: scheduledError },
-  ] = await Promise.all([
-    supabase
-      .from("user_subscriptions")
-      .select("id, plan_type, starts_at, ends_at")
-      .eq("user_id", userId)
-      .lte("starts_at", nowIso)
-      .gt("ends_at", nowIso)
-      .order("ends_at", { ascending: false })
-      .limit(1),
-    supabase
-      .from("user_subscriptions")
-      .select("id, plan_type, starts_at, ends_at")
-      .eq("user_id", userId)
-      .gt("starts_at", nowIso)
-      .order("starts_at", { ascending: true })
-      .limit(1),
-  ]);
-
-  if (activeError) {
-    console.error("[activate-subscription] failed to load active subscription", {
-      userId,
-      error: activeError.message,
-    });
-    fail(500, "SUBSCRIPTION_LOAD_FAILED", "Failed to load subscription.");
-  }
-
-  if (scheduledError) {
-    console.error("[activate-subscription] failed to load scheduled subscription", {
-      userId,
-      error: scheduledError.message,
-    });
-    fail(500, "SUBSCRIPTION_LOAD_FAILED", "Failed to load subscription.");
-  }
-
-  const activeSubscription = ((activeRows ?? [])[0] ??
-    null) as SubscriptionRow | null;
-  const scheduledSubscription = ((scheduledRows ?? [])[0] ??
-    null) as SubscriptionRow | null;
-
-  return {
-    tier: activeSubscription ? "paid" : "free",
-    limits: activeSubscription ? PAID_LIMITS : FREE_LIMITS,
-    activeSubscription: mapSubscription(activeSubscription),
-    scheduledSubscription: mapSubscription(scheduledSubscription),
-  };
 };
 
 const activateMvpSubscription = async (
@@ -168,6 +89,14 @@ Deno.serve(async (req: Request) => {
 
   try {
     assertPostRequest(req);
+
+    if (getOptionalEnv("SUBSCRIPTION_FLOW_ENABLED") !== "true") {
+      fail(
+        403,
+        "SUBSCRIPTION_FLOW_DISABLED",
+        "Subscription flow is disabled.",
+      );
+    }
 
     const env = getRequiredEnv([
       "SUPABASE_URL",
@@ -224,7 +153,7 @@ Deno.serve(async (req: Request) => {
     const subscription = await getSubscriptionSummary(
       supabase,
       appUser.id,
-      nowIso,
+      "[activate-subscription]",
     );
 
     return successResponse(200, { subscription });

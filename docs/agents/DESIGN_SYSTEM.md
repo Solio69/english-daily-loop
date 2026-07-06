@@ -145,7 +145,7 @@ Structure:
   - right: three-segment theme control, settings icon button
 - Second row:
   - user name on the left
-  - subscription button on the right
+  - subscription entry is hidden while `SHOW_SUBSCRIPTION_FLOW = false`
 
 Rules:
 
@@ -155,6 +155,7 @@ Rules:
   - `Как в Telegram`: paper-plane icon, follows Telegram/system theme
   - `Светлая тема`: sun icon
   - `Темная тема`: moon icon
+- Subscription button styles apply only when the paid flow is enabled.
 - Subscription button shows full `Подписка`.
 - Free subscription button label `Купить` uses `--accent-warm`; paid subscription state uses `--primary`.
 - Subscription button icon: `15px`.
@@ -264,7 +265,7 @@ First setup helper:
 
 Dev tools:
 
-- Dev tools panel is rendered by the existing dev flags and keeps its own technical UI.
+- Dev tools panel is rendered only for `admin` users and keeps its own technical UI.
 - The panel is collapsed by default; the header toggles local actions and shows the running state.
 - Keep the dev tools surface compact and amber-toned so it reads as a local technical block, not a product feature.
 
