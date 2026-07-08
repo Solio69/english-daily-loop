@@ -254,6 +254,8 @@ Cards:
 - Option buttons use fixed compact control height, rounded `[16px]`, `font-heading`, `14px`, `font-semibold`.
 - Selected options use warm accent: `--accent-warm`, `--accent-warm-soft`, `shadow-warm-glow`.
 - Inactive options use neutral `glass-control` with `--text-secondary`.
+- Support report block is a compact `glass-card rounded-[18px] p-2.5` below the settings groups. It uses a warm `Bug` icon in a small soft container, title `Отчет об ошибке`, secondary copy `Приложи описание и последние события`, and a compact outlined warm action `Отправить` with `SendHorizontal`.
+- Support report dialog is a centered glass modal over `bg-black/60 backdrop-blur-sm`, max width `360px`, `rounded-[24px]`, with `Bug` icon left of the title, only an `X` close control, textarea, muted privacy copy and a full-width coral CTA `Отправить отчет`.
 - Feedback action is a centered footer-style line: muted `Есть вопрос?`, warm-accent text link `Написать разработчику`, and `ExternalLink` icon; it should not use hover background, a full border, glow, primary CTA weight, or a full settings card.
 - Hide the feedback action when `VITE_FEEDBACK_TELEGRAM_USERNAME` is empty or invalid.
 

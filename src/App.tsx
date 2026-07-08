@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Layout } from "./components/Layout";
 import { LoadingState } from "./components/LoadingState";
 import { Toast } from "./components/Toast";
@@ -19,6 +19,7 @@ import { useAppUserActions } from "./hooks/useAppUserActions";
 import { useAppUserProfile } from "./hooks/useAppUserProfile";
 import { useScreenNavigation } from "./hooks/useScreenNavigation";
 import { useToast } from "./hooks/useToast";
+import { clientLogger } from "./services/clientLogger";
 import { MaterialsTab } from "./types/materials";
 
 type ScreenId =
@@ -76,6 +77,13 @@ export default function App() {
   const shouldForceSettings = !isSettingsCompleted;
   const shouldForceReading = isSettingsCompleted && !isFirstTextCompleted;
   const showDevTools = appUser?.role === "admin";
+
+  useEffect(() => {
+    clientLogger.info("screen_opened", {
+      currentScreen,
+      role: appUser?.role ?? null,
+    });
+  }, [appUser?.role, currentScreen]);
 
   const openLesson = () => {
     if (shouldForceSettings) {
@@ -213,6 +221,8 @@ export default function App() {
             showDevTools={showDevTools}
             runningDevToolAction={runningDevToolAction}
             onRunDevToolAction={handleRunDevToolAction}
+            appUser={appUser ?? null}
+            currentScreen={currentScreen}
           />
         );
       case "subscription":

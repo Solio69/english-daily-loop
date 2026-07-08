@@ -47,8 +47,37 @@ const ALLOWED_PARTS_OF_SPEECH = new Set([
 ]);
 
 export class VocabularyAiError extends Error {
-  constructor(message: string) {
+  stage: "provider_request" | "provider_response" | "output_validation";
+  model: string | null;
+  finishReason: string | null;
+  completionTokens: number | null;
+  reasoningTokens: number | null;
+  providerStatus: number | null;
+  providerErrorCode: string | null;
+
+  constructor(
+    message: string,
+    metadata: {
+      stage?: "provider_request" | "provider_response" | "output_validation";
+      model?: string | null;
+      finishReason?: string | null;
+      completionTokens?: number | null;
+      reasoningTokens?: number | null;
+      providerStatus?: number | null;
+      providerErrorCode?: string | number | null;
+    } = {},
+  ) {
     super(message);
+    this.stage = metadata.stage ?? "output_validation";
+    this.model = metadata.model ?? null;
+    this.finishReason = metadata.finishReason ?? null;
+    this.completionTokens = metadata.completionTokens ?? null;
+    this.reasoningTokens = metadata.reasoningTokens ?? null;
+    this.providerStatus = metadata.providerStatus ?? null;
+    this.providerErrorCode =
+      metadata.providerErrorCode == null
+        ? null
+        : String(metadata.providerErrorCode);
   }
 }
 
@@ -338,6 +367,7 @@ export const generateVocabularyCardsBatch = async ({
   const expectedIds = new Set(words.map((item) => item.id));
   let remainingModels = [...models];
   let lastErrorMessage = "Unknown vocabulary card error.";
+  let lastModel: string | null = null;
 
   while (remainingModels.length > 0) {
     let routed: { content: string; usedModel: string };
@@ -354,6 +384,7 @@ export const generateVocabularyCardsBatch = async ({
     } catch (error) {
       lastErrorMessage =
         error instanceof Error ? error.message : "Unknown provider error.";
+      lastModel = error instanceof OpenRouterError ? error.model : null;
       const stage =
         error instanceof OpenRouterError ? error.stage : "provider_request";
       console.error("[prepare-vocabulary-cards] model routing failed", {
@@ -370,7 +401,20 @@ export const generateVocabularyCardsBatch = async ({
         continue;
       }
 
-      throw new VocabularyAiError(lastErrorMessage);
+      throw new VocabularyAiError(lastErrorMessage, {
+        stage,
+        model: error instanceof OpenRouterError ? error.model : null,
+        finishReason:
+          error instanceof OpenRouterError ? error.finishReason : null,
+        completionTokens:
+          error instanceof OpenRouterError ? error.completionTokens : null,
+        reasoningTokens:
+          error instanceof OpenRouterError ? error.reasoningTokens : null,
+        providerStatus:
+          error instanceof OpenRouterError ? error.providerStatus : null,
+        providerErrorCode:
+          error instanceof OpenRouterError ? error.providerErrorCode : null,
+      });
     }
 
     try {
@@ -383,6 +427,7 @@ export const generateVocabularyCardsBatch = async ({
         error instanceof Error
           ? error.message
           : "Unknown output validation error.";
+      lastModel = routed.usedModel;
       console.error("[prepare-vocabulary-cards] generated cards validation failed", {
         usedModel: routed.usedModel,
         candidateModels: remainingModels,
@@ -394,5 +439,8 @@ export const generateVocabularyCardsBatch = async ({
     }
   }
 
-  throw new VocabularyAiError(lastErrorMessage);
+  throw new VocabularyAiError(lastErrorMessage, {
+    stage: "output_validation",
+    model: lastModel,
+  });
 };

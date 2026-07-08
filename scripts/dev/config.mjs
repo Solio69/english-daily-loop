@@ -36,4 +36,5 @@ export const edgeFunctionNames = [
   "prepare-vocabulary-cards",
   "review-vocabulary-word",
   "save-vocabulary-word",
+  "submit-support-report",
 ];

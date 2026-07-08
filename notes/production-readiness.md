@@ -49,7 +49,7 @@
 
 ## 6) OpenRouter/free model reliability
 - Free-модели могут быть временно недоступны или менять доступные endpoints.
-- В MVP цепочка free-моделей для чтения: `openai/gpt-oss-20b:free` -> `qwen/qwen3-next-80b-a3b-instruct:free` -> `google/gemma-4-26b-a4b-it:free`.
+- В MVP дефолтная цепочка free-моделей для чтения: `qwen/qwen3-next-80b-a3b-instruct:free` -> `nvidia/nemotron-nano-9b-v2:free` -> `google/gemma-4-31b-it:free` -> `google/gemma-4-26b-a4b-it:free` -> `openai/gpt-oss-20b:free`.
 - Для infra/provider ошибок используется OpenRouter `models` parameter, а app-level валидация JSON/длины остается в Edge Function.
 - Перед production стоит:
   - проверить платный/стабильный fallback
@@ -77,3 +77,12 @@
 - Активация MVP-подписки выполняется транзакционно через RPC `activate_mvp_subscription`.
 - RPC использует advisory lock на пользователя, чтобы параллельные запросы оформления не создавали дубли active/scheduled подписок.
 - Перед production при подключении реальных платежей нужно будет связать эту операцию с платежным provider event/webhook и идемпотентным payment id.
+
+## 10) Support diagnostics
+- Пользовательский отчет об ошибке отправляется из настроек через `submit-support-report`.
+- Клиентский diagnostic buffer хранится в `sessionStorage` и отправляется только вручную.
+- Все Edge Function вызовы с клиента получают `x-request-id`; ошибки AI могут возвращать safe diagnostics без prompt, raw provider response, полного текста, secrets и stack trace.
+- Safe AI diagnostics собираются через `supabase/functions/_shared/ai-diagnostics.ts`, а доменные функции добавляют только безопасные поля конкретного сценария.
+- `public.support_reports` закрыта для `anon` и `authenticated`; запись идет через Edge Function с `SUPABASE_SERVICE_ROLE_KEY`.
+- Отчеты хранятся `30` дней и очищаются через `pg_cron` job `cleanup_support_reports`.
+- Перед production стоит добавить удобный admin-view или SQL-шаблон для просмотра свежих отчетов без ручного поиска по таблице.

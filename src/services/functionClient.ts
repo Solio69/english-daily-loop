@@ -1,41 +1,20 @@
 import { supabase } from "../lib/supabase";
+import { clientLogger } from "./clientLogger";
+import {
+  buildEdgeFunctionError,
+  getFunctionErrorPayload,
+  getSuccessDiagnostics,
+  type FunctionResponse,
+} from "./edgeFunctionErrors";
 
-export type FunctionError = {
-  ok: false;
-  error: {
-    code: string;
-    message: string;
-  };
-};
+const REQUEST_ID_PREFIX = "req_";
 
-type FunctionSuccess<TData> = {
-  ok: true;
-  data: TData;
-};
-
-type FunctionResponse<TData> = FunctionSuccess<TData> | FunctionError;
-
-export const getFunctionErrorMessage = async (
-  error: unknown,
-  fallback: string,
-): Promise<string> => {
-  const context =
-    error && typeof error === "object" && "context" in error
-      ? (error as { context?: unknown }).context
-      : null;
-
-  if (context instanceof Response) {
-    try {
-      const payload = (await context.clone().json()) as FunctionError | null;
-      if (payload && "error" in payload && payload.error.message) {
-        return payload.error.message;
-      }
-    } catch {
-      return fallback;
-    }
+const createRequestId = (): string => {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `${REQUEST_ID_PREFIX}${crypto.randomUUID()}`;
   }
 
-  return fallback;
+  return `${REQUEST_ID_PREFIX}${Date.now()}_${Math.random().toString(36).slice(2)}`;
 };
 
 export const getTelegramInitData = (): string => {
@@ -53,22 +32,87 @@ export const invokeFunction = async <TData>(
   fallbackMessage: string,
 ): Promise<TData> => {
   const initData = getTelegramInitData();
+  return invokeFunctionWithInitData(
+    functionName,
+    initData,
+    body,
+    fallbackMessage,
+  );
+};
+
+export const invokeFunctionWithInitData = async <TData>(
+  functionName: string,
+  initData: string,
+  body: Record<string, unknown>,
+  fallbackMessage: string,
+): Promise<TData> => {
+  const requestId = createRequestId();
+  clientLogger.info("edge_request_started", { functionName, requestId });
   const { data, error } = await supabase.functions.invoke(functionName, {
     body: { initData, ...body },
+    headers: { "x-request-id": requestId },
   });
 
   if (error) {
-    throw new Error(await getFunctionErrorMessage(error, fallbackMessage));
+    const payload = await getFunctionErrorPayload(error);
+    const edgeError = buildEdgeFunctionError({
+      message: payload?.error.message,
+      fallbackMessage,
+      code: payload?.error.code,
+      requestId: payload?.error.requestId || requestId,
+      diagnostics: payload?.error.diagnostics,
+    });
+    clientLogger.error("edge_request_failed", {
+      functionName,
+      requestId: edgeError.requestId,
+      code: edgeError.code,
+      diagnostics: edgeError.diagnostics,
+    });
+    throw edgeError;
   }
 
   const payload = data as FunctionResponse<TData> | null;
   if (!payload) {
-    throw new Error("Пустой ответ от сервера.");
+    const edgeError = buildEdgeFunctionError({
+      fallbackMessage: "Пустой ответ от сервера.",
+      requestId,
+    });
+    clientLogger.error("edge_request_failed", {
+      functionName,
+      requestId,
+      code: "EMPTY_RESPONSE",
+    });
+    throw edgeError;
   }
 
   if ("error" in payload) {
-    throw new Error(payload.error.message || fallbackMessage);
+    const edgeError = buildEdgeFunctionError({
+      message: payload.error.message,
+      fallbackMessage,
+      code: payload.error.code,
+      requestId: payload.error.requestId || requestId,
+      diagnostics: payload.error.diagnostics,
+    });
+    clientLogger.error("edge_request_failed", {
+      functionName,
+      requestId: edgeError.requestId,
+      code: edgeError.code,
+      diagnostics: edgeError.diagnostics,
+    });
+    throw edgeError;
   }
 
+  const successDiagnostics = getSuccessDiagnostics(payload);
+  clientLogger.info("edge_request_succeeded", {
+    functionName,
+    requestId: payload.requestId || requestId,
+  });
+  if (successDiagnostics) {
+    clientLogger.warning("edge_request_diagnostics", {
+      functionName,
+      requestId: payload.requestId || requestId,
+      diagnostics: successDiagnostics,
+    });
+  }
   return payload.data;
 };

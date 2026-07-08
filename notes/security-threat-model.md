@@ -77,6 +77,7 @@ Edge Functions:
 - `get-reading-history`
 - `activate-subscription`
 - `dev-tools`
+- `submit-support-report`
 
 Другие входы:
 - frontend Supabase client
@@ -96,6 +97,7 @@ Edge Functions:
 - Ошибки клиенту возвращаются без секретов, stack trace и SQL/provider details.
 - Логи не должны содержать секреты, полный `initData` или чувствительные ключи.
 - AI observability хранит только metadata попытки; полный prompt, raw provider response, полный generated text и stack trace не пишутся в `reading_generation_attempts`.
+- Пользовательские support reports хранят только sanitized diagnostic snapshot; полный `initData`, secrets, prompt, raw AI response, полный generated text и stack trace не пишутся в `support_reports`.
 
 ## 6) Abuse cases для проверки
 - Пользователь подменяет `telegram_user_id` или `user_id` в body.
@@ -111,6 +113,7 @@ Edge Functions:
 - AI-provider возвращает HTML/script, markdown code fence, prompt leakage или модель вне allowlist.
 - Ошибка OpenRouter не должна повреждать текущий активный текст.
 - Ошибка OpenRouter не должна записывать в БД raw provider response, полный prompt или stack trace.
+- Отчет об ошибке не должен принимать чужой `user_id`, обходить rate limit или сохранять secrets/raw AI data.
 - Секреты не должны попадать в frontend bundle, git, ответы API или логи.
 
 ## 7) Чеклист дальнейшего аудита

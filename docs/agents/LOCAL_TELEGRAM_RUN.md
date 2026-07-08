@@ -104,6 +104,7 @@
 - `prepare-vocabulary-cards`
 - `review-vocabulary-word`
 - `save-vocabulary-word`
+- `submit-support-report`
 
 Локальные tunnel targets:
 
@@ -204,3 +205,4 @@ where telegram_user_id = YOUR_TELEGRAM_USER_ID;
   - любые секреты из `.env.local`
 - Все проверки `initData` делать только на сервере в Edge Functions, не в клиенте.
 - Локальная dev tools панель отображается только для `admin`, а действия с БД разрешает только server env `DEV_TOOLS_ENABLED` вместе с server-side проверкой `users.app_role = 'admin'`.
+- Отчеты об ошибках отправляются через `submit-support-report` и сохраняются в `public.support_reports`; для проверки этой функции после новой миграции нужен перезапуск `npm run dev:telegram`.

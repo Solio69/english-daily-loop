@@ -7,6 +7,7 @@ import {
   fail,
   getOptionalEnv,
   getRequiredEnv,
+  getRequestId,
   getTelegramUserFromBody,
   handleCorsPreflight,
   parseJsonBody,
@@ -14,6 +15,10 @@ import {
 } from "../_shared/server.ts";
 import { getMoscowDate } from "../_shared/moscow-date.ts";
 import { getDailyReadingGenerationLimit } from "../_shared/access.ts";
+import {
+  buildSafeAiDiagnostics,
+  sanitizeDiagnosticMessage,
+} from "../_shared/ai-diagnostics.ts";
 import {
   AiGenerationError,
   DEFAULT_READING_MODEL_CHAIN,
@@ -117,13 +122,6 @@ const getReadingGenerationConfig = (
   };
 };
 
-const sanitizeAttemptErrorMessage = (message: string): string =>
-  message
-    .replace(/[\r\n\t]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 300);
-
 const getFailureStage = (error: unknown): AiFailureStage => {
   if (error instanceof AiGenerationError) {
     return error.stage;
@@ -169,6 +167,48 @@ const toAttemptUpdatePayload = (
   max_tokens: metadata.maxTokens,
   fallback_used: metadata.fallbackUsed,
   output_word_count: metadata.outputWordCount,
+});
+
+const buildReadingAiDiagnostics = ({
+  requestId,
+  error,
+  failureStage,
+  attemptMetadata,
+  durationMs,
+}: {
+  requestId: string;
+  error: unknown;
+  failureStage: AiFailureStage;
+  attemptMetadata: AttemptMetadata | null;
+  durationMs: number;
+}) => buildSafeAiDiagnostics({
+  functionName: "generate-reading-text",
+  requestId,
+  promptVersion: attemptMetadata?.promptVersion ?? READING_TEXT_PROMPT_VERSION,
+  modelChain: attemptMetadata?.modelChain ?? null,
+  stage: failureStage,
+  durationMs,
+  error,
+  metadata:
+    error instanceof AiGenerationError
+      ? {
+          model: error.model,
+          finishReason: error.finishReason,
+          completionTokens: error.completionTokens,
+          reasoningTokens: error.reasoningTokens,
+          providerStatus: error.providerStatus,
+          providerErrorCode: error.providerErrorCode,
+        }
+      : null,
+  details: {
+    targetLevel: attemptMetadata?.targetLevel ?? null,
+    readingMinutes: attemptMetadata?.readingMinutes ?? null,
+    targetWordMin: attemptMetadata?.targetWordMin ?? null,
+    targetWordMax: attemptMetadata?.targetWordMax ?? null,
+    validationWordMin: attemptMetadata?.validationWordMin ?? null,
+    validationWordMax: attemptMetadata?.validationWordMax ?? null,
+    outputWordCount: attemptMetadata?.outputWordCount ?? null,
+  },
 });
 
 const claimGenerationAttempt = async (
@@ -273,6 +313,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const requestStartedAt = Date.now();
+  const requestId = getRequestId(req);
   let startedAttempt:
     | { supabase: ReturnType<typeof createClient>; attemptId: string }
     | null = null;
@@ -303,6 +344,7 @@ Deno.serve(async (req: Request) => {
           );
     } catch (error) {
       console.error("[generate-reading-text] invalid model configuration", {
+        requestId,
         error: error instanceof Error ? error.message : "Unknown model error.",
       });
       fail(
@@ -356,6 +398,7 @@ Deno.serve(async (req: Request) => {
 
     console.log("[generate-reading-text] start", {
       telegramUserId: tgUser.id,
+      requestId,
       appUserId: settings.appUserId,
       attemptId: startedAttempt.attemptId,
       promptVersion: READING_TEXT_PROMPT_VERSION,
@@ -448,24 +491,28 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    return successResponse(200, {
-      text: {
-        id: readingTextId,
-        title: generated.title,
-        body: generated.body,
-        level: generated.level,
-        estimatedMinutes: generated.estimatedMinutes,
+    return successResponse(
+      200,
+      {
+        text: {
+          id: readingTextId,
+          title: generated.title,
+          body: generated.body,
+          level: generated.level,
+          estimatedMinutes: generated.estimatedMinutes,
+        },
+        generation: {
+          provider: OPENROUTER_PROVIDER,
+          model: generated.usedModel,
+          fallbackUsed,
+          promptVersion: generated.promptVersion,
+        },
+        dailyLimit,
+        usedAttempts: claimedAttempt.usedAttempts,
+        remainingAttempts: claimedAttempt.remainingAttempts,
       },
-      generation: {
-        provider: OPENROUTER_PROVIDER,
-        model: generated.usedModel,
-        fallbackUsed,
-        promptVersion: generated.promptVersion,
-      },
-      dailyLimit,
-      usedAttempts: claimedAttempt.usedAttempts,
-      remainingAttempts: claimedAttempt.remainingAttempts,
-    });
+      requestId,
+    );
   } catch (error) {
     if (startedAttempt) {
       const code =
@@ -481,30 +528,53 @@ Deno.serve(async (req: Request) => {
           duration_ms: Date.now() - requestStartedAt,
           failure_stage: failureStage,
           error_code: code,
-          error_message: sanitizeAttemptErrorMessage(message),
+          error_message: sanitizeDiagnosticMessage(message),
         })
         .eq("id", startedAttempt.attemptId);
 
       if (updateError) {
         console.error("[generate-reading-text] failed to mark attempt failed", {
+          requestId,
           attemptId: startedAttempt.attemptId,
           error: updateError.message,
         });
       }
     }
 
+    const failureStage = getFailureStage(error);
+    const diagnostics = buildReadingAiDiagnostics({
+      requestId,
+      error,
+      failureStage,
+      attemptMetadata,
+      durationMs: Date.now() - requestStartedAt,
+    });
+
     if (error instanceof AppError) {
       console.error("[generate-reading-text] request failed", {
+        requestId,
         status: error.status,
         code: error.code,
         message: error.message,
       });
-      return errorResponse(error.status, error.code, error.message);
+      return errorResponse(
+        error.status,
+        error.code,
+        error.message,
+        requestId,
+        diagnostics,
+      );
     }
 
     const message =
       error instanceof Error ? error.message : "Unknown generation error.";
-    console.error("[generate-reading-text] failed", { message });
-    return errorResponse(502, "TEXT_GENERATION_FAILED", AI_ERROR_MESSAGE);
+    console.error("[generate-reading-text] failed", { requestId, message });
+    return errorResponse(
+      502,
+      "TEXT_GENERATION_FAILED",
+      AI_ERROR_MESSAGE,
+      requestId,
+      diagnostics,
+    );
   }
 });

@@ -18,6 +18,8 @@
 ## Документация для агентов
 - Актуальная дизайн-система: `docs/agents/DESIGN_SYSTEM.md`.
 - Подробности локального Telegram-запуска: `docs/agents/LOCAL_TELEGRAM_RUN.md`.
+- Project-local skill sources лежат в `docs/agents/skills`; они не устанавливаются автоматически в `~/.codex/skills`.
+- Для разбора пользовательских отчетов об ошибках использовать skill source `docs/agents/skills/english-daily-loop-support-triage`.
 
 ## Правила коммуникации
 - По умолчанию объяснять на русском языке.
@@ -67,7 +69,7 @@
 
 ## Текущий статус (для будущих агентов)
 - Supabase local и Docker-окружение уже работают.
-- Уже подключены и используются таблицы `public.users`, `public.user_settings`, `public.reading_texts`, `public.reading_generation_attempts`, `public.user_active_reading_texts`, `public.user_daily_reading_completions`, `public.user_completed_reading_texts`, `public.user_subscriptions`, `public.user_vocabulary_words`, `public.user_vocabulary_word_sources`, `public.vocabulary_card_generation_attempts` и `public.user_daily_vocabulary_review_completions`.
+- Уже подключены и используются таблицы `public.users`, `public.user_settings`, `public.reading_texts`, `public.reading_generation_attempts`, `public.user_active_reading_texts`, `public.user_daily_reading_completions`, `public.user_completed_reading_texts`, `public.user_subscriptions`, `public.user_vocabulary_words`, `public.user_vocabulary_word_sources`, `public.vocabulary_card_generation_attempts`, `public.user_daily_vocabulary_review_completions` и `public.support_reports`.
 - В `public.user_settings` есть настройки `english_level`, `daily_reading_minutes`.
 - На пользовательских, reading-state, completion/history и subscription таблицах включен RLS; frontend не пишет в защищенные таблицы напрямую, операции проходят через Edge Functions с `SUPABASE_SERVICE_ROLE_KEY`.
 - Миграция `supabase/migrations/20260430120000_harden_public_api_permissions.sql` явно закрывает прямой доступ `anon`/`authenticated` к защищенным таблицам, закрывает legacy RPC `get_random_reading_text` для клиента и оставляет server-only доступ через `service_role`.
@@ -81,6 +83,7 @@
 - Миграция `supabase/migrations/20260701120000_scope_active_reading_text_by_date.sql` добавляет `reading_date` в `public.user_active_reading_texts`, ограничивает active text текущей московской датой и обновляет RPC завершения чтения/сохранения словаря.
 - Миграция `supabase/migrations/20260705130000_promote_vocabulary_needs_approval_cards.sql` переводит существующие `needs_approval`-карточки в текущий `ready` + `not_started` flow повторения.
 - Миграция `supabase/migrations/20260706120000_add_user_app_roles.sql` добавляет `users.app_role` со значениями `admin | tester | user`; новые пользователи по умолчанию получают роль `tester`.
+- Миграция `supabase/migrations/20260707120000_add_support_reports.sql` добавляет `public.support_reports` для пользовательских отчетов об ошибках, закрывает таблицу для `anon`/`authenticated` и создает scheduled cleanup job `cleanup_support_reports` для удаления отчетов старше `30` дней.
 - В проекте есть базовые миграции и сиды для локальной разработки (dev user + моковые тексты).
 - Миграция `supabase/migrations/20260424113000_drop_daily_review_words_from_user_settings.sql` удаляет устаревшее поле `daily_review_words` из `public.user_settings`.
 - Миграция `supabase/migrations/20260513120000_drop_daily_exercise_minutes_from_user_settings.sql` удаляет поле `daily_exercise_minutes` из `public.user_settings`.
@@ -95,10 +98,10 @@
   - `public.get_or_create_vocabulary_review_state(...)` — точный snapshot очереди и фиксация завершения пустого плана с advisory lock по пользователю и дате.
   - `public.dev_complete_vocabulary_reviews_at_step(...)` — local dev-only перенос обязательной очереди повторения на абсолютный шаг с созданием дневного completion-marker.
 - Корневой `tsconfig.json` исключает `supabase/functions`, потому что Edge Functions работают в Deno-рантайме и не должны проверяться frontend `tsc`.
-- Общая server-инфраструктура Edge Functions находится в `supabase/functions/_shared/server.ts`: CORS, POST guard, JSON parsing, env helpers, Telegram `initData` validation, безопасные JSON-ответы и `AppError`.
+- Общая server-инфраструктура Edge Functions находится в `supabase/functions/_shared/server.ts`: CORS, POST guard, JSON parsing, env helpers, Telegram `initData` validation, request id, безопасные JSON-ответы и `AppError`; общий helper safe AI diagnostics находится в `supabase/functions/_shared/ai-diagnostics.ts`.
 - Общая server-логика ролей, effective subscription summary и лимитов доступа находится в `supabase/functions/_shared/access.ts`; лимит, подсчет и обновление metadata попыток подготовки словарных карточек находятся в `supabase/functions/_shared/vocabulary-card-generation.ts`.
 - Общий helper московской учебной даты находится в `supabase/functions/_shared/moscow-date.ts`; server helper'ы повторения, home progress и streak находятся в `supabase/functions/_shared/vocabulary-review.ts`, `supabase/functions/_shared/vocabulary-review-state.ts`, `supabase/functions/_shared/home-progress.ts` и `supabase/functions/_shared/reading-streak.ts`.
-- Edge Functions `auth-telegram`, `save-user-settings`, `activate-subscription`, `complete-reading-text`, `dev-tools`, `get-reading-state`, `get-reading-history`, `generate-reading-text`, `save-vocabulary-word`, `get-vocabulary-state`, `get-vocabulary-words`, `get-vocabulary-review-state`, `review-vocabulary-word`, `prepare-vocabulary-cards`, `approve-vocabulary-card` и `approve-vocabulary-cards` используют общий helper для Telegram auth/error/env/http слоя; бизнес-валидация остается внутри конкретных функций.
+- Edge Functions `auth-telegram`, `save-user-settings`, `activate-subscription`, `complete-reading-text`, `dev-tools`, `get-reading-state`, `get-reading-history`, `generate-reading-text`, `save-vocabulary-word`, `get-vocabulary-state`, `get-vocabulary-words`, `get-vocabulary-review-state`, `review-vocabulary-word`, `prepare-vocabulary-cards`, `approve-vocabulary-card`, `approve-vocabulary-cards` и `submit-support-report` используют общий helper для Telegram auth/error/env/http слоя; бизнес-валидация остается внутри конкретных функций.
 - Telegram auth реализована через Edge Function `supabase/functions/auth-telegram/index.ts`:
   - серверная валидация `initData` (подпись + `auth_date`)
   - идемпотентный `find-or-create/upsert` пользователя по `telegram_user_id`
@@ -145,6 +148,7 @@
   - генерация через OpenRouter `models` parameter с allowlist-цепочкой free-моделей
   - запрос требует `response_format = json_object` и ограничивает reasoning через `reasoning = { effort: "low", exclude: true }`; пустой provider response исключает фактически ответившую модель и запускает следующий маршрут
   - provider diagnostics логируют только безопасные metadata (`model`, `finish_reason`, HTTP status/error code, completion/reasoning token counts), без raw content и reasoning text
+  - ошибка генерации может вернуть safe diagnostics с `requestId`, prompt version, model chain, stage, target/validation ranges, duration и sanitized provider/validation error для пользовательского отчета
   - динамический `max_tokens` и диапазон слов по времени чтения
   - output validation проверяет JSON, title/body, `estimatedMinutes`, `level`, длину с допуском примерно `±20%` и базовые content-safety patterns
   - observability AI-попыток хранится в `reading_generation_attempts` как metadata без полного prompt, raw provider response, полного generated text, Telegram `initData`, secrets и stack trace
@@ -176,6 +180,13 @@
   - `complete_today_vocabulary_reviews_at_step` принимает `reviewStep` и переносит все обязательные карточки текущего дня на выбранный абсолютный шаг через RPC `dev_complete_vocabulary_reviews_at_step`
   - `delete_today_reading_completion` удаляет дневной progress-marker и все завершенные сегодня тексты текущего пользователя
   - frontend-панель показывается только при роли `admin`.
+- Пользовательские отчеты об ошибках реализованы через Edge Function `supabase/functions/submit-support-report/index.ts`:
+  - серверная валидация `Telegram initData`
+  - rate limit: `5` отчетов на пользователя в час
+  - максимальный diagnostic snapshot: `100KB`; при превышении сервер отбрасывает старые client events
+  - сохраняет только sanitized данные в `public.support_reports`: комментарий, текущий экран, app context, последние client events, request ids и safe AI diagnostics
+  - не сохраняет Telegram `initData`, токены, secrets, prompt, raw AI response, полный generated text и stack trace
+  - отчеты очищаются через `pg_cron` после `30` дней.
 - Текущие MVP-лимиты подписок:
   - free: `3` генерации текста в день, словарь до `30` слов
   - paid: `10` генераций текста в день, словарь до `300` слов.
@@ -208,6 +219,7 @@
 - Главная страница реализована как compact mobile-first экран: header с приветствием, трехпозиционным переключателем темы, теплой кнопкой настроек, карточкой дневного прогресса `Текст` + `Повторение` со streak, карточкой плана на сегодня и карточкой `Мои материалы`; entry подписки скрыт, пока `SHOW_SUBSCRIPTION_FLOW = false`.
 - Нижняя навигация содержит 4 пункта: `Главная`, `Текст`, `Слова`, `Материалы`; пункт `Материалы` открывает экран `Мои материалы` и подсвечивается на этом экране.
 - Bootstrap пользователя в `src/services/userService.ts` авторизуется через `auth-telegram` по Telegram `initData`; `AppUser` содержит `role`, `subscription`, `homeProgress` и `streakDays`.
+- Общий frontend helper Edge Function вызовов находится в `src/services/functionClient.ts`; модель ошибок, request id и diagnostic extraction вынесены в `src/services/edgeFunctionErrors.ts`, а последние клиентские события собираются в `src/services/clientLogger.ts`.
 - Client fallback подписки находится в `src/constants/subscriptionFallbacks.ts` и используется только как страховка bootstrap; source of truth для ролей, лимитов и подписок остается в Edge Functions.
 - `src/services/userService.ts` сохраняет настройки через `save-user-settings`; прямых записей в `users` и `user_settings` с клиента нет.
 - На фронте подписка вынесена в `src/services/subscriptionService.ts` и `src/screens/SubscriptionScreen.tsx`, но пользовательский вход скрыт через `src/constants/subscriptionFeatures.ts`; клиент вызывает только `activate-subscription`, прямых записей подписки в БД с фронта нет.
@@ -246,7 +258,7 @@
   - `15` мин: `700-950` слов, `max_tokens: 2600`.
 - При bootstrap настройки пользователя должны приходить с backend, если `settings_completed_at` уже заполнен.
 - `users.first_text_completed_at` используется только для онбординга; ежедневный факт прочтения хранится отдельно в `user_daily_reading_completions`.
-- Экран настроек содержит уровень английского, время чтения и опциональную ссылку обратной связи через `VITE_FEEDBACK_TELEGRAM_USERNAME`; dev tools панель отображается только для роли `admin` и свернута по умолчанию.
+- Экран настроек содержит уровень английского, время чтения, отправку отчета об ошибке через `src/components/settings/SupportReportCard.tsx` и опциональную ссылку обратной связи через `VITE_FEEDBACK_TELEGRAM_USERNAME`; dev tools панель отображается только для роли `admin` и свернута по умолчанию.
 - В состоянии "настройки сохранены, но первый текст еще не прочитан" раздел `Слова` заблокирован, но `Главная` и `Текст` доступны.
 - После нажатия "Завершить текст" active text текущей даты сохраняется в историю и удаляется; генерация в текущий день остается доступна, пока не исчерпан дневной лимит генераций.
 - Для прогресса дня и streak достаточно первого завершенного текста за дату; `user_completed_reading_texts` может хранить несколько завершенных текстов с одинаковым `completed_date`, различающихся `completed_at`.
@@ -258,7 +270,7 @@
   - `.env.local VITE_SUPABASE_URL` = SUPABASE API TUNNEL URL.
 - `npm run dev:telegram` запускает production-like локальный режим для Telegram: Supabase + Edge Functions + API tunnel + frontend build + Vite preview + frontend tunnel.
 - Новые миграции без пересоздания БД применяются через `npx supabase migration up`; полный `npx supabase db reset` пересоздает локальную БД и удаляет текущие локальные данные.
-- `npm run dev:telegram` поднимает Edge Functions `approve-vocabulary-card`, `approve-vocabulary-cards`, `auth-telegram`, `save-user-settings`, `activate-subscription`, `complete-reading-text`, `dev-tools`, `get-reading-state`, `get-reading-history`, `get-vocabulary-review-state`, `review-vocabulary-word`, `get-vocabulary-state`, `get-vocabulary-words`, `generate-reading-text`, `prepare-vocabulary-cards` и `save-vocabulary-word`.
+- `npm run dev:telegram` поднимает Edge Functions `approve-vocabulary-card`, `approve-vocabulary-cards`, `auth-telegram`, `save-user-settings`, `activate-subscription`, `complete-reading-text`, `dev-tools`, `get-reading-state`, `get-reading-history`, `get-vocabulary-review-state`, `review-vocabulary-word`, `get-vocabulary-state`, `get-vocabulary-words`, `generate-reading-text`, `prepare-vocabulary-cards`, `save-vocabulary-word` и `submit-support-report`.
 - Логи в dev-режимах цветные по источнику (`[frontend]`, `[edge]`, `[db]`, `[api]`, `[tunnel-*]`), HTTP-методы и статус-коды дополнительно подсвечиваются.
 - `// TODO:` после изменения frontend-кода, кода Edge Functions или server env для OpenRouter (`OPENROUTER_MODEL_*`, `OPENROUTER_API_KEY`) перезапускать активный dev-режим, чтобы локальная среда подхватила актуальную версию функций, env и frontend bundle.
 - Если в summary указано `Frontend restart required: YES`, нужно перезапустить `npm run dev:telegram`.
@@ -270,4 +282,6 @@
 - Flow сохранения слов зафиксирован в `notes/vocabulary-save-flow.md`.
 - Алгоритм и flow дневного повторения слов зафиксированы в `notes/vocabulary-review.md`.
 - Роли, effective access и MVP-подписки зафиксированы в `notes/subscriptions.md`.
+- Отчеты об ошибках, request id и diagnostic snapshot зафиксированы в `notes/support-diagnostics.md`.
+- Skill source для triage support reports лежит в `docs/agents/skills/english-daily-loop-support-triage`.
 - Ссылка обратной связи из настроек зафиксирована в `notes/feedback-link.md`.

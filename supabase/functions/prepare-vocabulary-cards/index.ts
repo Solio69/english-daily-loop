@@ -7,11 +7,13 @@ import {
   fail,
   getOptionalEnv,
   getRequiredEnv,
+  getRequestId,
   getTelegramUserFromBody,
   handleCorsPreflight,
   parseJsonBody,
   successResponse,
 } from "../_shared/server.ts";
+import { buildSafeAiDiagnostics } from "../_shared/ai-diagnostics.ts";
 import {
   createServiceClient,
   getAppUserByTelegramId,
@@ -24,6 +26,7 @@ import {
   DEFAULT_PRIMARY_MODEL,
   DEFAULT_TERTIARY_MODEL,
   VOCABULARY_CARD_PROMPT_VERSION,
+  VocabularyAiError,
   generateVocabularyCardsBatch,
   getOpenRouterModelChain,
   type VocabularyCardBatchItem,
@@ -47,6 +50,51 @@ type PendingWordRow = {
 
 const BATCH_SIZE = 5;
 const LOG_PREFIX = "[prepare-vocabulary-cards]";
+
+const buildVocabularyAiDiagnostics = ({
+  requestId,
+  error,
+  models,
+  words,
+  englishLevel,
+  durationMs,
+  counts,
+}: {
+  requestId: string;
+  error: unknown;
+  models: string[];
+  words: PendingWordRow[];
+  englishLevel: string;
+  durationMs: number;
+  counts: VocabularyCardAttemptCounts | null;
+}) => buildSafeAiDiagnostics({
+  functionName: "prepare-vocabulary-cards",
+  requestId,
+  promptVersion: VOCABULARY_CARD_PROMPT_VERSION,
+  modelChain: models,
+  stage:
+    error instanceof VocabularyAiError ? error.stage : "output_validation",
+  durationMs,
+  error,
+  metadata:
+    error instanceof VocabularyAiError
+      ? {
+          model: error.model,
+          finishReason: error.finishReason,
+          completionTokens: error.completionTokens,
+          reasoningTokens: error.reasoningTokens,
+          providerStatus: error.providerStatus,
+          providerErrorCode: error.providerErrorCode,
+        }
+      : null,
+  details: {
+    englishLevel,
+    requestedCount: words.length,
+    problemWords: words.map((word) => word.word),
+    preparedCount: counts?.preparedCount ?? 0,
+    failedCount: counts?.failedCount ?? words.length,
+  },
+});
 
 const getRemainingPendingCount = async (
   supabase: ServiceClient,
@@ -119,6 +167,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const requestStartedAt = Date.now();
+  const requestId = getRequestId(req);
   let startedAttempt:
     | { supabase: ServiceClient; attemptId: string; userId: string }
     | null = null;
@@ -218,7 +267,7 @@ Deno.serve(async (req: Request) => {
         remainingPendingCount: 0,
         needsApprovalCount: 0,
         generationState,
-      }));
+      }), requestId);
     }
 
     const claimedAttempt = await claimVocabularyCardGenerationAttempt(
@@ -271,6 +320,7 @@ Deno.serve(async (req: Request) => {
       const message =
         error instanceof Error ? error.message : "Unknown vocabulary card error.";
       console.error("[prepare-vocabulary-cards] batch generation failed", {
+        requestId,
         appUserId: appUser.id,
         wordIds: words.map((word) => word.id),
         error: message,
@@ -297,18 +347,34 @@ Deno.serve(async (req: Request) => {
         appUser.id,
       );
       const needsApprovalCount = await getNeedsApprovalCount(supabase, appUser.id);
+      const diagnostics = buildVocabularyAiDiagnostics({
+        requestId,
+        error,
+        models,
+        words,
+        englishLevel,
+        durationMs: Date.now() - requestStartedAt,
+        counts: attemptStats,
+      });
 
-      return successResponse(200, buildPrepareResult({
-        counts: {
-          preparedCount: 0,
-          failedCount,
-          mergedCount: 0,
-          reactivatedCount: 0,
+      return successResponse(
+        200,
+        {
+          ...buildPrepareResult({
+            counts: {
+              preparedCount: 0,
+              failedCount,
+              mergedCount: 0,
+              reactivatedCount: 0,
+            },
+            remainingPendingCount,
+            needsApprovalCount,
+            generationState,
+          }),
+          diagnostics,
         },
-        remainingPendingCount,
-        needsApprovalCount,
-        generationState,
-      }));
+        requestId,
+      );
     }
 
     let preparedCount = 0;
@@ -379,17 +445,21 @@ Deno.serve(async (req: Request) => {
       remainingAttempts: generationState.remainingAttempts,
     });
 
-    return successResponse(200, buildPrepareResult({
-      counts: {
-        preparedCount,
-        failedCount,
-        mergedCount,
-        reactivatedCount,
-      },
-      remainingPendingCount,
-      needsApprovalCount,
-      generationState,
-    }));
+    return successResponse(
+      200,
+      buildPrepareResult({
+        counts: {
+          preparedCount,
+          failedCount,
+          mergedCount,
+          reactivatedCount,
+        },
+        remainingPendingCount,
+        needsApprovalCount,
+        generationState,
+      }),
+      requestId,
+    );
   } catch (error) {
     if (startedAttempt) {
       const code =
@@ -411,20 +481,22 @@ Deno.serve(async (req: Request) => {
 
     if (error instanceof AppError) {
       console.error("[prepare-vocabulary-cards] request failed", {
+        requestId,
         status: error.status,
         code: error.code,
         message: error.message,
       });
-      return errorResponse(error.status, error.code, error.message);
+      return errorResponse(error.status, error.code, error.message, requestId);
     }
 
     const message =
       error instanceof Error ? error.message : "Unknown vocabulary prepare error.";
-    console.error("[prepare-vocabulary-cards] failed", { message });
+    console.error("[prepare-vocabulary-cards] failed", { requestId, message });
     return errorResponse(
       500,
       "VOCABULARY_PREPARE_FAILED",
       DEFAULT_INTERNAL_ERROR_MESSAGE,
+      requestId,
     );
   }
 });

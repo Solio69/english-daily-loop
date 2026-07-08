@@ -22,7 +22,7 @@ security/business-решения.
 
 Общая server-инфраструктура Edge Functions находится в `supabase/functions/_shared/server.ts`.
 Там живут CORS, POST guard, JSON parsing, env helpers, Telegram `initData` validation,
-безопасные JSON-ответы и `AppError`. Бизнес-валидация остается в конкретных функциях:
+request id, безопасные JSON-ответы и `AppError`. Бизнес-валидация остается в конкретных функциях:
 лимиты, подписки, чтение, completion и AI-пайплайн проверяются рядом с соответствующей операцией.
 
 ## 3) RLS и grants
@@ -38,6 +38,7 @@ RLS включен для:
 - `public.user_vocabulary_word_sources`
 - `public.vocabulary_card_generation_attempts`
 - `public.user_daily_vocabulary_review_completions`
+- `public.support_reports`
 
 Миграции:
 - `supabase/migrations/20260427165000_enable_rls_for_users_and_settings.sql`
@@ -49,6 +50,7 @@ RLS включен для:
 - `supabase/migrations/20260528120000_add_vocabulary_card_generation_attempts.sql`
 - `supabase/migrations/20260618120000_add_vocabulary_review_flow.sql`
 - `supabase/migrations/20260622120000_harden_vocabulary_review_state.sql`
+- `supabase/migrations/20260707120000_add_support_reports.sql`
 
 Frontend policies для защищенных таблиц не добавлены. Для `anon` и `authenticated`
 явно закрыт прямой доступ к пользовательским, reading-state, completion/history и
@@ -132,6 +134,14 @@ subscription таблицам, а также к server-only RPC. Доступ и
 - выполняет фиксированный список локальных dev-действий для текущего Telegram-пользователя
 - не принимает произвольный SQL, а использует фиксированный список actions
 - возвращает клиенту безопасное сообщение для неожиданных внутренних ошибок
+
+`submit-support-report`:
+- валидирует Telegram `initData`;
+- определяет текущего пользователя по `telegram_user_id`;
+- применяет rate limit отчетов;
+- санитизирует diagnostic snapshot server-side;
+- сохраняет отчет в `public.support_reports` через `SUPABASE_SERVICE_ROLE_KEY`;
+- не доверяет `user_id` и роли из body.
 
 ## 5) Transactional RPC
 `public.claim_reading_generation_attempt(...)`:

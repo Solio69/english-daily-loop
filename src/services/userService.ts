@@ -1,4 +1,4 @@
-﻿import { supabase } from "../lib/supabase";
+﻿import { invokeFunctionWithInitData } from "./functionClient";
 import { SubscriptionSummary } from "../types/subscription";
 import { HomeProgress } from "../types/homeProgress";
 import {
@@ -29,56 +29,34 @@ type AuthenticatedUserRow = UserRow & {
   settings: UserSettings | null;
 };
 
-type AuthTelegramFunctionSuccess = {
-  ok: true;
-  data: {
-    user: {
-      id: string;
-      telegramUserId: number;
-      role: AppRole;
-      firstName: string | null;
-      settingsCompletedAt: string | null;
-      firstTextCompletedAt: string | null;
-    };
-    settings: UserSettings | null;
-    streakDays: number;
-    subscription: SubscriptionSummary;
-    homeProgress: HomeProgress;
+type AuthTelegramFunctionData = {
+  user: {
+    id: string;
+    telegramUserId: number;
+    role: AppRole;
+    firstName: string | null;
+    settingsCompletedAt: string | null;
+    firstTextCompletedAt: string | null;
   };
+  settings: UserSettings | null;
+  streakDays: number;
+  subscription: SubscriptionSummary;
+  homeProgress: HomeProgress;
 };
 
-type AuthTelegramFunctionError = {
-  ok: false;
-  error: {
-    code: string;
-    message: string;
+type SaveUserSettingsFunctionData = {
+  user: {
+    id: string;
+    telegramUserId: number;
+    role: AppRole;
+    firstName: string | null;
+    settingsCompletedAt: string | null;
+    firstTextCompletedAt: string | null;
   };
+  settings: UserSettings;
+  subscription: SubscriptionSummary;
+  homeProgress: HomeProgress;
 };
-
-type AuthTelegramFunctionResponse =
-  | AuthTelegramFunctionSuccess
-  | AuthTelegramFunctionError;
-
-type SaveUserSettingsFunctionSuccess = {
-  ok: true;
-  data: {
-    user: {
-      id: string;
-      telegramUserId: number;
-      role: AppRole;
-      firstName: string | null;
-      settingsCompletedAt: string | null;
-      firstTextCompletedAt: string | null;
-    };
-    settings: UserSettings;
-    subscription: SubscriptionSummary;
-    homeProgress: HomeProgress;
-  };
-};
-
-type SaveUserSettingsFunctionResponse =
-  | SaveUserSettingsFunctionSuccess
-  | AuthTelegramFunctionError;
 
 const DEFAULT_HOME_PROGRESS: HomeProgress = {
   lesson: {
@@ -143,73 +121,35 @@ const getTelegramInitData = (): string | null => {
   return initData || null;
 };
 
-const getFunctionErrorMessage = async (
-  error: unknown,
-  fallback: string,
-): Promise<string> => {
-  const context =
-    error && typeof error === "object" && "context" in error
-      ? (error as { context?: unknown }).context
-      : null;
-
-  if (context instanceof Response) {
-    try {
-      const payload = (await context.clone().json()) as
-        | AuthTelegramFunctionError
-        | null;
-      if (payload && "error" in payload && payload.error.message) {
-        return payload.error.message;
-      }
-    } catch {
-      return fallback;
-    }
-  }
-
-  return fallback;
-};
-
 const getAuthenticatedUser = async (
   initData: string,
 ): Promise<AuthenticatedUserRow> => {
   authLog("Calling auth-telegram function", {
     source: "telegram",
   });
-  const { data, error } = await supabase.functions.invoke("auth-telegram", {
-    body: { initData },
-  });
-
-  if (error) {
-    authLog("auth-telegram invoke failed", error);
-    throw new Error("Не удалось авторизоваться через Telegram.");
-  }
-
-  const payload = data as AuthTelegramFunctionResponse | null;
-  if (!payload) {
-    authLog("auth-telegram returned empty payload");
-    throw new Error("Пустой ответ от сервера авторизации.");
-  }
-
-  if ("error" in payload) {
-    authLog("auth-telegram returned business error", payload.error);
-    throw new Error(payload.error.message);
-  }
+  const payload = await invokeFunctionWithInitData<AuthTelegramFunctionData>(
+    "auth-telegram",
+    initData,
+    {},
+    "Не удалось авторизоваться через Telegram.",
+  );
 
   authLog("auth-telegram success", {
-    telegramUserId: payload.data.user.telegramUserId,
-    appUserId: payload.data.user.id,
+    telegramUserId: payload.user.telegramUserId,
+    appUserId: payload.user.id,
   });
 
   return {
-    id: payload.data.user.id,
-    telegram_user_id: payload.data.user.telegramUserId,
-    role: payload.data.user.role ?? "user",
-    first_name: payload.data.user.firstName,
-    streak_days: payload.data.streakDays,
-    settings_completed_at: payload.data.user.settingsCompletedAt,
-    first_text_completed_at: payload.data.user.firstTextCompletedAt,
-    settings: payload.data.settings,
-    subscription: payload.data.subscription,
-    homeProgress: payload.data.homeProgress,
+    id: payload.user.id,
+    telegram_user_id: payload.user.telegramUserId,
+    role: payload.user.role ?? "user",
+    first_name: payload.user.firstName,
+    streak_days: payload.streakDays,
+    settings_completed_at: payload.user.settingsCompletedAt,
+    first_text_completed_at: payload.user.firstTextCompletedAt,
+    settings: payload.settings,
+    subscription: payload.subscription,
+    homeProgress: payload.homeProgress,
   };
 };
 
@@ -257,45 +197,28 @@ export const saveCurrentUserSettings = async (
       "Telegram initData не найден. Открой приложение внутри Telegram.",
     );
   }
-  const body = { initData, settings: input };
-
-  const { data, error } = await supabase.functions.invoke(
+  const payload = await invokeFunctionWithInitData<SaveUserSettingsFunctionData>(
     "save-user-settings",
-    { body },
+    initData,
+    { settings: input },
+    "Не удалось сохранить настройки.",
   );
 
-  if (error) {
-    authLog("save-user-settings invoke failed", error);
-    throw new Error(
-      await getFunctionErrorMessage(error, "Не удалось сохранить настройки."),
-    );
-  }
-
-  const payload = data as SaveUserSettingsFunctionResponse | null;
-  if (!payload) {
-    throw new Error("Пустой ответ от сервера настроек.");
-  }
-
-  if ("error" in payload) {
-    authLog("save-user-settings returned business error", payload.error);
-    throw new Error(payload.error.message || "Не удалось сохранить настройки.");
-  }
-
   const userRow: UserRow = {
-    id: payload.data.user.id,
-    telegram_user_id: payload.data.user.telegramUserId,
-    role: payload.data.user.role ?? "user",
-    first_name: payload.data.user.firstName,
-    settings_completed_at: payload.data.user.settingsCompletedAt,
-    first_text_completed_at: payload.data.user.firstTextCompletedAt,
+    id: payload.user.id,
+    telegram_user_id: payload.user.telegramUserId,
+    role: payload.user.role ?? "user",
+    first_name: payload.user.firstName,
+    settings_completed_at: payload.user.settingsCompletedAt,
+    first_text_completed_at: payload.user.firstTextCompletedAt,
   };
 
   authLog("Settings saved successfully", { userId: userRow.id });
   return mapUser(
     userRow,
-    payload.data.settings,
-    payload.data.subscription ?? subscription,
-    payload.data.homeProgress ?? homeProgress,
+    payload.settings,
+    payload.subscription ?? subscription,
+    payload.homeProgress ?? homeProgress,
     streakDays,
   );
 };

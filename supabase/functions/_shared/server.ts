@@ -12,7 +12,7 @@ export const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+    "authorization, x-client-info, apikey, content-type, x-request-id",
 };
 
 export const DEFAULT_INTERNAL_ERROR_MESSAGE =
@@ -32,6 +32,22 @@ export class AppError extends Error {
   }
 }
 
+const REQUEST_ID_HEADER = "x-request-id";
+const REQUEST_ID_PATTERN = /^[a-zA-Z0-9_-]{8,80}$/;
+
+export type SafeDiagnostics = Record<string, unknown>;
+
+export const createRequestId = (): string => `req_${crypto.randomUUID()}`;
+
+export const getRequestId = (req: Request): string => {
+  const rawRequestId = req.headers.get(REQUEST_ID_HEADER)?.trim();
+  if (rawRequestId && REQUEST_ID_PATTERN.test(rawRequestId)) {
+    return rawRequestId;
+  }
+
+  return createRequestId();
+};
+
 export const fail = (status: number, code: string, message: string): never => {
   throw new AppError(status, code, message);
 };
@@ -42,14 +58,29 @@ export const jsonResponse = (status: number, payload: unknown): Response =>
     headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
   });
 
-export const successResponse = (status: number, data: unknown): Response =>
-  jsonResponse(status, { ok: true, data });
+export const successResponse = (
+  status: number,
+  data: unknown,
+  requestId?: string,
+): Response =>
+  jsonResponse(status, requestId ? { ok: true, data, requestId } : { ok: true, data });
 
 export const errorResponse = (
   status: number,
   code: string,
   message: string,
-): Response => jsonResponse(status, { ok: false, error: { code, message } });
+  requestId?: string,
+  diagnostics?: SafeDiagnostics,
+): Response =>
+  jsonResponse(status, {
+    ok: false,
+    error: {
+      code,
+      message,
+      ...(requestId ? { requestId } : {}),
+      ...(diagnostics ? { diagnostics } : {}),
+    },
+  });
 
 export const handleCorsPreflight = (req: Request): Response | null =>
   req.method === "OPTIONS"

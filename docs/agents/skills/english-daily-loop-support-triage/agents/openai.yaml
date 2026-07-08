@@ -1,0 +1,4 @@
+interface:
+  display_name: "EDL Support Triage"
+  short_description: "Analyze support reports and AI diagnostics"
+  default_prompt: "Use $english-daily-loop-support-triage to analyze a support report from english-daily-loop."

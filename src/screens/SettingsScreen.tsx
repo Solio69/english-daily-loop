@@ -3,11 +3,12 @@ import { ExternalLink } from "lucide-react";
 import { Button } from "../components/Button";
 import { LoadingState } from "../components/LoadingState";
 import { ScreenHeader } from "../components/ScreenHeader";
+import { SupportReportCard } from "../components/settings/SupportReportCard";
 import type {
   DevToolAction,
   DevToolActionOptions,
 } from "../services/devToolsService";
-import { SaveUserSettingsInput, UserSettings } from "../types/user";
+import { AppUser, SaveUserSettingsInput, UserSettings } from "../types/user";
 import {
   getTelegramProfileUrl,
   openTelegramLink,
@@ -31,6 +32,8 @@ type SettingsScreenProps = {
     action: DevToolAction,
     options?: DevToolActionOptions,
   ) => void;
+  appUser?: AppUser | null;
+  currentScreen: string;
 };
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({
@@ -42,6 +45,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   showDevTools = false,
   runningDevToolAction = null,
   onRunDevToolAction,
+  appUser = null,
+  currentScreen,
 }) => {
   const shouldUseStickySave = !isFirstSetup;
   const optionButtonClass =
@@ -156,6 +161,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             ))}
           </div>
         </section>
+
+        <SupportReportCard
+          disabled={isSaving}
+          appUser={appUser}
+          currentScreen={currentScreen}
+        />
 
         {feedbackTelegramUrl ? (
           <section className="flex items-center justify-center gap-2 pt-1 text-sm">

@@ -56,10 +56,36 @@ export type AiFailureStage =
 
 export class AiGenerationError extends Error {
   stage: AiFailureStage;
+  model: string | null;
+  finishReason: string | null;
+  completionTokens: number | null;
+  reasoningTokens: number | null;
+  providerStatus: number | null;
+  providerErrorCode: string | null;
 
-  constructor(stage: AiFailureStage, message: string) {
+  constructor(
+    stage: AiFailureStage,
+    message: string,
+    metadata: {
+      model?: string | null;
+      finishReason?: string | null;
+      completionTokens?: number | null;
+      reasoningTokens?: number | null;
+      providerStatus?: number | null;
+      providerErrorCode?: string | number | null;
+    } = {},
+  ) {
     super(message);
     this.stage = stage;
+    this.model = metadata.model ?? null;
+    this.finishReason = metadata.finishReason ?? null;
+    this.completionTokens = metadata.completionTokens ?? null;
+    this.reasoningTokens = metadata.reasoningTokens ?? null;
+    this.providerStatus = metadata.providerStatus ?? null;
+    this.providerErrorCode =
+      metadata.providerErrorCode == null
+        ? null
+        : String(metadata.providerErrorCode);
   }
 }
 
@@ -188,6 +214,7 @@ export const generateReadingTextWithOpenRouter = async ({
   const messages = buildPromptMessages(targetLevel, readingMinutes, config);
   let remainingModels = [...models];
   let lastErrorMessage = "Unknown generation error.";
+  let lastModel: string | null = null;
   const startedAt = Date.now();
 
   while (remainingModels.length > 0) {
@@ -214,6 +241,7 @@ export const generateReadingTextWithOpenRouter = async ({
     } catch (error) {
       lastErrorMessage =
         error instanceof Error ? error.message : "Unknown generation error.";
+      lastModel = error instanceof OpenRouterError ? error.model : null;
       const stage =
         error instanceof OpenRouterError ? error.stage : "provider_request";
       console.error("[generate-reading-text] model routing failed", {
@@ -236,7 +264,19 @@ export const generateReadingTextWithOpenRouter = async ({
         continue;
       }
 
-      throw new AiGenerationError(stage, lastErrorMessage);
+      throw new AiGenerationError(stage, lastErrorMessage, {
+        model: error instanceof OpenRouterError ? error.model : null,
+        finishReason:
+          error instanceof OpenRouterError ? error.finishReason : null,
+        completionTokens:
+          error instanceof OpenRouterError ? error.completionTokens : null,
+        reasoningTokens:
+          error instanceof OpenRouterError ? error.reasoningTokens : null,
+        providerStatus:
+          error instanceof OpenRouterError ? error.providerStatus : null,
+        providerErrorCode:
+          error instanceof OpenRouterError ? error.providerErrorCode : null,
+      });
     }
 
     try {
@@ -254,6 +294,7 @@ export const generateReadingTextWithOpenRouter = async ({
     } catch (error) {
       lastErrorMessage =
         error instanceof Error ? error.message : "Unknown generation error.";
+      lastModel = routed.usedModel;
       console.error("[generate-reading-text] generated content validation failed", {
         usedModel: routed.usedModel,
         candidateModels: remainingModels,
@@ -265,5 +306,7 @@ export const generateReadingTextWithOpenRouter = async ({
     }
   }
 
-  throw new AiGenerationError("output_validation", lastErrorMessage);
+  throw new AiGenerationError("output_validation", lastErrorMessage, {
+    model: lastModel,
+  });
 };
