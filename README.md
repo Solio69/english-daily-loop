@@ -326,6 +326,9 @@ pnpm build
 - `notes/subscriptions.md` — MVP-модель ролей, доступа и подписок.
 - `notes/support-diagnostics.md` — пользовательские отчеты об ошибках, request id и безопасный diagnostic snapshot.
 - `notes/feedback-link.md` — ссылка обратной связи из настроек в Telegram.
+- `notes/deployment-platform-decision.md` — выбранная production-схема Supabase Cloud + Vercel и fallback-варианты.
+- `notes/production-env.md` — production env inventory для Vercel и Supabase Edge Functions.
+- `notes/production-deploy-flow.md` — ручной runbook первого production-деплоя через Supabase Cloud + Vercel.
 - `notes/home-progress-and-toast.md` — прогресс главного экрана и toast-сообщения.
 - `notes/dev-mode-dx.md` — локальный Telegram-режим разработки и ограничения DX.
 - `notes/production-readiness.md` — что нужно пересмотреть перед production.

@@ -60,7 +60,16 @@
 ## 7) Secrets and environment
 - `OPENROUTER_API_KEY`, `TELEGRAM_BOT_TOKEN`, `SUPABASE_SERVICE_ROLE_KEY` должны оставаться только на сервере.
 - Frontend может видеть только `VITE_*` переменные.
+- Production env split зафиксирован в `notes/production-env.md`: публичные frontend env живут в Vercel, server-only secrets живут в Supabase Edge Function secrets.
 - Перед production проверить, что реальные секреты не попали в git history и логи.
+
+## 7.1) Deployment platform
+- Для первого production-релиза выбран путь `Supabase Cloud + Vercel`.
+- Frontend хостится на Vercel как Vite static build.
+- Backend/data слой остается в Supabase Cloud: Postgres, RLS/grants, Edge Functions, secrets, logs и backups.
+- Решение, fallback-варианты и открытые вопросы зафиксированы в `notes/deployment-platform-decision.md`.
+- Ручной runbook первого production-деплоя зафиксирован в `notes/production-deploy-flow.md`.
+- `DEV_TOOLS_ENABLED` включен на первый production testing period только для admin-доступа; после стабильного запуска нужно выключить его или сократить production actions до безопасного subset.
 
 ## 8) Database API hardening
 - Защищенные таблицы доступны через Edge Functions с `SUPABASE_SERVICE_ROLE_KEY`.

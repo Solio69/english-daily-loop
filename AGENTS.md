@@ -285,3 +285,6 @@
 - Отчеты об ошибках, request id и diagnostic snapshot зафиксированы в `notes/support-diagnostics.md`.
 - Skill source для triage support reports лежит в `docs/agents/skills/english-daily-loop-support-triage`.
 - Ссылка обратной связи из настроек зафиксирована в `notes/feedback-link.md`.
+- Production-схема деплоя зафиксирована в `notes/deployment-platform-decision.md`: frontend на Vercel, backend/data на Supabase Cloud.
+- Production env inventory зафиксирован в `notes/production-env.md`; реальные секреты в репозиторий не записывать.
+- Ручной runbook первого production-деплоя зафиксирован в `notes/production-deploy-flow.md`; миграции и production-секреты применяет владелец проекта.
