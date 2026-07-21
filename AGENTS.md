@@ -10,7 +10,7 @@
 - Целевой продукт: Telegram Mini App.
 - Вектор по данным: Supabase (Postgres).
 - Локальная инфраструктура уже настроена: Docker + WSL + Supabase local.
-- Локальный Telegram-запуск: `npm run dev:telegram` (отдельный dev-бот + изолированный `.env.telegram.local` + Supabase local + Edge Functions + API tunnel + автообновление локальных `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` + frontend build + Vite preview + frontend tunnel + логи DB/API + startup summary). Команда не читает и не изменяет `.env.local` или production secrets.
+- Локальный Telegram-запуск: `npm run dev:telegram` (отдельный dev-бот + изолированный `.env.telegram.local` + Supabase local + Edge Functions + API/frontend Quick Tunnels с ожиданием публикации URL + автообновление локальных `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` + frontend build + Vite preview + live-логи DB/API + startup summary). Команда не читает и не изменяет `.env.local` или production secrets.
 - Локальные Supabase-порты: API `54321`, DB `54322`, Studio `54323`, Mailpit `54324`, Analytics `54327`, Pooler `54329`; tunnels используют `127.0.0.1`, чтобы не зависеть от IPv6-резолва `localhost` на Windows.
 - Отдельного backend-сервера (Express) сейчас нет; backend-слой представлен Supabase API + Edge Functions.
 - Папка `tools/` используется для локальных утилит запуска (например, `cloudflared.exe`) и не коммитится.
@@ -277,12 +277,16 @@
 - `npm run dev:telegram` автоматически поднимает frontend/API туннели и печатает `STARTUP SUMMARY` с двумя URL:
   - `BotFather /setmenubutton URL` = FRONTEND TUNNEL URL
   - `.env.telegram.local VITE_SUPABASE_URL` = SUPABASE API TUNNEL URL.
+- Каждый Quick Tunnel создается один раз; команда ждёт публикацию URL в выводе `cloudflared`, но не блокирует запуск публичной DNS/HTTP-проверкой. `STARTUP SUMMARY` печатается после получения обоих URL.
 - `npm run dev:telegram` запускает production-like локальный режим для Telegram: Supabase + Edge Functions + API tunnel + frontend build + Vite preview + frontend tunnel.
 - Новые миграции без пересоздания БД применяются через `npx supabase migration up`; полный `npx supabase db reset` пересоздает локальную БД и удаляет текущие локальные данные.
 - `npm run dev:telegram` поднимает Edge Functions `approve-vocabulary-card`, `approve-vocabulary-cards`, `auth-telegram`, `save-user-settings`, `activate-subscription`, `complete-reading-text`, `dev-tools`, `get-reading-state`, `get-reading-history`, `get-vocabulary-review-state`, `review-vocabulary-word`, `get-vocabulary-state`, `get-vocabulary-words`, `generate-reading-text`, `prepare-vocabulary-cards`, `save-vocabulary-word` и `submit-support-report`.
 - Логи в dev-режимах цветные по источнику (`[frontend]`, `[edge]`, `[db]`, `[api]`, `[tunnel-*]`), HTTP-методы и статус-коды дополнительно подсвечиваются.
 - `// TODO:` после изменения frontend-кода, кода Edge Functions или server env для OpenRouter (`OPENROUTER_MODEL_*`, `OPENROUTER_API_KEY`) перезапускать активный dev-режим, чтобы локальная среда подхватила актуальную версию функций, env и frontend bundle.
-- Если в summary указано `Frontend restart required: YES`, нужно перезапустить `npm run dev:telegram`.
+- Quick Tunnel URL создаются один раз и не блокируют запуск Node DNS readiness-check: Windows `getaddrinfo` может временно сохранять отрицательный DNS-результат после публикации публичной записи. Если новый URL сразу не открылся в Telegram, нужно повторить открытие через несколько секунд, не перезапуская dev-stack.
+- После ответа BotFather `Success! Menu settings updated` Telegram Desktop может показать прежний текст menu button ещё некоторое время из-за клиентского кеша. Текущий dev-stack и Quick Tunnel нужно оставить запущенными; перезапуск требуется только при фактическом завершении обязательного процесса или недоступности URL после ожидания.
+- Неожиданное завершение frontend, Edge Functions или любого tunnel останавливает dev-stack с ошибкой; завершение необязательного DB/API log-stream только фиксируется в логах.
+- Live-потоки DB/API используют `docker logs --tail 0 --follow`, чтобы накопленная история контейнеров не скрывала `STARTUP SUMMARY`.
 - Для локального Telegram-старта использовать `npm run dev:telegram`, для остановки Supabase: `npm run dev:stop`.
 - Security-контекст зафиксирован в `notes/security-threat-model.md`, результат проверки базового контура — в `notes/security-audit-2026-04-30.md`.
 - Security-модель AI-пайплайна зафиксирована в `notes/ai-pipeline-security.md`.

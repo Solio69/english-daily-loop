@@ -1,3 +1,5 @@
+import type { VocabularyReviewStatus } from "../types/vocabulary";
+
 type VocabularyReviewProgressSource = {
   requiredTotalCount: number;
   remainingRequiredCount: number;
@@ -9,23 +11,24 @@ type VocabularyReviewProgressSource = {
 export const getVocabularyReviewProgressCounts = (
   state: VocabularyReviewProgressSource,
 ) => {
-  const hasCompleteDisplayCounts =
+  if (
     state.displayTotalCount !== null &&
     state.displayTotalCount !== undefined &&
     state.displayReviewedCount !== null &&
     state.displayReviewedCount !== undefined &&
     state.displayRemainingCount !== null &&
-    state.displayRemainingCount !== undefined;
+    state.displayRemainingCount !== undefined
+  ) {
+    return {
+      totalCount: state.displayTotalCount,
+      reviewedCount: state.displayReviewedCount,
+      remainingCount: state.displayRemainingCount,
+    };
+  }
 
-  const totalCount = hasCompleteDisplayCounts
-    ? state.displayTotalCount
-    : state.requiredTotalCount;
-  const remainingCount = hasCompleteDisplayCounts
-    ? state.displayRemainingCount
-    : state.remainingRequiredCount;
-  const reviewedCount = hasCompleteDisplayCounts
-    ? state.displayReviewedCount
-    : Math.max(totalCount - remainingCount, 0);
+  const totalCount = state.requiredTotalCount;
+  const remainingCount = state.remainingRequiredCount;
+  const reviewedCount = Math.max(totalCount - remainingCount, 0);
 
   return {
     totalCount,
@@ -33,3 +36,15 @@ export const getVocabularyReviewProgressCounts = (
     remainingCount,
   };
 };
+
+type VocabularyReviewProgressPresentationSource =
+  VocabularyReviewProgressSource & {
+    status: VocabularyReviewStatus;
+  };
+
+export const getVocabularyReviewProgressPresentation = (
+  state: VocabularyReviewProgressPresentationSource,
+) => ({
+  ...getVocabularyReviewProgressCounts(state),
+  isCompleted: state.status === "completed",
+});

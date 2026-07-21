@@ -17,14 +17,18 @@ npm run dev:telegram
 
 - запускает локальный Supabase;
 - запускает Supabase Edge Functions;
-- запускает Cloudflare tunnel для Supabase API;
-- обновляет `VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY` в `.env.telegram.local` значениями API tunnel и локального Supabase;
+- запускает Cloudflare Quick Tunnel для Supabase API и ждёт появления URL в выводе `cloudflared`;
+- после получения URL обновляет `VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY` в `.env.telegram.local` значениями API tunnel и локального Supabase;
 - собирает frontend через `pnpm build:telegram` в изолированном Vite-режиме `telegram-dev`;
 - запускает frontend через Vite preview на `127.0.0.1:3000`;
-- запускает Cloudflare tunnel для frontend;
-- печатает URL для BotFather и краткий startup summary.
+- запускает Cloudflare Quick Tunnel для frontend и ждёт появления URL в выводе `cloudflared`;
+- печатает URL для BotFather и startup summary после получения обоих публичных адресов.
 
 Этот режим использует настоящий Telegram `initData` и реального Telegram-пользователя. Это ближе к production-поведению и не смешивает разработку с браузерными dev-пользователями.
+
+Telegram Desktop может обновлять menu button с задержкой после успешного ответа BotFather. Текущий dev-stack нужно оставить запущенным и дождаться обновления кнопки: повторный запуск создаёт новые Quick Tunnel URL и может попасть под Cloudflare rate limit.
+
+Frontend, Edge Functions и tunnels обязательны для рабочего Telegram-режима, поэтому завершение любого из этих процессов останавливает весь dev-stack. DB/API log-stream остаются вспомогательными.
 
 Frontend собирается после получения API tunnel URL. После изменений frontend-кода, Edge Functions или server env локальный Telegram-режим нужно перезапустить.
 

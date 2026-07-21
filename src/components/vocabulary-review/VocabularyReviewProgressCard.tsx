@@ -6,6 +6,7 @@ type VocabularyReviewProgressCardProps = {
   totalCount: number;
   reviewedCount: number;
   remainingCount: number;
+  isCompleted: boolean;
 };
 
 const WORD_FORMS = ["слово", "слова", "слов"] as const;
@@ -17,23 +18,29 @@ const getProgressPercent = (reviewedCount: number, totalCount: number) =>
 
 export const VocabularyReviewProgressCard: React.FC<
   VocabularyReviewProgressCardProps
-> = ({ totalCount, reviewedCount, remainingCount }) => {
+> = ({ totalCount, reviewedCount, remainingCount, isCompleted }) => {
   const progressPercent = getProgressPercent(reviewedCount, totalCount);
 
   return (
     <section className="glass-card rounded-[20px] border-[var(--accent-warm)] p-3 shadow-warm-glow">
       <div className="flex items-center gap-3">
         <div className="glass-control grid size-16 shrink-0 place-items-center rounded-full border-[var(--accent-warm)] bg-[var(--accent-warm-soft)] text-[var(--accent-warm)] shadow-warm-glow">
-          <Flame size={30} strokeWidth={2.2} />
+          <Flame
+            size={30}
+            strokeWidth={2.2}
+            fill={isCompleted ? "currentColor" : "none"}
+          />
         </div>
         <div className="min-w-0 flex-1">
           <h2 className="font-heading text-lg font-semibold leading-6 text-[var(--accent-warm)]">
             Повторение
           </h2>
-          <p className="mt-1 text-sm leading-5 text-[var(--text-secondary)]">
-            Сегодня нужно повторить {totalCount}{" "}
-            {getRussianPlural(totalCount, WORD_FORMS)}
-          </p>
+          {!isCompleted && (
+            <p className="mt-1 text-sm leading-5 text-[var(--text-secondary)]">
+              Сегодня нужно повторить {totalCount}{" "}
+              {getRussianPlural(totalCount, WORD_FORMS)}
+            </p>
+          )}
           <div className="mt-3 flex items-center gap-3">
             <div className="h-2 flex-1 overflow-hidden rounded-full border border-[var(--border)] bg-[var(--surface)]">
               <div

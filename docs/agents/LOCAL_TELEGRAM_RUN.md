@@ -84,12 +84,15 @@
 1. Поднимает локальный Supabase (`npx supabase start`).
 2. Получает локальный anon key из `npx supabase status -o env`.
 3. Запускает Edge Functions с `--env-file .env.telegram.local`.
-4. Поднимает HTTPS tunnel для Supabase API (`127.0.0.1:54321`).
-5. Автоматически обновляет `VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY` только в `.env.telegram.local`.
+4. Поднимает HTTPS Quick Tunnel для Supabase API (`127.0.0.1:54321`) и ждёт появления URL в выводе `cloudflared`.
+5. После получения URL обновляет `VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY` только в `.env.telegram.local`.
 6. Собирает frontend (`pnpm build:telegram`) с env, переданным скриптом; Vite не загружает обычные env-файлы для mode `telegram-dev`.
 7. Запускает frontend через Vite preview (`pnpm preview:telegram`) на `localhost:3000`.
-8. Поднимает HTTPS tunnel для frontend (`localhost:3000`).
-9. Печатает `STARTUP SUMMARY` с именем dev-бота и короткой инструкцией.
+8. Поднимает HTTPS Quick Tunnel для frontend (`localhost:3000`) и ждёт появления URL в выводе `cloudflared`.
+9. Печатает `STARTUP SUMMARY` с именем dev-бота и двумя созданными URL.
+10. Подключает live-логи DB/API только с момента запуска stream (`docker logs --tail 0 --follow`), чтобы старая история контейнеров не скрывала summary.
+
+Frontend, Edge Functions и оба tunnel являются обязательными процессами. Если один из них неожиданно завершается, команда останавливает весь локальный стек с ошибкой. Потоки DB/API-логов вспомогательные: их завершение только фиксируется в терминале.
 
 Локально поднимаются Edge Functions:
 
@@ -118,7 +121,9 @@
 
 `dev:telegram` специально использует `127.0.0.1` для tunnel origins вместо `localhost`: на Windows `localhost` может резолвиться в IPv6 `::1`, пока Supabase local слушает IPv4. Если в логах Cloudflared есть `dial tcp [::1]`, значит tunnel target снова указывает на `localhost`.
 
-Перед печатью tunnel URL скрипт проверяет, что локальные API и frontend origins отвечают. Это защищает от обновления `.env.telegram.local` и menu button dev-бота публичным URL, который не достает до локального сервиса.
+Перед созданием туннелей скрипт проверяет локальные origins. Каждый Quick Tunnel URL создается один раз и остается активным до остановки команды. Скрипт не использует Node DNS readiness-check: на Windows системный `getaddrinfo` может сохранять отрицательный DNS-результат после того, как публичная запись уже появилась. Если Telegram открыл новый URL раньше публикации DNS, нужно повторно открыть Mini App через несколько секунд, не перезапуская команду.
+
+После ответа BotFather `Success! Menu settings updated` Telegram Desktop может некоторое время показывать предыдущий текст menu button из клиентского кеша. Это не означает, что настройка не сохранилась. Нужно оставить текущий dev-stack запущенным и дождаться обновления кнопки; повторный запуск создаёт новые Quick Tunnel URL и повышает риск Cloudflare `429 Too Many Requests`.
 
 Frontend собирается после получения API tunnel URL, чтобы production-like bundle использовал актуальный публичный адрес Supabase API.
 
@@ -188,9 +193,9 @@ where telegram_user_id = YOUR_TELEGRAM_USER_ID;
 
 4. Tunnel URL не работает
 
-   Причина: quick tunnel временный и может умереть.
+   Причина: Quick Tunnel временный и может завершиться уже после публикации URL.
 
-   Что делать: перезапустить `npm run dev:telegram`, взять новые URL и снова обновить `/setmenubutton`.
+   Что делать: перезапустить `npm run dev:telegram`, взять новый frontend URL и снова обновить `/setmenubutton`. Если новый URL сразу не открылся, повторить открытие через несколько секунд, сохраняя текущий dev-stack запущенным.
 
 ## 7. Остановка
 

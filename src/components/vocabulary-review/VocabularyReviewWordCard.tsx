@@ -1,4 +1,4 @@
-import { Eye, LockKeyhole } from "lucide-react";
+import { Eye, Loader2, LockKeyhole } from "lucide-react";
 import React, { useRef } from "react";
 import { useScrollIntoViewOnExpand } from "../../hooks/useScrollIntoViewOnExpand";
 import {
@@ -73,7 +73,8 @@ export const VocabularyReviewWordCard: React.FC<
   return (
     <article
       ref={articleRef}
-      className="glass-card overflow-hidden rounded-[20px]"
+      aria-busy={isSubmitting}
+      className="glass-card glass-card-warm relative overflow-hidden rounded-[20px]"
     >
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">
@@ -107,11 +108,22 @@ export const VocabularyReviewWordCard: React.FC<
               onClick={() => onReview(option.action)}
               className="min-h-[58px] rounded-[18px] border border-[var(--primary)] bg-[var(--surface)] px-2 font-heading text-sm font-semibold leading-5 text-[var(--primary)] shadow-primary-glow transition active:scale-[0.98] disabled:pointer-events-none disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] dark:border-[var(--accent-warm)] dark:text-[var(--accent-warm)] dark:shadow-warm-glow"
             >
-              {isSubmitting ? "..." : option.label}
+              {option.label}
             </button>
           ))}
         </div>
       </div>
+
+      {isSubmitting && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="absolute inset-0 z-10 grid place-items-center rounded-[inherit] bg-[var(--surface-strong)] backdrop-blur-sm"
+        >
+          <Loader2 className="size-8 animate-spin text-[var(--accent-warm)]" />
+          <span className="sr-only">Загружаем следующую карточку</span>
+        </div>
+      )}
     </article>
   );
 };

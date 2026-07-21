@@ -210,17 +210,23 @@ npm run dev:telegram
 - запускает локальный Supabase;
 - получает локальный anon key из Supabase CLI;
 - запускает Edge Functions;
-- поднимает tunnel для Supabase API;
+- поднимает Quick Tunnel для Supabase API и ждёт появления URL в выводе `cloudflared`;
 - автоматически обновляет `VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY` только в `.env.telegram.local`;
 - собирает frontend через изолированный `pnpm build:telegram`;
 - запускает frontend через Vite preview на `localhost:3000`;
-- поднимает tunnel для frontend;
+- поднимает Quick Tunnel для frontend и ждёт появления URL в выводе `cloudflared`;
 - показывает логи frontend, Edge Functions, DB и API;
-- печатает `STARTUP SUMMARY` с URL для BotFather.
+- печатает `STARTUP SUMMARY` с URL для BotFather после получения обоих публичных адресов.
 
 Frontend собирается после получения API tunnel URL, поэтому Telegram открывает production-like bundle с актуальным `VITE_SUPABASE_URL`.
 
-Если в summary указано `Frontend restart required: YES`, останови процесс через `Ctrl + C` и запусти `npm run dev:telegram` еще раз.
+Quick Tunnel URL создаются один раз и остаются активными, пока работает команда. Скрипт не пересоздает домены и не блокирует запуск проверкой DNS: Windows `getaddrinfo` может временно возвращать закешированный `ENOTFOUND`, даже когда публичная DNS-запись уже существует. Если Telegram открыл новый URL слишком рано, Mini App нужно повторно открыть через несколько секунд, не перезапуская dev-stack.
+
+После ответа BotFather `Success! Menu settings updated` Telegram Desktop может обновить текст menu button с задержкой. В этом случае текущую команду нужно оставить запущенной и дождаться обновления кнопки; перезапуск создаст новые Quick Tunnel URL и может привести к Cloudflare `429 Too Many Requests`.
+
+Неожиданное завершение frontend, Edge Functions или tunnel останавливает dev-stack с ошибкой. Потоки DB/API-логов вспомогательные и не останавливают приложение.
+
+После summary команда продолжает работать и показывает только новые DB/API container logs; накопленная история Docker при старте не выводится.
 
 Новые миграции без пересоздания локальной БД применяются командой:
 

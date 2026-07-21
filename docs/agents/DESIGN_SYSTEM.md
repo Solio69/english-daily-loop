@@ -443,6 +443,10 @@ Progress card:
 - Progress bar and `reviewed / total` counter use warm accent.
 - Bottom summary has two equal columns: `Всего` with `Target` and `Осталось`
   with `Flame`.
+- When the server review status is `completed`, hide the required-count copy and
+  fill the large `Flame`; keep the progress bar, counter and bottom summary.
+- Optional cards available after completion do not change this completed
+  presentation state.
 
 Dictionary actions notice:
 
@@ -471,10 +475,18 @@ Expanded review card:
 - Verb forms use the blue/cyan `Box` icon shared with dictionary cards.
 - Target word/forms in examples use warm highlight; dictionary cards keep the
   primary highlight.
+- The expanded card uses the existing warm tokens for its border, subtle
+  background and glow in both themes.
 - No audio icon is shown until pronunciation playback exists.
 - Four interval actions form one stable `grid-cols-4` row.
 - Interval actions use primary blue in light theme and warm accent in dark theme;
   all four buttons share the same style, including `Не помню`.
+- After an interval is selected, a loader-only overlay covers the current card,
+  preserves its dimensions and blocks repeated actions until the next state is
+  loaded. If the review action fails, the overlay disappears and the expanded
+  card remains. If the action succeeds but the next snapshot fails to load, the
+  answered card is replaced with a compact recovery state and a retry button
+  that only reloads review state.
 
 Empty and completed states:
 
