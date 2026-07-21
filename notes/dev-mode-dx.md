@@ -18,9 +18,9 @@ npm run dev:telegram
 - запускает локальный Supabase;
 - запускает Supabase Edge Functions;
 - запускает Cloudflare tunnel для Supabase API;
-- обновляет `VITE_SUPABASE_URL` в `.env.local` на API tunnel URL;
-- собирает frontend через `pnpm build`;
-- запускает frontend через Vite preview на `localhost:3000`;
+- обновляет `VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY` в `.env.telegram.local` значениями API tunnel и локального Supabase;
+- собирает frontend через `pnpm build:telegram` в изолированном Vite-режиме `telegram-dev`;
+- запускает frontend через Vite preview на `127.0.0.1:3000`;
 - запускает Cloudflare tunnel для frontend;
 - печатает URL для BotFather и краткий startup summary.
 
@@ -65,7 +65,7 @@ npx supabase migration up
 ## 5) Правила безопасности
 
 - Telegram `initData` проверяется только на сервере в Edge Functions.
-- `TELEGRAM_BOT_TOKEN`, `OPENROUTER_API_KEY` и `SUPABASE_SERVICE_ROLE_KEY` остаются только в `.env.local` и не попадают во frontend-код или git.
+- development-секреты `TELEGRAM_BOT_TOKEN` и `OPENROUTER_API_KEY` хранятся только в gitignored `.env.telegram.local`, а локальный `SUPABASE_SERVICE_ROLE_KEY` берется из Supabase local; эти значения не попадают во frontend-код или git.
 - Локальный Telegram-режим не подменяет пользователя и не обходит серверную авторизацию.
 - Панель dev tools показывается только при роли `admin`.
 - Edge Function `dev-tools` выполняет reset-действия только при server env `DEV_TOOLS_ENABLED="true"` и server-side проверке `users.app_role = 'admin'`.

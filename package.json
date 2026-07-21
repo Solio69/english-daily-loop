@@ -8,6 +8,7 @@
     "dev:telegram": "node scripts/dev-stack.mjs",
     "dev:stop": "npx supabase stop",
     "build": "vite build",
+    "build:telegram": "vite build --mode telegram-dev",
     "preview": "vite preview",
     "preview:telegram": "vite preview --host=0.0.0.0 --port=3000 --strictPort",
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",

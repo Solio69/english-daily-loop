@@ -3,7 +3,9 @@ import react from "@vitejs/plugin-react";
 import path from "path";
 import { defineConfig } from "vite";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
+  // TODO: Telegram dev builds receive an isolated env from scripts/dev-stack.mjs.
+  envDir: mode === "telegram-dev" ? false : undefined,
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
@@ -15,4 +17,4 @@ export default defineConfig({
     // TODO: Local Telegram Mini App launch via tunnel domains (cloudflared/localtunnel).
     allowedHosts: [".loca.lt", ".trycloudflare.com"],
   },
-});
+}));

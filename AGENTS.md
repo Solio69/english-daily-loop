@@ -10,7 +10,7 @@
 - Целевой продукт: Telegram Mini App.
 - Вектор по данным: Supabase (Postgres).
 - Локальная инфраструктура уже настроена: Docker + WSL + Supabase local.
-- Локальный Telegram-запуск: `npm run dev:telegram` (Supabase + Edge Functions + API tunnel + автообновление `VITE_SUPABASE_URL` в `.env.local` + frontend build + Vite preview + frontend tunnel + логи DB/API + startup summary).
+- Локальный Telegram-запуск: `npm run dev:telegram` (отдельный dev-бот + изолированный `.env.telegram.local` + Supabase local + Edge Functions + API tunnel + автообновление локальных `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` + frontend build + Vite preview + frontend tunnel + логи DB/API + startup summary). Команда не читает и не изменяет `.env.local` или production secrets.
 - Локальные Supabase-порты: API `54321`, DB `54322`, Studio `54323`, Mailpit `54324`, Analytics `54327`, Pooler `54329`; tunnels используют `127.0.0.1`, чтобы не зависеть от IPv6-резолва `localhost` на Windows.
 - Отдельного backend-сервера (Express) сейчас нет; backend-слой представлен Supabase API + Edge Functions.
 - Папка `tools/` используется для локальных утилит запуска (например, `cloudflared.exe`) и не коммитится.
@@ -18,6 +18,7 @@
 ## Документация для агентов
 - Актуальная дизайн-система: `docs/agents/DESIGN_SYSTEM.md`.
 - Подробности локального Telegram-запуска: `docs/agents/LOCAL_TELEGRAM_RUN.md`.
+- Шаблон локального Telegram env: `.env.telegram.example`; inventory production env: `.env.production.example` и `notes/production-env.md`.
 - Project-local skill sources лежат в `docs/agents/skills`; они не устанавливаются автоматически в `~/.codex/skills`.
 - Для разбора пользовательских отчетов об ошибках использовать skill source `docs/agents/skills/english-daily-loop-support-triage`.
 
@@ -35,6 +36,14 @@
 - Предпочитать маленькие итеративные изменения вместо крупных рефакторингов.
 - Перед изменениями с неочевидными последствиями явно подтверждать направление.
 
+### Согласованные баг-пачки
+- Внешняя база багов находится в `D:\anastasiaStorage\pet-projects\English daily loop\Баги`; pre-code workflow оркестратора описан skill source `D:\anastasiaStorage\AI Автоматизации\Скиллы\triage-english-daily-loop-bugs`.
+- Статус пачки `approved_for_dev` означает, что продуктовый scope, ожидаемое поведение, acceptance criteria и ручные проверки явно согласованы владельцем.
+- Перед реализацией кодинг-агент обязан сверить пачку с актуальными кодом, документацией и Git HEAD, дополнить ее техническим планом и затем выполнять этот план без отдельного согласования.
+- Кодинг-агент должен остановиться и запросить решение, если реализация меняет согласованный scope или поведение, требует несогласованного дизайна, миграции или изменения данных БД, затрагивает auth/RLS/grants сверх согласованной задачи, требует действий с секретами либо обнаруживает настоящий технический блокер.
+- Это исключение не отменяет запреты на применение миграций, изменение данных БД, установку сторонних пакетов и изменяющие Git-команды.
+- Для новых фич и несогласованных улучшений сохраняется обычный flow: обсуждение, продуктовые решения, пошаговый план и явное разрешение на реализацию.
+
 ## Технический вектор (по умолчанию)
 - Для MVP сначала использовать Supabase.
 - Изолировать доступ к данным в сервисном слое, чтобы позже можно было перейти на обычный Postgres.
@@ -48,7 +57,7 @@
 
 ## Правила безопасности
 - Никогда не коммитить реальные ключи, токены и секреты.
-- Секреты хранить в `.env.local`, а требования документировать в `.env.example`.
+- Общие локальные секреты хранить в gitignored env-файлах, а требования документировать в соответствующих `*.example`; `dev:telegram` использует только `.env.telegram.local`, создаваемый из `.env.telegram.example`.
 - `SUPABASE_SERVICE_ROLE_KEY` использовать только на сервере.
 - `OPENROUTER_API_KEY` использовать только на сервере, через Supabase Edge Functions.
 - `TELEGRAM_BOT_TOKEN` использовать только на сервере, через Supabase Edge Functions.
@@ -267,7 +276,7 @@
 - `vite.config.ts` разрешает внешние tunnel host'ы (`.trycloudflare.com`, `.loca.lt`) для запуска Mini App через Telegram.
 - `npm run dev:telegram` автоматически поднимает frontend/API туннели и печатает `STARTUP SUMMARY` с двумя URL:
   - `BotFather /setmenubutton URL` = FRONTEND TUNNEL URL
-  - `.env.local VITE_SUPABASE_URL` = SUPABASE API TUNNEL URL.
+  - `.env.telegram.local VITE_SUPABASE_URL` = SUPABASE API TUNNEL URL.
 - `npm run dev:telegram` запускает production-like локальный режим для Telegram: Supabase + Edge Functions + API tunnel + frontend build + Vite preview + frontend tunnel.
 - Новые миграции без пересоздания БД применяются через `npx supabase migration up`; полный `npx supabase db reset` пересоздает локальную БД и удаляет текущие локальные данные.
 - `npm run dev:telegram` поднимает Edge Functions `approve-vocabulary-card`, `approve-vocabulary-cards`, `auth-telegram`, `save-user-settings`, `activate-subscription`, `complete-reading-text`, `dev-tools`, `get-reading-state`, `get-reading-history`, `get-vocabulary-review-state`, `review-vocabulary-word`, `get-vocabulary-state`, `get-vocabulary-words`, `generate-reading-text`, `prepare-vocabulary-cards`, `save-vocabulary-word` и `submit-support-report`.
@@ -288,3 +297,4 @@
 - Production-схема деплоя зафиксирована в `notes/deployment-platform-decision.md`: frontend на Vercel, backend/data на Supabase Cloud.
 - Production env inventory зафиксирован в `notes/production-env.md`; реальные секреты в репозиторий не записывать.
 - Ручной runbook первого production-деплоя зафиксирован в `notes/production-deploy-flow.md`; миграции и production-секреты применяет владелец проекта.
+- Ручной smoke checklist production-деплоя зафиксирован в `notes/production-smoke-checklist.md`.

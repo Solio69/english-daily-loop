@@ -7,11 +7,17 @@ import {
   edgeFunctionNames,
   localApiTunnelTarget,
   localFrontendTunnelTarget,
+  envFilePath,
 } from "./dev/config.mjs";
-import { syncEnvValues } from "./dev/env.mjs";
+import {
+  createTelegramDevProcessEnv,
+  loadTelegramDevEnv,
+  syncEnvValues,
+} from "./dev/env.mjs";
 import { color, useColor, withColor } from "./dev/logging.mjs";
 import { runOnce, spawnLabeled, stopChildProcess } from "./dev/process.mjs";
 import {
+  getLocalSupabaseAnonKey,
   getSupabaseContainers,
   startSupabase,
 } from "./dev/supabase-local.mjs";
@@ -31,12 +37,15 @@ let startupSummaryPrinted = false;
 let frontendRestartRequired = false;
 let frontendBundleBuilt = false;
 let frontendStarted = false;
+let telegramDevEnvValues = null;
+let telegramDevBotUsername = null;
 
-// TODO: Local Telegram infra helper; keep API tunnel sync limited to local .env.local updates.
+// TODO: Local Telegram infra helper; keep API tunnel sync limited to the isolated dev env file.
 function syncApiUrlToEnv(apiUrl) {
   const changed = syncEnvValues({
     VITE_SUPABASE_URL: apiUrl,
   });
+  telegramDevEnvValues.VITE_SUPABASE_URL = apiUrl;
 
   if (changed) {
     if (frontendBundleBuilt) {
@@ -66,7 +75,7 @@ function maybePrintStartupSummary() {
       : "1) Update BotFather menu button:\n",
   );
   process.stdout.write("   /setmenubutton\n");
-  process.stdout.write("   Select bot: @english_daily_loop_bot\n");
+  process.stdout.write(`   Select dev bot: ${telegramDevBotUsername}\n`);
   process.stdout.write(
     useColor
       ? `   URL: ${color.green}${tunnelUrls.frontend}${color.reset}\n`
@@ -74,8 +83,8 @@ function maybePrintStartupSummary() {
   );
   process.stdout.write(
     useColor
-      ? `${color.bold}${color.yellow}2) .env.local should contain:${color.reset}\n`
-      : "2) .env.local should contain:\n",
+      ? `${color.bold}${color.yellow}2) ${envFilePath} contains:${color.reset}\n`
+      : `2) ${envFilePath} contains:\n`,
   );
   process.stdout.write(
     useColor
@@ -152,7 +161,16 @@ function waitForTunnelUrl(kind) {
 }
 
 function prepareEnv() {
-  process.stdout.write("Preparing Telegram dev mode...\n");
+  const config = loadTelegramDevEnv();
+  telegramDevEnvValues = config.values;
+  telegramDevBotUsername = config.botUsername;
+  process.stdout.write(
+    `Preparing isolated Telegram dev mode for ${telegramDevBotUsername}...\n`,
+  );
+}
+
+function getTelegramDevChildEnv() {
+  return createTelegramDevProcessEnv(process.env, telegramDevEnvValues);
 }
 
 // TODO: Local infra guard; fail before publishing tunnel URLs if Docker/Supabase origins are unavailable.
@@ -182,7 +200,12 @@ async function assertLocalOriginReady(label, url) {
 // TODO: Local Telegram WebView is served from a production-like bundle to avoid Vite dev client stalls through quick tunnels.
 async function buildFrontend() {
   process.stdout.write("[frontend-build] building frontend bundle for Telegram...\n");
-  await runOnce(commands.pnpm, ["build"], "frontend build");
+  await runOnce(
+    commands.pnpm,
+    ["build:telegram"],
+    "frontend build",
+    { env: getTelegramDevChildEnv(), replaceEnv: true },
+  );
   frontendBundleBuilt = true;
 }
 
@@ -215,9 +238,10 @@ function startEdgeFunctions() {
       "serve",
       ...edgeFunctionNames,
       "--env-file",
-      ".env.local",
+      envFilePath,
     ],
     "edge",
+    { env: getTelegramDevChildEnv(), replaceEnv: true },
   );
   children.push(edgeFunctions);
   edgeFunctions.on("exit", (code) => {
@@ -341,20 +365,27 @@ function shutdown() {
 
 async function main() {
   prepareEnv();
-  await startSupabase();
+  const initialDevChildEnv = getTelegramDevChildEnv();
+  await startSupabase(initialDevChildEnv);
+  const localAnonKey = await getLocalSupabaseAnonKey(initialDevChildEnv);
+  syncEnvValues({ VITE_SUPABASE_ANON_KEY: localAnonKey });
+  telegramDevEnvValues.VITE_SUPABASE_ANON_KEY = localAnonKey;
   startEdgeFunctions();
   await assertLocalOriginReady(
     "Supabase API",
     `${localApiTunnelTarget}/rest/v1/`,
   );
   const apiTunnelStarted = startApiTunnel();
-  if (apiTunnelStarted) {
-    await waitForTunnelUrl("api");
+  if (!apiTunnelStarted) {
+    throw new Error("API tunnel is required for isolated Telegram dev mode.");
   }
+  await waitForTunnelUrl("api");
   await buildFrontend();
   startFrontend();
   await assertLocalOriginReady("Frontend preview", localFrontendTunnelTarget);
-  startFrontendTunnel();
+  if (!startFrontendTunnel()) {
+    throw new Error("Frontend tunnel is required for Telegram dev mode.");
+  }
   await startContainerLogs();
 
   process.on("SIGINT", shutdown);

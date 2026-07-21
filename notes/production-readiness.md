@@ -69,6 +69,7 @@
 - Backend/data слой остается в Supabase Cloud: Postgres, RLS/grants, Edge Functions, secrets, logs и backups.
 - Решение, fallback-варианты и открытые вопросы зафиксированы в `notes/deployment-platform-decision.md`.
 - Ручной runbook первого production-деплоя зафиксирован в `notes/production-deploy-flow.md`.
+- Ручной smoke checklist production-деплоя зафиксирован в `notes/production-smoke-checklist.md`.
 - `DEV_TOOLS_ENABLED` включен на первый production testing period только для admin-доступа; после стабильного запуска нужно выключить его или сократить production actions до безопасного subset.
 
 ## 8) Database API hardening

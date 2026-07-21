@@ -64,7 +64,7 @@ Supabase Edge Function, базой и внешней AI-моделью.
 
 ## 4) OpenRouter
 Server env:
-- `OPENROUTER_API_KEY` — обязательный, только в `.env.local`
+- `OPENROUTER_API_KEY` — обязательный; локально хранится в gitignored `.env.telegram.local`, в production — в Supabase Cloud Edge Function secrets
 - `OPENROUTER_MODEL_CHAIN` — опциональный comma-separated список моделей для генерации текста
 - `OPENROUTER_MODEL_PRIMARY` / `OPENROUTER_MODEL_FALLBACK` /
   `OPENROUTER_MODEL_TERTIARY` — опциональные добавления к дефолтной цепочке,
@@ -98,7 +98,7 @@ Server env:
 Важно:
 - ключ OpenRouter нельзя добавлять во frontend env (`VITE_*`)
 - ключ нельзя коммитить
-- `.env.example` содержит только названия переменных и безопасные placeholder/example значения
+- `.env.production.example` и `.env.telegram.example` содержат только названия переменных и безопасные placeholder/example значения
 
 ## 5) Размер текста
 Время чтения управляет и промптом, и `max_tokens`.

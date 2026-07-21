@@ -148,19 +148,24 @@ AI attempt metadata хранится `90` дней; scheduled cleanup выпол
 
 ## Переменные окружения
 
-Создай `.env.local` на основе `.env.example`.
+Production-переменные frontend хранятся в Vercel, а server secrets — в Supabase Cloud. `.env.production.example` фиксирует только имена, назначение и безопасные placeholder-значения; production runtime не читает этот файл.
 
-Обязательные переменные:
+Для локального Telegram-запуска создай отдельный `.env.telegram.local` на основе `.env.telegram.example`. `npm run dev:telegram` не читает и не изменяет `.env.local`.
+
+Обязательные значения для Telegram dev mode:
 
 ```env
-VITE_SUPABASE_URL="http://127.0.0.1:54321"
-VITE_SUPABASE_ANON_KEY="YOUR_SUPABASE_ANON_KEY"
-VITE_FEEDBACK_TELEGRAM_USERNAME=""
+TELEGRAM_DEV_MODE="true"
+DEV_TELEGRAM_BOT_USERNAME="@english_daily_loop_dev_bot"
+TELEGRAM_BOT_TOKEN="YOUR_DEV_TELEGRAM_BOT_TOKEN"
 OPENROUTER_API_KEY="YOUR_OPENROUTER_API_KEY"
-TELEGRAM_BOT_TOKEN="YOUR_TELEGRAM_BOT_TOKEN"
-DEV_TOOLS_ENABLED="false"
+DEV_TOOLS_ENABLED="true"
 SUBSCRIPTION_FLOW_ENABLED="false"
 ```
+
+`DEV_TELEGRAM_BOT_USERNAME` и `TELEGRAM_BOT_TOKEN` должны принадлежать отдельному development-боту. Скрипт откажется запускаться для production-бота `@english_daily_loop_bot`.
+
+`VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY` в `.env.telegram.local` обновляются автоматически значениями локального Supabase и текущего API tunnel. Frontend Telegram dev-сборки получает env напрямую от скрипта и не загружает обычные Vite env-файлы.
 
 Опциональные переменные для выбора OpenRouter-моделей:
 
@@ -201,11 +206,13 @@ npm run dev:telegram
 
 `dev:telegram` делает следующее:
 
+- проверяет отдельного dev-бота и обязательный маркер `TELEGRAM_DEV_MODE="true"`;
 - запускает локальный Supabase;
+- получает локальный anon key из Supabase CLI;
 - запускает Edge Functions;
 - поднимает tunnel для Supabase API;
-- автоматически обновляет `VITE_SUPABASE_URL` в `.env.local`;
-- собирает frontend через `pnpm build`;
+- автоматически обновляет `VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY` только в `.env.telegram.local`;
+- собирает frontend через изолированный `pnpm build:telegram`;
 - запускает frontend через Vite preview на `localhost:3000`;
 - поднимает tunnel для frontend;
 - показывает логи frontend, Edge Functions, DB и API;
@@ -242,9 +249,11 @@ npm run dev:stop
 В BotFather:
 
 1. Выполни `/setmenubutton`.
-2. Выбери нужного бота.
+2. Выбери отдельного dev-бота, указанного в `DEV_TELEGRAM_BOT_USERNAME`.
 3. Вставь `BotFather /setmenubutton URL` из startup summary.
 4. Открой бота в Telegram и нажми кнопку меню.
+
+Не устанавливай временный tunnel URL production-боту `@english_daily_loop_bot`.
 
 Приложение должно открываться внутри Telegram и проходить авторизацию через настоящий `initData`.
 
@@ -329,6 +338,7 @@ pnpm build
 - `notes/deployment-platform-decision.md` — выбранная production-схема Supabase Cloud + Vercel и fallback-варианты.
 - `notes/production-env.md` — production env inventory для Vercel и Supabase Edge Functions.
 - `notes/production-deploy-flow.md` — ручной runbook первого production-деплоя через Supabase Cloud + Vercel.
+- `notes/production-smoke-checklist.md` — ручной smoke checklist для проверки production-деплоя.
 - `notes/home-progress-and-toast.md` — прогресс главного экрана и toast-сообщения.
 - `notes/dev-mode-dx.md` — локальный Telegram-режим разработки и ограничения DX.
 - `notes/production-readiness.md` — что нужно пересмотреть перед production.

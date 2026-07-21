@@ -36,7 +36,7 @@ pnpm build
 Проверить, что:
 
 - последние изменения закоммичены владельцем проекта;
-- в `.env.local`, логах и screenshots нет production secrets;
+- в локальных env-файлах, логах и screenshots нет production secrets;
 - список production env актуален в `notes/production-env.md`;
 - smoke checklist подготовлен до переключения BotFather URL.
 
@@ -206,7 +206,7 @@ Telegram Mini App получает настоящий `initData` только в
 - admin видит dev tools, tester/user не видит dev tools;
 - subscription entry скрыт.
 
-Подробный чеклист нужно держать отдельным документом, чтобы его можно было проходить перед каждым production-релизом.
+Подробный чеклист для ручной проверки хранится в `notes/production-smoke-checklist.md`.
 
 ## Rollback
 
@@ -228,6 +228,7 @@ Database rollback:
 
 - `notes/deployment-platform-decision.md`
 - `notes/production-env.md`
+- `notes/production-smoke-checklist.md`
 - `notes/production-readiness.md`
 - `notes/server-side-data-guards.md`
 - `notes/security-threat-model.md`

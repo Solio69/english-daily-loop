@@ -72,7 +72,7 @@ or reduce production dev tools to a safer subset.
 
 ## Secrets Handling Rules
 
-- Do not commit `.env.local`.
+- Do not commit `.env.telegram.local` or any other file containing real environment values.
 - Do not paste real secrets into notes, README, AGENTS, issue text or chat.
 - Do not put `OPENROUTER_API_KEY`, `TELEGRAM_BOT_TOKEN` or `SUPABASE_SERVICE_ROLE_KEY` into Vercel `VITE_*` env.
 - Rotate secrets if they appear in git history, logs, screenshots or support reports.
@@ -99,7 +99,8 @@ or reduce production dev tools to a safer subset.
 ## Related Docs
 
 - `notes/deployment-platform-decision.md`
-- `.env.example`
+- `.env.production.example`
+- `.env.telegram.example`
 - `notes/security-threat-model.md`
 - `notes/server-side-data-guards.md`
 - `docs/agents/LOCAL_TELEGRAM_RUN.md`

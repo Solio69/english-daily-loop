@@ -9,7 +9,9 @@ export const commands = {
 };
 
 export const localProjectId = "english-daily-loop";
-export const envFilePath = ".env.local";
+export const envFilePath = ".env.telegram.local";
+export const envTemplatePath = ".env.telegram.example";
+export const productionTelegramBotUsername = "@english_daily_loop_bot";
 // TODO: Local Telegram tunnels must use IPv4 loopback; localhost can resolve to ::1 on Windows.
 export const localFrontendTunnelTarget = "http://127.0.0.1:3000";
 export const localApiTunnelTarget = "http://127.0.0.1:54321";
