@@ -71,7 +71,7 @@
 
 5. Смотреть логи в этом же терминале:
 
-- `[frontend]` — Vite preview со свежей production-like сборкой
+- `[frontend]` — Vite preview со свежей production-like сборкой из `dist-telegram`
 - `[edge]` — Supabase Edge Functions
 - `[api]` — Supabase API
 - `[db]` — Postgres
@@ -86,11 +86,16 @@
 3. Запускает Edge Functions с `--env-file .env.telegram.local`.
 4. Поднимает HTTPS Quick Tunnel для Supabase API (`127.0.0.1:54321`) и ждёт появления URL в выводе `cloudflared`.
 5. После получения URL обновляет `VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY` только в `.env.telegram.local`.
-6. Собирает frontend (`pnpm build:telegram`) с env, переданным скриптом; Vite не загружает обычные env-файлы для mode `telegram-dev`.
-7. Запускает frontend через Vite preview (`pnpm preview:telegram`) на `localhost:3000`.
+6. Собирает frontend (`pnpm build:telegram`) с env, переданным скриптом, в отдельную папку `dist-telegram`; Vite не загружает обычные env-файлы для mode `telegram-dev`.
+7. Запускает frontend через Vite preview (`pnpm preview:telegram`) в mode `telegram-dev` на `localhost:3000` и обслуживает `dist-telegram`.
 8. Поднимает HTTPS Quick Tunnel для frontend (`localhost:3000`) и ждёт появления URL в выводе `cloudflared`.
 9. Печатает `STARTUP SUMMARY` с именем dev-бота и двумя созданными URL.
 10. Подключает live-логи DB/API только с момента запуска stream (`docker logs --tail 0 --follow`), чтобы старая история контейнеров не скрывала summary.
+
+Обычный `pnpm build` использует только `dist`, поэтому production-проверка не
+перезаписывает bundle уже запущенного Telegram dev-preview. После изменения
+frontend-кода активный `dev:telegram` по-прежнему нужно перезапустить: preview
+обслуживает статическую сборку без HMR.
 
 Frontend, Edge Functions и оба tunnel являются обязательными процессами. Если один из них неожиданно завершается, команда останавливает весь локальный стек с ошибкой. Потоки DB/API-логов вспомогательные: их завершение только фиксируется в терминале.
 

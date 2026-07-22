@@ -57,10 +57,12 @@ Supabase Edge Function, базой и внешней AI-моделью.
 
 Дополнительные Edge Functions:
 - `supabase/functions/get-reading-state/index.ts` — возвращает состояние экрана чтения и active text текущей московской даты.
-- `supabase/functions/complete-reading-text/index.ts` — транзакционно завершает active text текущей московской даты через RPC `complete_daily_reading_text`, сохраняет snapshot текста в историю, удаляет active text, заполняет `users.first_text_completed_at` для онбординга, если это первый прочитанный текст, и возвращает актуальный `streakDays`.
+- `supabase/functions/complete-reading-text/index.ts` — транзакционно завершает active text текущей московской даты через RPC `complete_daily_reading_text`, сохраняет snapshot текста в историю, удаляет active text, заполняет `users.first_text_completed_at` для онбординга, если это первый прочитанный текст, и best-effort возвращает `streakDays` и `completedReadingTextCount`.
 - `supabase/functions/get-reading-history/index.ts` — возвращает историю прочитанных текстов текущего пользователя с cursor-пагинацией.
-- `supabase/functions/auth-telegram/index.ts` — в bootstrap пользователя отдает `homeProgress.lesson`, `homeProgress.reading.status` и `streakDays` для главного экрана.
+- `supabase/functions/auth-telegram/index.ts` — в bootstrap пользователя отдает `homeProgress.lesson`, `homeProgress.reading.status`, `streakDays` и nullable `completedReadingTextCount` для главного экрана; ошибка подсчета истории не блокирует авторизацию.
 - `supabase/functions/_shared/reading-streak.ts` — server helper для streak чтения: считает непрерывную серию от текущей московской даты по `user_daily_reading_completions`; если completion-marker за сегодня отсутствует, возвращает `0`.
+- `supabase/functions/_shared/reading-history.ts` — server helper общего счетчика истории; при ошибке агрегатного запроса возвращает `null`.
+- `supabase/functions/_shared/reading-completion-metrics.ts` — изолирует post-completion расчет серии и счетчика от результата уже выполненной транзакции завершения.
 
 ## 4) OpenRouter
 Server env:
@@ -164,6 +166,7 @@ Server env:
 - `users.first_text_completed_at` используется только для онбординга
 - статус карточки урока на главной определяется сервером через `homeProgress.lesson`
 - статус блока `Текст` в карточке дневного прогресса определяется сервером через `homeProgress.reading.status`
+- плитка `Тексты` на главной показывает server-side количество строк истории через `completedReadingTextCount`; для `null` используется подпись `История чтения`
 
 ## 9) Ограничения и будущие улучшения
 Текущие ограничения:

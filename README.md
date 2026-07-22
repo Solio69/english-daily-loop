@@ -12,13 +12,15 @@ Telegram Mini App для ежедневной практики английск�
 - Серверные дневные лимиты генерации текста.
 - Активный непрочитанный текст на пользователя.
 - Завершение чтения, сохранение нескольких текстов за день в историю и streak по дням.
-- Раздел `Мои материалы` с историей прочитанных текстов, словарем, glass-табами, входом из нижней навигации и индикатором действий по словарю на главной.
+- Раздел `Мои материалы` с историей прочитанных текстов, словарем, glass-табами, входом из нижней навигации, общим счетчиком прочитанных текстов и индикатором действий по словарю на главной.
 - Словарь: быстрое добавление слова из активного текста, отдельная AI-подготовка карточек и просмотр готовых слов; подтверждение и редактирование карточек не доступны в пользовательском UI.
 - Дневное повторение готовых карточек по интервальной шкале от 1 дня до 6 месяцев с действиями `Не помню`, текущий шаг, следующий шаг и шаг через один.
 - Mobile-first главная страница с full-bleed Telegram layout, compact bottom navigation `Главная` / `Текст` / `Слова` / `Материалы`, glass UI и дизайн-токенами.
 - Тема приложения по умолчанию следует системной теме Telegram; пользователь может выбрать режим `Как в Telegram`, светлую или темную тему через трехпозиционный переключатель в header главной.
 - Экран настроек использует mobile-first glass UI для выбора уровня английского и времени чтения.
 - Дневной прогресс и план урока объединяют последовательные шаги `Текст` и `Повторение`.
+- После первоначальной настройки раздел `Слова` доступен независимо от завершения первого текста; дневной урок по-прежнему начинается с чтения.
+- Пустой шаг повторения отображается как `На сегодня нет слов` и сохраняет completed-стиль дневного прогресса.
 - Единые app-level toast-сообщения показываются сверху как floating glass card с variant-состояниями `success`, `warning`, `error`.
 - Общие UI primitives: `ScreenHeader`, `LoadingState`, `InlineStatusCard`, shared `Button`.
 - Роли доступа `admin` / `tester` / `user`; `admin` и `tester` получают internal paid-like доступ без платежей, а пользовательский flow подписки скрыт до подключения реальной оплаты.
@@ -70,7 +72,7 @@ Telegram Mini App для ежедневной практики английск�
 - `activate-subscription` — скрытая server-side заготовка для будущего платного flow; работает только при `SUBSCRIPTION_FLOW_ENABLED="true"` и транзакционно активирует MVP-подписку за 0 рублей.
 - `get-reading-state` — возвращает состояние экрана чтения: активный текст текущей московской даты, лимиты, использованные попытки и факт завершения чтения за день.
 - `generate-reading-text` — атомарно списывает попытку, вызывает OpenRouter, валидирует ответ модели и сохраняет активный текст с `reading_date`.
-- `complete-reading-text` — транзакционно завершает активный текст текущей московской даты, сохраняет snapshot текста в историю, удаляет active text и обновляет streak.
+- `complete-reading-text` — транзакционно завершает активный текст текущей московской даты, сохраняет snapshot текста в историю, удаляет active text и best-effort обновляет производные метрики streak/count, не меняя результат уже выполненного завершения.
 - `get-reading-history` — возвращает историю прочитанных текстов текущего пользователя с cursor-пагинацией.
 - `save-vocabulary-word` — валидирует активный текст текущей московской даты, проверяет лимит словаря и быстро сохраняет слово как `not_started` + `pending`.
 - `get-vocabulary-state` — возвращает количество pending/needs_approval/ready слов в словаре пользователя и состояние дневного лимита подготовки AI-карточек; пользовательский UI показывает pending и ready.
@@ -85,7 +87,7 @@ Telegram Mini App для ежедневной практики английск�
 
 Все чувствительные операции выполняются на сервере. `TELEGRAM_BOT_TOKEN`, `SUPABASE_SERVICE_ROLE_KEY` и `OPENROUTER_API_KEY` нельзя использовать в клиентском коде. Неожиданные внутренние ошибки Edge Functions логируются на сервере, а клиент получает безопасный код и сообщение без SQL/provider details.
 
-Общая server-инфраструктура Edge Functions находится в `supabase/functions/_shared/server.ts`: CORS, POST guard, JSON parsing, чтение env, Telegram `initData` validation, request id, `AppError` и единый формат JSON-ответов. Общий helper safe AI diagnostics находится в `supabase/functions/_shared/ai-diagnostics.ts`. Общий helper московской учебной даты находится в `supabase/functions/_shared/moscow-date.ts`. Роли, effective subscription summary и лимиты доступа считаются в `supabase/functions/_shared/access.ts`. Общий OpenRouter client/model allowlist находится в `supabase/functions/_shared/openrouter.ts`, общие AI text helpers — в `supabase/functions/_shared/ai-text.ts`. Лимит, подсчет и metadata попыток подготовки карточек вынесены в `supabase/functions/_shared/vocabulary-card-generation.ts`, snapshot повторения и home progress — в `supabase/functions/_shared/vocabulary-review-state.ts` и `supabase/functions/_shared/home-progress.ts`, streak чтения — в `supabase/functions/_shared/reading-streak.ts`.
+Общая server-инфраструктура Edge Functions находится в `supabase/functions/_shared/server.ts`: CORS, POST guard, JSON parsing, чтение env, Telegram `initData` validation, request id, `AppError` и единый формат JSON-ответов. Общий helper safe AI diagnostics находится в `supabase/functions/_shared/ai-diagnostics.ts`. Общий helper московской учебной даты находится в `supabase/functions/_shared/moscow-date.ts`. Роли, effective subscription summary и лимиты доступа считаются в `supabase/functions/_shared/access.ts`. Общий OpenRouter client/model allowlist находится в `supabase/functions/_shared/openrouter.ts`, общие AI text helpers — в `supabase/functions/_shared/ai-text.ts`. Лимит, подсчет и metadata попыток подготовки карточек вынесены в `supabase/functions/_shared/vocabulary-card-generation.ts`, snapshot повторения и home progress — в `supabase/functions/_shared/vocabulary-review-state.ts` и `supabase/functions/_shared/home-progress.ts`, streak чтения и счетчик истории — в `supabase/functions/_shared/reading-streak.ts` и `supabase/functions/_shared/reading-history.ts`, а best-effort post-completion orchestration — в `supabase/functions/_shared/reading-completion-metrics.ts`.
 Prompt/output слой словарных карточек находится рядом с функцией подготовки: `supabase/functions/prepare-vocabulary-cards/ai-pipeline.ts`. Сохранение подготовленных карточек и merge pending-дубликатов в существующие канонические карточки вынесены в `supabase/functions/prepare-vocabulary-cards/card-persistence.ts`.
 
 ## Данные
@@ -212,8 +214,8 @@ npm run dev:telegram
 - запускает Edge Functions;
 - поднимает Quick Tunnel для Supabase API и ждёт появления URL в выводе `cloudflared`;
 - автоматически обновляет `VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY` только в `.env.telegram.local`;
-- собирает frontend через изолированный `pnpm build:telegram`;
-- запускает frontend через Vite preview на `localhost:3000`;
+- собирает frontend через изолированный `pnpm build:telegram` в `dist-telegram`;
+- запускает frontend через Vite preview в mode `telegram-dev` на `localhost:3000`;
 - поднимает Quick Tunnel для frontend и ждёт появления URL в выводе `cloudflared`;
 - показывает логи frontend, Edge Functions, DB и API;
 - печатает `STARTUP SUMMARY` с URL для BotFather после получения обоих публичных адресов.
@@ -299,7 +301,9 @@ pnpm test
 pnpm build
 ```
 
-Собирает production build frontend-приложения.
+Собирает production build frontend-приложения в `dist`. Telegram dev build
+использует отдельную папку `dist-telegram`, поэтому эта команда не
+перезаписывает bundle запущенного `dev:telegram`.
 
 ## Разработка
 

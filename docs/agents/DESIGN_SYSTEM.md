@@ -192,6 +192,9 @@ Progress steps:
 - label: `16px`.
 - status text: `14px`, `leading-5`.
 - connector width: `80px`; на `390px+` используется `96px`.
+- Completed review with `reviewedTodayCount = 0` and no required words uses the
+  status text `На сегодня нет слов` while keeping the primary/cyan completed
+  icon state.
 
 Chips:
 
@@ -348,6 +351,10 @@ Rules:
 - Vocabulary status reserves two lines:
   - `Добавить: N`
   - `В словаре: N`
+- Texts status uses `Прочитано: N текст/текста/текстов` from the server-side
+  all-time completion count.
+- If the completion count is temporarily unavailable, use the neutral fallback
+  `История чтения`; do not render a fabricated zero.
 - Do not let loading/ready/pending vocabulary status change tile height.
 
 ## Materials Screen
@@ -524,6 +531,9 @@ Nav item:
 - text must stay inside its button; use `truncate`.
 - active item uses `bg-[var(--primary-soft)] text-[var(--primary)] shadow-primary-glow`.
 - Items: `Главная` (`Home`), `Текст` (`BookOpen`), `Слова` (`BookText`), `Материалы` (`LibraryBig`).
+- Before initial settings are saved, learning sections stay disabled. After
+  settings are saved, all four items are available; first-text completion does
+  not lock `Слова`.
 
 ## Toast
 

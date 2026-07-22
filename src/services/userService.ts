@@ -24,6 +24,7 @@ type UserRow = {
 
 type AuthenticatedUserRow = UserRow & {
   streak_days: number;
+  completed_reading_text_count: number | null;
   subscription: SubscriptionSummary;
   homeProgress: HomeProgress;
   settings: UserSettings | null;
@@ -40,6 +41,7 @@ type AuthTelegramFunctionData = {
   };
   settings: UserSettings | null;
   streakDays: number;
+  completedReadingTextCount?: number | null;
   subscription: SubscriptionSummary;
   homeProgress: HomeProgress;
 };
@@ -88,6 +90,7 @@ const mapUser = (
   subscription: SubscriptionSummary = DEFAULT_FREE_SUBSCRIPTION_SUMMARY,
   homeProgress: HomeProgress = DEFAULT_HOME_PROGRESS,
   streakDays = 0,
+  completedReadingTextCount: number | null = null,
 ): AppUser => {
   const normalizedHomeProgress: HomeProgress = {
     ...DEFAULT_HOME_PROGRESS,
@@ -103,6 +106,7 @@ const mapUser = (
     role: user.role,
     firstName: user.first_name,
     streakDays,
+    completedReadingTextCount,
     settingsCompletedAt: user.settings_completed_at,
     firstTextCompletedAt: user.first_text_completed_at,
     settings,
@@ -145,6 +149,7 @@ const getAuthenticatedUser = async (
     role: payload.user.role ?? "user",
     first_name: payload.user.firstName,
     streak_days: payload.streakDays,
+    completed_reading_text_count: payload.completedReadingTextCount ?? null,
     settings_completed_at: payload.user.settingsCompletedAt,
     first_text_completed_at: payload.user.firstTextCompletedAt,
     settings: payload.settings,
@@ -179,8 +184,16 @@ export const getCurrentAppUser = async (): Promise<AppUser> => {
     readingStatus: homeProgress.reading.status,
     reviewStatus: homeProgress.review.status,
     streakDays,
+    completedReadingTextCount: user.completed_reading_text_count,
   });
-  return mapUser(user, settings, subscription, homeProgress, streakDays);
+  return mapUser(
+    user,
+    settings,
+    subscription,
+    homeProgress,
+    streakDays,
+    user.completed_reading_text_count,
+  );
 };
 
 export const saveCurrentUserSettings = async (
@@ -189,6 +202,7 @@ export const saveCurrentUserSettings = async (
   subscription: SubscriptionSummary,
   homeProgress: HomeProgress,
   streakDays: number,
+  completedReadingTextCount: number | null,
 ): Promise<AppUser> => {
   authLog("Saving user settings", { userId, input });
   const initData = getTelegramInitData();
@@ -220,5 +234,6 @@ export const saveCurrentUserSettings = async (
     payload.subscription ?? subscription,
     payload.homeProgress ?? homeProgress,
     streakDays,
+    completedReadingTextCount,
   );
 };

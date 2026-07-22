@@ -21,6 +21,7 @@ import { useScreenNavigation } from "./hooks/useScreenNavigation";
 import { useToast } from "./hooks/useToast";
 import { clientLogger } from "./services/clientLogger";
 import { MaterialsTab } from "./types/materials";
+import { getDisabledNavItems } from "./utils/navigationAccess";
 
 type ScreenId =
   | "home"
@@ -67,7 +68,6 @@ export default function App() {
   });
 
   const isSettingsCompleted = Boolean(appUser?.settingsCompletedAt);
-  const isFirstTextCompleted = Boolean(appUser?.firstTextCompletedAt);
   const streakDays = appUser?.streakDays ?? 0;
   const lessonStatus = appUser?.homeProgress.lesson.status ?? "not_started";
   const lessonCurrentStep =
@@ -75,7 +75,6 @@ export default function App() {
   const readingStatus = appUser?.homeProgress.reading.status ?? "not_started";
   const reviewStatus = appUser?.homeProgress.review.status ?? "completed";
   const shouldForceSettings = !isSettingsCompleted;
-  const shouldForceReading = isSettingsCompleted && !isFirstTextCompleted;
   const showDevTools = appUser?.role === "admin";
 
   useEffect(() => {
@@ -142,11 +141,7 @@ export default function App() {
   };
 
   const handleDisabledNavClick = () => {
-    if (shouldForceSettings) {
-      showToast("Открой настройки, чтобы продолжить.", "onboarding");
-      return;
-    }
-    showToast("Сначала заверши сегодняшний текст.", "onboarding");
+    showToast("Открой настройки, чтобы продолжить.", "onboarding");
   };
 
   if (isBootstrapping) {
@@ -169,6 +164,10 @@ export default function App() {
       readingStatus={readingStatus}
       reviewStatus={reviewStatus}
       reviewDueCount={appUser?.homeProgress.review.dueCount ?? 0}
+      reviewReviewedTodayCount={
+        appUser?.homeProgress.review.reviewedTodayCount ?? 0
+      }
+      completedReadingTextCount={appUser?.completedReadingTextCount ?? null}
       isFirstSetup={shouldForceSettings}
       subscription={appUser?.subscription}
       readingMinutes={appUser?.settings?.dailyReadingMinutes ?? null}
@@ -239,11 +238,7 @@ export default function App() {
     }
   };
 
-  const disabledNavItems: BottomNavItemId[] = shouldForceSettings
-    ? ["reading", "vocabulary", "materials"]
-    : shouldForceReading
-      ? ["vocabulary"]
-      : [];
+  const disabledNavItems = getDisabledNavItems(isSettingsCompleted);
   const showBottomNav = currentScreen !== "settings" || isSettingsCompleted;
   const activeNav: BottomNavItemId =
     currentScreen === "settings" || currentScreen === "subscription"

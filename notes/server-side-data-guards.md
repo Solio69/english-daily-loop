@@ -62,7 +62,8 @@ subscription таблицам, а также к server-only RPC. Доступ и
 `auth-telegram`:
 - валидирует Telegram `initData`
 - создает или находит пользователя по `telegram_user_id`
-- возвращает `role`, `settings`, `subscription`, `homeProgress` и `streakDays`
+- возвращает `role`, `settings`, `subscription`, `homeProgress`, `streakDays` и nullable `completedReadingTextCount`
+- не блокирует bootstrap при временной ошибке подсчета истории: ошибка логируется, а счетчик возвращается как `null`
 - разделяет ошибки Telegram validation и внутренние DB/server ошибки
 - возвращает клиенту безопасное сообщение для неожиданных внутренних ошибок
 
@@ -91,7 +92,8 @@ subscription таблицам, а также к server-only RPC. Доступ и
 - валидирует Telegram `initData`
 - завершает active text текущей московской даты через RPC `complete_daily_reading_text`
 - сохраняет snapshot прочитанного текста в `user_completed_reading_texts`
-- возвращает актуальный `streakDays`
+- после успешного RPC best-effort возвращает `streakDays` и `completedReadingTextCount`
+- не возвращает ошибку завершения из-за сбоя производных метрик после уже выполненной транзакции
 - возвращает клиенту безопасное сообщение для неожиданных внутренних ошибок
 
 `get-reading-history`:

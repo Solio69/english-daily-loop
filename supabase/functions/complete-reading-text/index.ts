@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import { getMoscowDate } from "../_shared/moscow-date.ts";
-import { getReadingCompletionStreak } from "../_shared/reading-streak.ts";
+import { getPostReadingCompletionMetrics } from "../_shared/reading-completion-metrics.ts";
 import {
   AppError,
   DEFAULT_INTERNAL_ERROR_MESSAGE,
@@ -121,18 +121,20 @@ Deno.serve(async (req: Request) => {
     const today = getMoscowDate();
     const completion = await completeDailyReadingText(supabase, appUser.id, today);
 
-    const streakDays = await getReadingCompletionStreak(
-      supabase,
-      appUser.id,
-      today,
-      "[complete-reading-text]",
-    );
+    const { streakDays, completedReadingTextCount } =
+      await getPostReadingCompletionMetrics(
+        supabase,
+        appUser.id,
+        today,
+        "[complete-reading-text]",
+      );
 
     return successResponse(200, {
       completedDate: completion.completedDate,
       firstTextCompletedAt: completion.firstTextCompletedAt,
       isReadingCompletedToday: true,
       streakDays,
+      completedReadingTextCount,
     });
   } catch (error) {
     if (error instanceof AppError) {

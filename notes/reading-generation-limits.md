@@ -86,6 +86,13 @@ RLS включен, frontend policies не добавлены.
   - `not_started`
   - `in_progress`
   - `completed`
+- возвращает `completedReadingTextCount` для плитки `Тексты` на главной; при временной ошибке агрегатного запроса значение равно `null` и не блокирует bootstrap
+
+После успешного RPC `complete-reading-text` best-effort вычисляет `streakDays` и
+`completedReadingTextCount`. Ошибка этих производных метрик не отменяет уже
+сохраненный snapshot и не превращает завершение текста в ошибку. Если счетчик
+доступен, главная обновляет его без повторной авторизации; иначе frontend
+использует известное локальное значение или нейтральную подпись.
 
 ## 5) Frontend behavior
 Файл:

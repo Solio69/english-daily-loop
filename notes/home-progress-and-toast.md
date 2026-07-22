@@ -4,6 +4,7 @@
 Этот документ фиксирует текущую модель главного экрана:
 - серверный `homeProgress` для карточек на главной
 - server-side `streakDays` для счетчика с иконкой огонька
+- server-side `completedReadingTextCount` для плитки текстов
 - единый toast-компонент для app-level сообщений
 
 ## 2) Home progress для главной
@@ -12,15 +13,24 @@
 - `public.user_active_reading_texts`
 - `public.user_daily_vocabulary_review_completions`
 - `public.user_vocabulary_words`
+- `public.user_completed_reading_texts`
 
-Общий server helper `supabase/functions/_shared/home-progress.ts` собирает:
+Общий server helper `supabase/functions/_shared/home-progress.ts` собирает только
+состояние дневного плана:
 - `homeProgress.lesson.status`
 - `homeProgress.lesson.currentStep`
 - `homeProgress.reading.status`
 - `homeProgress.review.status`
 - `homeProgress.review.dueCount`
 - `homeProgress.review.reviewedTodayCount`
-- `streakDays`
+
+`auth-telegram` объединяет `homeProgress` с отдельными производными метриками:
+- `streakDays` из `supabase/functions/_shared/reading-streak.ts`
+- `completedReadingTextCount` из `supabase/functions/_shared/reading-history.ts`
+
+Счетчик истории не является условием успешного bootstrap. При временной ошибке
+агрегатного запроса сервер логирует ошибку и возвращает `null`, а приложение
+продолжает загрузку с нейтральной подписью плитки текстов.
 
 Текущая модель lesson для главной:
 - daily lesson состоит из чтения и повторения слов;
@@ -60,6 +70,8 @@ Backend:
 - `supabase/functions/get-vocabulary-review-state/index.ts`
 - `supabase/functions/review-vocabulary-word/index.ts`
 - `supabase/functions/_shared/home-progress.ts`
+- `supabase/functions/_shared/reading-history.ts`
+- `supabase/functions/_shared/reading-completion-metrics.ts`
 
 Frontend:
 - `src/types/homeProgress.ts`
@@ -74,6 +86,8 @@ Frontend:
 - `src/screens/MaterialsScreen.tsx`
 - `src/screens/ReadingScreen.tsx`
 - `src/screens/VocabularyScreen.tsx`
+- `src/utils/homeProgressPresentation.ts`
+- `src/utils/navigationAccess.ts`
 
 ## 4) Поведение UI
 Главная страница:
@@ -100,6 +114,7 @@ Header главной:
 - `not_started` отображается как `Не начато`
 - `in_progress` отображается как `В процессе`
 - `completed` отображается как `Готово`
+- `completed` при `dueCount = 0` и `reviewedTodayCount = 0` отображается как `На сегодня нет слов`
 - текущий шаг использует теплый акцент `--accent-warm`
 - завершенный шаг использует основной акцент `--primary`
 - нижние плашки показывают минуты текста и текущее количество обязательных слов;
@@ -121,6 +136,8 @@ Header главной:
 - плитки сохраняют одинаковую высоту во время загрузки и после получения состояния словаря
 - иконки и заголовки в плитках выровнены на одном уровне
 - плитка `Тексты` открывает экран материалов на табе текстов
+- плитка `Тексты` показывает общее количество завершенных текстов как `Прочитано: N текст/текста/текстов`
+- если server-side счетчик временно недоступен, плитка показывает `История чтения`
 - плитка `Словарь` открывает экран материалов на табе словаря
 - плитка `Словарь` запрашивает `get-vocabulary-state` и показывает короткий статус: `Добавить: N` или `В словаре: N`
 - статус `Добавить` выделяется теплым акцентом в светлой и темной теме
@@ -133,12 +150,20 @@ Header главной:
 - использует 4 компактные кнопки: `Главная`, `Текст`, `Слова`, `Материалы`
 - пункт `Материалы` использует иконку `LibraryBig` и открывает экран `Мои материалы`
 - длинные подписи не растягивают кнопку и обрезаются через `truncate`
+- до сохранения первоначальных настроек учебные разделы заблокированы
+- после сохранения настроек доступны все пункты, включая `Слова`; завершение первого текста не используется как навигационный guard
 
 Счетчик с иконкой огонька:
 - показывает `streakDays`
 - после завершения текста обновляется на клиенте сразу из ответа `complete-reading-text`
 - после нового bootstrap получает актуальное значение из `auth-telegram`
 - после смены московской даты обновляется через повторный запрос профиля
+
+Счетчик завершенных текстов:
+- считается server-side через `supabase/functions/_shared/reading-history.ts`
+- учитывает каждую строку `user_completed_reading_texts`, включая несколько текстов за одну дату
+- приходит при bootstrap из `auth-telegram`
+- после завершения текста обновляется из ответа `complete-reading-text` без повторной авторизации
 
 Локальные обновления на клиенте:
 - после генерации текста `lesson.status` и `reading.status` переходят в `in_progress`
@@ -186,7 +211,6 @@ App-level сообщения проходят через единый компо
 
 Тексты onboarding-состояний:
 - для попытки перейти в закрытый раздел до заполнения настроек используется `Открой настройки, чтобы продолжить.`
-- для попытки перейти в заблокированный раздел до первого текста используется `Сначала заверши сегодняшний текст.`
 
 ## 6) Inline status и loading primitives
 

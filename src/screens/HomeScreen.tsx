@@ -23,6 +23,11 @@ import {
 import { MaterialsTab } from "../types/materials";
 import { SubscriptionSummary } from "../types/subscription";
 import { VocabularyState } from "../types/vocabulary";
+import {
+  getCompletedReadingTextLabel,
+  getReviewProgressPresentation,
+  type HomeProgressStepState,
+} from "../utils/homeProgressPresentation";
 import { getRussianPlural } from "../utils/russianPlural";
 
 type HomeScreenProps = {
@@ -38,17 +43,18 @@ type HomeScreenProps = {
   readingStatus?: ReadingHomeStatus;
   reviewStatus?: ReviewHomeStatus;
   reviewDueCount?: number;
+  reviewReviewedTodayCount?: number;
+  completedReadingTextCount?: number | null;
   isFirstSetup?: boolean;
   subscription?: SubscriptionSummary;
   readingMinutes?: number | null;
 };
 
-type StatusState = "done" | "not_started" | "in_progress";
 type ProgressStepState = "done" | "current" | "idle";
 type ReadingChipState = "completed" | "in_progress" | "idle";
 
 const STATUS_STYLES: Record<
-  StatusState,
+  HomeProgressStepState,
   { step: ProgressStepState; text: string; label: string }
 > = {
   done: {
@@ -87,13 +93,15 @@ const READING_CHIP_STYLES: Record<ReadingChipState, string> = {
 type ProgressStepProps = {
   icon: React.ElementType;
   label: string;
-  status: StatusState;
+  status: HomeProgressStepState;
+  statusLabel?: string;
 };
 
 const ProgressStep: React.FC<ProgressStepProps> = ({
   icon: Icon,
   label,
   status,
+  statusLabel,
 }) => {
   const style = STATUS_STYLES[status];
 
@@ -110,7 +118,7 @@ const ProgressStep: React.FC<ProgressStepProps> = ({
       <p
         className={`mt-0.5 text-sm font-medium leading-5 ${style.text}`}
       >
-        {style.label}
+        {statusLabel ?? style.label}
       </p>
     </div>
   );
@@ -171,6 +179,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   readingStatus = "not_started",
   reviewStatus = "completed",
   reviewDueCount = 0,
+  reviewReviewedTodayCount = 0,
+  completedReadingTextCount = null,
   isFirstSetup = false,
   subscription,
   readingMinutes,
@@ -181,7 +191,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     useState(false);
 
   const isLessonCompleted = lessonStatus === "completed";
-  const readingProgressStatus: StatusState =
+  const readingProgressStatus: HomeProgressStepState =
     readingStatus === "completed"
       ? "done"
       : readingStatus === "in_progress"
@@ -193,12 +203,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       : readingStatus === "in_progress"
         ? "in_progress"
         : "idle";
-  const reviewProgressStatus: StatusState =
-    reviewStatus === "completed"
-      ? "done"
-      : reviewStatus === "in_progress"
-        ? "in_progress"
-        : "not_started";
+  const reviewProgress = getReviewProgressPresentation({
+    status: reviewStatus,
+    dueCount: reviewDueCount,
+    reviewedTodayCount: reviewReviewedTodayCount,
+  });
   const isPaid = subscription?.tier === "paid";
   const SubscriptionIcon = isPaid ? Crown : WalletCards;
   const displayName = userName ?? "Пользователь";
@@ -338,7 +347,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <ProgressStep
               icon={Target}
               label="Повторение"
-              status={reviewProgressStatus}
+              status={reviewProgress.state}
+              statusLabel={reviewProgress.label}
             />
           </div>
 
@@ -470,7 +480,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     </span>
                   </div>
                   <p className="mt-1.5 h-10 overflow-hidden text-sm leading-5 text-[var(--text-secondary)]">
-                    История чтения
+                    {getCompletedReadingTextLabel(completedReadingTextCount)}
                   </p>
                 </button>
               </div>

@@ -2,6 +2,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import { getMoscowDate } from "../_shared/moscow-date.ts";
 import { getReadingCompletionStreak } from "../_shared/reading-streak.ts";
+import { getCompletedReadingTextCount } from "../_shared/reading-history.ts";
 import { getSubscriptionSummary } from "../_shared/access.ts";
 import {
   AppError,
@@ -155,7 +156,13 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const [settings, subscription, homeProgress, streakDays] = await Promise.all([
+    const [
+      settings,
+      subscription,
+      homeProgress,
+      streakDays,
+      completedReadingTextCount,
+    ] = await Promise.all([
       getUserSettings(supabase, appUser.id),
       getSubscriptionSummary(supabase, appUser.id, "[auth-telegram]"),
       getSharedHomeProgress(supabase, appUser.id, "[auth-telegram]"),
@@ -165,6 +172,7 @@ Deno.serve(async (req: Request) => {
         getMoscowDate(),
         "[auth-telegram]",
       ),
+      getCompletedReadingTextCount(supabase, appUser.id, "[auth-telegram]"),
     ]);
 
     return successResponse(200, {
@@ -180,6 +188,7 @@ Deno.serve(async (req: Request) => {
       subscription,
       homeProgress,
       streakDays,
+      completedReadingTextCount,
     });
   } catch (error) {
     if (error instanceof AppError) {

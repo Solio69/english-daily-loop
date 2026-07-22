@@ -36,5 +36,6 @@ export type CompleteReadingTextResult = {
   completedDate: string;
   firstTextCompletedAt: string | null;
   isReadingCompletedToday: boolean;
-  streakDays: number;
+  streakDays?: number | null;
+  completedReadingTextCount?: number | null;
 };

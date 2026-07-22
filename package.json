@@ -10,8 +10,8 @@
     "build": "vite build",
     "build:telegram": "vite build --mode telegram-dev",
     "preview": "vite preview",
-    "preview:telegram": "vite preview --host=0.0.0.0 --port=3000 --strictPort",
-    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "preview:telegram": "vite preview --mode telegram-dev --outDir dist-telegram --host=0.0.0.0 --port=3000 --strictPort",
+    "clean": "node -e \"for (const dir of ['dist', 'dist-telegram']) require('node:fs').rmSync(dir, { recursive: true, force: true })\"",
     "lint": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts"
   },

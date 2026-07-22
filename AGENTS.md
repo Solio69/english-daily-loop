@@ -10,7 +10,7 @@
 - Целевой продукт: Telegram Mini App.
 - Вектор по данным: Supabase (Postgres).
 - Локальная инфраструктура уже настроена: Docker + WSL + Supabase local.
-- Локальный Telegram-запуск: `npm run dev:telegram` (отдельный dev-бот + изолированный `.env.telegram.local` + Supabase local + Edge Functions + API/frontend Quick Tunnels с ожиданием публикации URL + автообновление локальных `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` + frontend build + Vite preview + live-логи DB/API + startup summary). Команда не читает и не изменяет `.env.local` или production secrets.
+- Локальный Telegram-запуск: `npm run dev:telegram` (отдельный dev-бот + изолированный `.env.telegram.local` + Supabase local + Edge Functions + API/frontend Quick Tunnels с ожиданием публикации URL + автообновление локальных `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` + frontend build в `dist-telegram` + Vite preview + live-логи DB/API + startup summary). Команда не читает и не изменяет `.env.local` или production secrets; обычный production build использует отдельную папку `dist`.
 - Локальные Supabase-порты: API `54321`, DB `54322`, Studio `54323`, Mailpit `54324`, Analytics `54327`, Pooler `54329`; tunnels используют `127.0.0.1`, чтобы не зависеть от IPv6-резолва `localhost` на Windows.
 - Отдельного backend-сервера (Express) сейчас нет; backend-слой представлен Supabase API + Edge Functions.
 - Папка `tools/` используется для локальных утилит запуска (например, `cloudflared.exe`) и не коммитится.
@@ -109,7 +109,7 @@
 - Корневой `tsconfig.json` исключает `supabase/functions`, потому что Edge Functions работают в Deno-рантайме и не должны проверяться frontend `tsc`.
 - Общая server-инфраструктура Edge Functions находится в `supabase/functions/_shared/server.ts`: CORS, POST guard, JSON parsing, env helpers, Telegram `initData` validation, request id, безопасные JSON-ответы и `AppError`; общий helper safe AI diagnostics находится в `supabase/functions/_shared/ai-diagnostics.ts`.
 - Общая server-логика ролей, effective subscription summary и лимитов доступа находится в `supabase/functions/_shared/access.ts`; лимит, подсчет и обновление metadata попыток подготовки словарных карточек находятся в `supabase/functions/_shared/vocabulary-card-generation.ts`.
-- Общий helper московской учебной даты находится в `supabase/functions/_shared/moscow-date.ts`; server helper'ы повторения, home progress и streak находятся в `supabase/functions/_shared/vocabulary-review.ts`, `supabase/functions/_shared/vocabulary-review-state.ts`, `supabase/functions/_shared/home-progress.ts` и `supabase/functions/_shared/reading-streak.ts`.
+- Общий helper московской учебной даты находится в `supabase/functions/_shared/moscow-date.ts`; server helper'ы повторения, home progress, streak и счетчика истории находятся в `supabase/functions/_shared/vocabulary-review.ts`, `supabase/functions/_shared/vocabulary-review-state.ts`, `supabase/functions/_shared/home-progress.ts`, `supabase/functions/_shared/reading-streak.ts` и `supabase/functions/_shared/reading-history.ts`; best-effort расчет производных метрик после завершения чтения оркестрирует `supabase/functions/_shared/reading-completion-metrics.ts`.
 - Edge Functions `auth-telegram`, `save-user-settings`, `activate-subscription`, `complete-reading-text`, `dev-tools`, `get-reading-state`, `get-reading-history`, `generate-reading-text`, `save-vocabulary-word`, `get-vocabulary-state`, `get-vocabulary-words`, `get-vocabulary-review-state`, `review-vocabulary-word`, `prepare-vocabulary-cards`, `approve-vocabulary-card`, `approve-vocabulary-cards` и `submit-support-report` используют общий helper для Telegram auth/error/env/http слоя; бизнес-валидация остается внутри конкретных функций.
 - Telegram auth реализована через Edge Function `supabase/functions/auth-telegram/index.ts`:
   - серверная валидация `initData` (подпись + `auth_date`)
@@ -122,13 +122,14 @@
   - возвращает `homeProgress.reading.status` (`not_started | in_progress | completed`) для карточки дневного прогресса
   - возвращает `homeProgress.review` (`status`, `dueCount`, `reviewedTodayCount`) для шага повторения
   - возвращает `streakDays` для счетчика с иконкой огонька
+  - возвращает nullable `completedReadingTextCount` как общее количество завершенных текстов пользователя; временная ошибка агрегатного запроса не блокирует bootstrap
   - единый контракт ответа (`ok/data` или `ok/error`).
 - Сохранение настроек пользователя реализовано через Edge Function `supabase/functions/save-user-settings/index.ts`:
   - серверная валидация `Telegram initData`
   - валидация `english_level`, `daily_reading_minutes`
   - upsert в `public.user_settings`
   - заполнение `users.settings_completed_at`, если настройки сохраняются впервые
-  - возврат актуальных `settings`, `subscription`, `homeProgress` и `streakDays`.
+  - возврат актуальных `settings`, `subscription` и `homeProgress`; текущие `streakDays` и `completedReadingTextCount` сохраняются клиентом при обновлении профиля.
 - Роли приложения хранятся в `public.users.app_role`: `admin`, `tester`, `user`. `admin` и `tester` получают internal paid-like доступ без строки в `user_subscriptions`; `admin` дополнительно может использовать dev tools при включенном server env `DEV_TOOLS_ENABLED`.
 - MVP-подписки реализованы через таблицу `public.user_subscriptions`:
   - `plan_type`: `monthly` или `yearly`
@@ -175,7 +176,8 @@
   - сохранение отдельного snapshot прочитанного текста в `user_completed_reading_texts`
   - удаление активного непрочитанного текста текущей даты из `user_active_reading_texts`
   - заполнение `users.first_text_completed_at` только для онбординга, если это первый прочитанный текст пользователя.
-  - пересчет `streakDays` как серии подряд идущих дней по `user_daily_reading_completions`.
+  - best-effort пересчет `streakDays` как серии подряд идущих дней по `user_daily_reading_completions`.
+  - best-effort возврат `completedReadingTextCount` после сохранения snapshot; сбой производных метрик не меняет успешный результат уже выполненного RPC.
 - История прочитанных текстов реализована через Edge Function `supabase/functions/get-reading-history/index.ts`:
   - серверная валидация `Telegram initData`
   - чтение завершенных текстов текущего пользователя из `user_completed_reading_texts`
@@ -227,7 +229,7 @@
 - App-level состояние профиля, toast и пользовательские действия вынесены в hooks: `useAppUserProfile`, `useToast`, `useAppUserActions`; `App` остается composition root для навигации и сборки экранов.
 - Главная страница реализована как compact mobile-first экран: header с приветствием, трехпозиционным переключателем темы, теплой кнопкой настроек, карточкой дневного прогресса `Текст` + `Повторение` со streak, карточкой плана на сегодня и карточкой `Мои материалы`; entry подписки скрыт, пока `SHOW_SUBSCRIPTION_FLOW = false`.
 - Нижняя навигация содержит 4 пункта: `Главная`, `Текст`, `Слова`, `Материалы`; пункт `Материалы` открывает экран `Мои материалы` и подсвечивается на этом экране.
-- Bootstrap пользователя в `src/services/userService.ts` авторизуется через `auth-telegram` по Telegram `initData`; `AppUser` содержит `role`, `subscription`, `homeProgress` и `streakDays`.
+- Bootstrap пользователя в `src/services/userService.ts` авторизуется через `auth-telegram` по Telegram `initData`; `AppUser` содержит `role`, `subscription`, `homeProgress`, `streakDays` и nullable `completedReadingTextCount`.
 - Общий frontend helper Edge Function вызовов находится в `src/services/functionClient.ts`; модель ошибок, request id и diagnostic extraction вынесены в `src/services/edgeFunctionErrors.ts`, а последние клиентские события собираются в `src/services/clientLogger.ts`.
 - Client fallback подписки находится в `src/constants/subscriptionFallbacks.ts` и используется только как страховка bootstrap; source of truth для ролей, лимитов и подписок остается в Edge Functions.
 - `src/services/userService.ts` сохраняет настройки через `save-user-settings`; прямых записей в `users` и `user_settings` с клиента нет.
@@ -254,8 +256,9 @@
 - Для связи слов с текстами активные и завершенные тексты имеют стабильный `reading_text_id`; active text также хранит `reading_date`, а при завершении чтения RPC `complete_daily_reading_text` переносит этот id из `user_active_reading_texts` в `user_completed_reading_texts`.
 - Сохранение pending-слова выполняется через RPC `save_pending_vocabulary_word_with_source` с advisory lock по пользователю и проверкой `reading_date`; лимит словаря проверяется server-side по effective access (`free: 30`, `paid/internal: 300`), прямых записей словаря с клиента нет.
 - AI-карточка слова хранит базовую форму, перевод, часть речи, данные глагола при необходимости и 3 английских примера по уровню пользователя; подготовка карточек сохраняет валидную часть batch-а, мержит совпадения по канонической форме, не блокирует карточку только из-за некорректного echo-поля `level` от AI и оставляет слова с невалидным или отсутствующим AI-ответом в `pending`.
-- На главной есть компактная карточка `Мои материалы`; пункт нижней навигации `Материалы` открывает экран материалов, плитка `Тексты` открывает экран материалов на табе текстов, плитка `Словарь` открывает таб словаря и показывает краткое состояние по `get-vocabulary-state`: `Добавить: N` или `В словаре: N`.
+- На главной есть компактная карточка `Мои материалы`; пункт нижней навигации `Материалы` открывает экран материалов, плитка `Тексты` открывает таб текстов и показывает `Прочитано: N текст/текста/текстов` либо `История чтения`, если счетчик временно недоступен; плитка `Словарь` открывает таб словаря и показывает краткое состояние по `get-vocabulary-state`: `Добавить: N` или `В словаре: N`.
 - На главной карточка урока использует `homeProgress.lesson.status` и `homeProgress.lesson.currentStep`; daily lesson последовательно ведет на чтение, затем на повторение слов.
+- Шаг повторения на главной показывает `На сегодня нет слов`, когда сервер вернул `completed`, обязательный остаток равен нулю и `reviewedTodayCount = 0`; completed-подсветка при этом сохраняется.
 - Счетчик с иконкой огонька на главной использует `streakDays`, который сервер считает как серию подряд идущих завершений чтения по timezone `Europe/Moscow`; `useAppUserProfile` обновляет профиль при возврате в приложение и смене московской даты, чтобы пропущенный день сбрасывал видимую серию без ручного перезапуска.
 - Если генерация упала, новая попытка уже списана, новый текст не сохраняется, а ранее активный текст текущей даты остается доступен после завершения состояния загрузки.
 - После неуспешной генерации экран чтения повторно запрашивает `get-reading-state`, чтобы синхронизировать активный текст и оставшиеся попытки с сервером.
@@ -268,7 +271,7 @@
 - При bootstrap настройки пользователя должны приходить с backend, если `settings_completed_at` уже заполнен.
 - `users.first_text_completed_at` используется только для онбординга; ежедневный факт прочтения хранится отдельно в `user_daily_reading_completions`.
 - Экран настроек содержит уровень английского, время чтения, отправку отчета об ошибке через `src/components/settings/SupportReportCard.tsx` и опциональную ссылку обратной связи через `VITE_FEEDBACK_TELEGRAM_USERNAME`; dev tools панель отображается только для роли `admin` и свернута по умолчанию.
-- В состоянии "настройки сохранены, но первый текст еще не прочитан" раздел `Слова` заблокирован, но `Главная` и `Текст` доступны.
+- После сохранения первоначальных настроек доступны `Главная`, `Текст`, `Слова` и `Материалы`; дневной урок при этом по-прежнему начинается с шага `Текст`.
 - После нажатия "Завершить текст" active text текущей даты сохраняется в историю и удаляется; генерация в текущий день остается доступна, пока не исчерпан дневной лимит генераций.
 - Для прогресса дня и streak достаточно первого завершенного текста за дату; `user_completed_reading_texts` может хранить несколько завершенных текстов с одинаковым `completed_date`, различающихся `completed_at`.
 - App-level toast-сообщения вынесены в `src/components/Toast.tsx`: `AppToast` поддерживает variant-состояния `success`, `warning`, `error`, а совместимый wrapper `Toast` мапит текущие тоны `default`, `onboarding`, `success`, `error`; toast показывается сверху как floating glass card с кнопкой закрытия.
@@ -278,7 +281,7 @@
   - `BotFather /setmenubutton URL` = FRONTEND TUNNEL URL
   - `.env.telegram.local VITE_SUPABASE_URL` = SUPABASE API TUNNEL URL.
 - Каждый Quick Tunnel создается один раз; команда ждёт публикацию URL в выводе `cloudflared`, но не блокирует запуск публичной DNS/HTTP-проверкой. `STARTUP SUMMARY` печатается после получения обоих URL.
-- `npm run dev:telegram` запускает production-like локальный режим для Telegram: Supabase + Edge Functions + API tunnel + frontend build + Vite preview + frontend tunnel.
+- `npm run dev:telegram` запускает production-like локальный режим для Telegram: Supabase + Edge Functions + API tunnel + frontend build в `dist-telegram` + Vite preview в mode `telegram-dev` + frontend tunnel. Обычный `pnpm build` пишет только в `dist` и не перезаписывает активный Telegram dev bundle.
 - Новые миграции без пересоздания БД применяются через `npx supabase migration up`; полный `npx supabase db reset` пересоздает локальную БД и удаляет текущие локальные данные.
 - `npm run dev:telegram` поднимает Edge Functions `approve-vocabulary-card`, `approve-vocabulary-cards`, `auth-telegram`, `save-user-settings`, `activate-subscription`, `complete-reading-text`, `dev-tools`, `get-reading-state`, `get-reading-history`, `get-vocabulary-review-state`, `review-vocabulary-word`, `get-vocabulary-state`, `get-vocabulary-words`, `generate-reading-text`, `prepare-vocabulary-cards`, `save-vocabulary-word` и `submit-support-report`.
 - Логи в dev-режимах цветные по источнику (`[frontend]`, `[edge]`, `[db]`, `[api]`, `[tunnel-*]`), HTTP-методы и статус-коды дополнительно подсвечиваются.
