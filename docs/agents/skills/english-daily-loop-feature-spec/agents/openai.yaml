@@ -1,0 +1,4 @@
+interface:
+  display_name: "English Daily Loop Feature Spec"
+  short_description: "Груминг и спецификация новых фич проекта"
+  default_prompt: "Используй $english-daily-loop-feature-spec, чтобы оформить идею новой фичи в согласуемую спецификацию с подробным ручным тестированием."

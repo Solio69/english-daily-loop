@@ -330,7 +330,10 @@ pnpm build
 - `GIT_POLICY.md` — строгая политика Git для AI-агентов.
 - `docs/agents/LOCAL_TELEGRAM_RUN.md` — подробный локальный запуск внутри Telegram.
 - `docs/agents/DESIGN_SYSTEM.md` — актуальная дизайн-система приложения.
+- `docs/agents/references/manual-testing-guide.md` — единый формат подробных сценариев ручного тестирования для фич и баг-пачек.
 - `docs/agents/skills/english-daily-loop-support-triage` — project-local skill source для разбора support reports и AI diagnostics.
+- `docs/agents/skills/triage-english-daily-loop-bugs` — project-local skill source для pre-code разбора сырых багов и формирования согласуемых баг-пачек.
+- `docs/agents/skills/english-daily-loop-feature-spec` — project-local skill source для grooming новых фич, подготовки согласуемой спецификации и подробного checklist ручного тестирования.
 - `notes/server-side-data-guards.md` — серверные границы доступа, RLS и транзакционные RPC.
 - `notes/security-threat-model.md` — модель угроз MVP и чеклист security-аудита.
 - `notes/security-audit-2026-04-30.md` — результат проверки базового security-контура.

@@ -17,10 +17,13 @@
 
 ## Документация для агентов
 - Актуальная дизайн-система: `docs/agents/DESIGN_SYSTEM.md`.
+- Общие правила подробного ручного тестирования фич и баг-пачек: `docs/agents/references/manual-testing-guide.md`.
 - Подробности локального Telegram-запуска: `docs/agents/LOCAL_TELEGRAM_RUN.md`.
 - Шаблон локального Telegram env: `.env.telegram.example`; inventory production env: `.env.production.example` и `notes/production-env.md`.
 - Project-local skill sources лежат в `docs/agents/skills`; они не устанавливаются автоматически в `~/.codex/skills`.
 - Для разбора пользовательских отчетов об ошибках использовать skill source `docs/agents/skills/english-daily-loop-support-triage`.
+- Для pre-code разбора сырых багов и формирования согласуемых баг-пачек использовать skill source `docs/agents/skills/triage-english-daily-loop-bugs`.
+- Для grooming новых фич и создания согласуемых feature draft использовать skill source `docs/agents/skills/english-daily-loop-feature-spec`; канонические draft-файлы создаются в `D:\anastasiaStorage\pet-projects\English daily loop\Фичи`, а подробный ручной checklist является обязательной частью спецификации.
 
 ## Правила коммуникации
 - По умолчанию объяснять на русском языке.
@@ -37,10 +40,11 @@
 - Перед изменениями с неочевидными последствиями явно подтверждать направление.
 
 ### Согласованные баг-пачки
-- Внешняя база багов находится в `D:\anastasiaStorage\pet-projects\English daily loop\Баги`; pre-code workflow оркестратора описан skill source `D:\anastasiaStorage\AI Автоматизации\Скиллы\triage-english-daily-loop-bugs`.
-- Статус пачки `approved_for_dev` означает, что продуктовый scope, ожидаемое поведение, acceptance criteria и ручные проверки явно согласованы владельцем.
-- Перед реализацией кодинг-агент обязан сверить пачку с актуальными кодом, документацией и Git HEAD, дополнить ее техническим планом и затем выполнять этот план без отдельного согласования.
-- Кодинг-агент должен остановиться и запросить решение, если реализация меняет согласованный scope или поведение, требует несогласованного дизайна, миграции или изменения данных БД, затрагивает auth/RLS/grants сверх согласованной задачи, требует действий с секретами либо обнаруживает настоящий технический блокер.
+- Внешняя база багов находится в `D:\anastasiaStorage\pet-projects\English daily loop\Баги`; pre-code workflow оркестратора описан skill source `docs/agents/skills/triage-english-daily-loop-bugs`.
+- Статус пачки `готово к разработке` означает, что продуктовый scope, ожидаемое поведение, acceptance criteria и ручные проверки явно согласованы владельцем.
+- Перед реализацией кодинг-агент обязан сверить пачку с актуальными кодом, документацией и Git HEAD, поставить статус `в разработке`, дополнить ее техническим планом и затем выполнять этот план без отдельного согласования.
+- После реализации и автоматических проверок кодинг-агент ставит пачке статус `готово к ручной проверке`; checklist отмечает и статус `проверено` ставит только владелец.
+- Кодинг-агент должен остановиться и запросить решение, если реализация меняет согласованный scope или поведение, требует несогласованного дизайна, несогласованной миграции или изменения данных БД, затрагивает auth/RLS/grants сверх согласованной задачи, требует действий с секретами либо обнаруживает настоящий технический блокер.
 - Это исключение не отменяет запреты на применение миграций, изменение данных БД, установку сторонних пакетов и изменяющие Git-команды.
 - Для новых фич и несогласованных улучшений сохраняется обычный flow: обсуждение, продуктовые решения, пошаговый план и явное разрешение на реализацию.
 
@@ -300,6 +304,8 @@
 - Роли, effective access и MVP-подписки зафиксированы в `notes/subscriptions.md`.
 - Отчеты об ошибках, request id и diagnostic snapshot зафиксированы в `notes/support-diagnostics.md`.
 - Skill source для triage support reports лежит в `docs/agents/skills/english-daily-loop-support-triage`.
+- Skill source для pre-code triage багов и формирования пачек лежит в `docs/agents/skills/triage-english-daily-loop-bugs`.
+- Skill source для grooming новых фич лежит в `docs/agents/skills/english-daily-loop-feature-spec`; draft-файлы фич хранятся во внешней папке `D:\anastasiaStorage\pet-projects\English daily loop\Фичи`.
 - Ссылка обратной связи из настроек зафиксирована в `notes/feedback-link.md`.
 - Production-схема деплоя зафиксирована в `notes/deployment-platform-decision.md`: frontend на Vercel, backend/data на Supabase Cloud.
 - Production env inventory зафиксирован в `notes/production-env.md`; реальные секреты в репозиторий не записывать.
