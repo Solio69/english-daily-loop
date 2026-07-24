@@ -14,7 +14,7 @@ test("empty completed review day has a distinct label and completed state", () =
     }),
     {
       state: "done",
-      label: "На сегодня нет слов",
+      label: "Слов на повторение нет",
     },
   );
 });

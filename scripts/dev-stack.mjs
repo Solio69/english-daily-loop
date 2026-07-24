@@ -151,7 +151,7 @@ async function assertLocalOriginReady(label, url) {
   );
 }
 
-// TODO: Local Telegram WebView is served from a production-like bundle to avoid Vite dev client stalls through quick tunnels.
+// TODO: Local Telegram WebView uses a production-like bundle because Vite dev client/HMR can stall through quick tunnels.
 async function buildFrontend() {
   process.stdout.write("[frontend-build] building frontend bundle for Telegram...\n");
   await runOnce(
@@ -160,6 +160,27 @@ async function buildFrontend() {
     "frontend build",
     { env: getTelegramDevChildEnv(), replaceEnv: true },
   );
+}
+
+function startFrontendWatcher() {
+  const watcher = spawnLabeled(
+    commands.pnpm,
+    ["watch:telegram"],
+    "frontend-watch",
+    { env: getTelegramDevChildEnv(), replaceEnv: true },
+  );
+  children.push(watcher);
+  watcher.on("exit", (code) => {
+    if (shuttingDown) {
+      return;
+    }
+
+    process.stderr.write(
+      `\n[frontend-watch] exited with code ${code ?? "unknown"}; ` +
+        "stopping local stack because frontend changes are no longer tracked.\n",
+    );
+    shutdown(1);
+  });
 }
 
 // TODO: Local frontend stays on port 3000 because the Telegram tunnel targets that port.
@@ -350,6 +371,7 @@ async function main() {
   highlightTunnelUrl("api", tunnelUrls.api);
   await buildFrontend();
   startFrontend();
+  startFrontendWatcher();
   await assertLocalOriginReady("Frontend preview", localFrontendTunnelTarget);
   tunnelUrls.frontend = await startFrontendTunnel();
   highlightTunnelUrl("frontend", tunnelUrls.frontend);

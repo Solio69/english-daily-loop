@@ -20,7 +20,7 @@ Telegram Mini App для ежедневной практики английск�
 - Экран настроек использует mobile-first glass UI для выбора уровня английского и времени чтения.
 - Дневной прогресс и план урока объединяют последовательные шаги `Текст` и `Повторение`.
 - После первоначальной настройки раздел `Слова` доступен независимо от завершения первого текста; дневной урок по-прежнему начинается с чтения.
-- Пустой шаг повторения отображается как `На сегодня нет слов` и сохраняет completed-стиль дневного прогресса.
+- Пустой шаг повторения отображается как `Слов на повторение нет` и сохраняет completed-стиль дневного прогресса.
 - Единые app-level toast-сообщения показываются сверху как floating glass card с variant-состояниями `success`, `warning`, `error`.
 - Общие UI primitives: `ScreenHeader`, `LoadingState`, `InlineStatusCard`, shared `Button`.
 - Роли доступа `admin` / `tester` / `user`; `admin` и `tester` получают internal paid-like доступ без платежей, а пользовательский flow подписки скрыт до подключения реальной оплаты.
@@ -217,6 +217,7 @@ npm run dev:telegram
 - автоматически обновляет `VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY` только в `.env.telegram.local`;
 - собирает frontend через изолированный `pnpm build:telegram` в `dist-telegram`;
 - запускает frontend через Vite preview в mode `telegram-dev` на `localhost:3000`;
+- автоматически пересобирает `dist-telegram` после изменений frontend-кода;
 - поднимает Quick Tunnel для frontend и ждёт появления URL в выводе `cloudflared`;
 - показывает логи frontend, Edge Functions, DB и API;
 - печатает `STARTUP SUMMARY` с URL для BotFather после получения обоих публичных адресов.
@@ -320,7 +321,8 @@ pnpm build
 - Server-only таблицы и RPC должны оставаться закрытыми для `anon` и `authenticated`; новые чувствительные операции нужно добавлять через Edge Functions и миграции прав доступа.
 - Edge Functions работают в Deno runtime и исключены из корневого frontend `tsconfig.json`.
 - Панель dev tools показывается только пользователю с ролью `admin`, а изменения БД выполняются только при server env `DEV_TOOLS_ENABLED="true"` и server-side проверке `users.app_role = 'admin'`.
-- После изменения frontend-кода, Edge Functions или server env нужно перезапустить `npm run dev:telegram`.
+- После изменения frontend-кода дождись сообщения `[frontend-watch]` об успешной пересборке и обнови Mini App; tunnel и `dev:telegram` перезапускать не нужно.
+- После изменения `.env.telegram.local`, Vite config, dependencies или server env перезапусти `npm run dev:telegram`.
 - После существенных изменений стоит запускать минимум `pnpm lint`.
 
 ## Документация проекта

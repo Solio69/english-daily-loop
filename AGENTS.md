@@ -1,21 +1,24 @@
 ﻿# AGENTS.md
 
 ## Назначение
+
 Этот файл фиксирует правила работы AI-агентов в репозитории, чтобы процесс был предсказуемым, безопасным и удобным для владельца проекта.
 
 ## Контекст проекта
+
 - Проект: `english-daily-loop`.
 - Текущий стек: Vite + React + TypeScript.
 - Пакетный менеджер: `pnpm`.
 - Целевой продукт: Telegram Mini App.
 - Вектор по данным: Supabase (Postgres).
 - Локальная инфраструктура уже настроена: Docker + WSL + Supabase local.
-- Локальный Telegram-запуск: `npm run dev:telegram` (отдельный dev-бот + изолированный `.env.telegram.local` + Supabase local + Edge Functions + API/frontend Quick Tunnels с ожиданием публикации URL + автообновление локальных `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` + frontend build в `dist-telegram` + Vite preview + live-логи DB/API + startup summary). Команда не читает и не изменяет `.env.local` или production secrets; обычный production build использует отдельную папку `dist`.
+- Локальный Telegram-запуск: `npm run dev:telegram` (отдельный dev-бот + изолированный `.env.telegram.local` + Supabase local + Edge Functions + API/frontend Quick Tunnels с ожиданием публикации URL + автообновление локальных `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` + frontend build/watch в `dist-telegram` + Vite preview + live-логи DB/API + startup summary). Команда не читает и не изменяет `.env.local` или production secrets; обычный production build использует отдельную папку `dist`.
 - Локальные Supabase-порты: API `54321`, DB `54322`, Studio `54323`, Mailpit `54324`, Analytics `54327`, Pooler `54329`; tunnels используют `127.0.0.1`, чтобы не зависеть от IPv6-резолва `localhost` на Windows.
 - Отдельного backend-сервера (Express) сейчас нет; backend-слой представлен Supabase API + Edge Functions.
 - Папка `tools/` используется для локальных утилит запуска (например, `cloudflared.exe`) и не коммитится.
 
 ## Документация для агентов
+
 - Актуальная дизайн-система: `docs/agents/DESIGN_SYSTEM.md`.
 - Общие правила подробного ручного тестирования фич и баг-пачек: `docs/agents/references/manual-testing-guide.md`.
 - Подробности локального Telegram-запуска: `docs/agents/LOCAL_TELEGRAM_RUN.md`.
@@ -26,6 +29,7 @@
 - Для grooming новых фич и создания согласуемых feature draft использовать skill source `docs/agents/skills/english-daily-loop-feature-spec`; канонические draft-файлы создаются в `D:\anastasiaStorage\pet-projects\English daily loop\Фичи`, а подробный ручной checklist является обязательной частью спецификации.
 
 ## Правила коммуникации
+
 - По умолчанию объяснять на русском языке.
 - Каждую команду объяснять перед запуском: что она делает и зачем.
 - В режимах настройки и отладки с пользователем давать по одной команде за шаг.
@@ -34,12 +38,14 @@
 - Предпочитать короткие и практичные инструкции вместо длинной теории.
 
 ## Правила принятия решений
+
 - Не спешить с реализацией, пока архитектурный выбор не согласован.
 - Для решений с компромиссами (стоимость, безопасность, lock-in) кратко показывать варианты.
 - Предпочитать маленькие итеративные изменения вместо крупных рефакторингов.
 - Перед изменениями с неочевидными последствиями явно подтверждать направление.
 
 ### Согласованные баг-пачки
+
 - Внешняя база багов находится в `D:\anastasiaStorage\pet-projects\English daily loop\Баги`; pre-code workflow оркестратора описан skill source `docs/agents/skills/triage-english-daily-loop-bugs`.
 - Статус пачки `готово к разработке` означает, что продуктовый scope, ожидаемое поведение, acceptance criteria и ручные проверки явно согласованы владельцем.
 - Перед реализацией кодинг-агент обязан сверить пачку с актуальными кодом, документацией и Git HEAD, поставить статус `в разработке`, дополнить ее техническим планом и затем выполнять этот план без отдельного согласования.
@@ -49,17 +55,20 @@
 - Для новых фич и несогласованных улучшений сохраняется обычный flow: обсуждение, продуктовые решения, пошаговый план и явное разрешение на реализацию.
 
 ## Технический вектор (по умолчанию)
+
 - Для MVP сначала использовать Supabase.
 - Изолировать доступ к данным в сервисном слое, чтобы позже можно было перейти на обычный Postgres.
 - Не смешивать бизнес-логику и UI-компоненты без необходимости.
 - Общие доменные типы держать в `src/types`.
 
 ## Ограничения Telegram Mini App
+
 - Использовать `telegram_user_id` как стабильный идентификатор пользователя.
 - Проверку `Telegram initData` выполнять только на серверной стороне.
 - Не хранить и не использовать чувствительные ключи в клиентском коде.
 
 ## Правила безопасности
+
 - Никогда не коммитить реальные ключи, токены и секреты.
 - Общие локальные секреты хранить в gitignored env-файлах, а требования документировать в соответствующих `*.example`; `dev:telegram` использует только `.env.telegram.local`, создаваемый из `.env.telegram.example`.
 - `SUPABASE_SERVICE_ROLE_KEY` использовать только на сервере.
@@ -68,6 +77,7 @@
 - Не ослаблять контроль доступа ради скорости разработки.
 
 ## Правила внесения изменений
+
 - Сохранять текущую структуру и стиль проекта, если явный рефакторинг не запрошен.
 - Делать небольшие, проверяемые изменения.
 - Не использовать разрушительные git/file операции без явного запроса.
@@ -75,12 +85,14 @@
 - Для изменений повторения, навигации и общих frontend helpers запускать `pnpm test`.
 
 ## Жесткая Git-политика
+
 - Агенту запрещены любые команды, меняющие историю или состояние репозитория: `git commit`, `git push`, `git merge`, `git rebase`, `git cherry-pick`, `git reset`, `git revert`, `git tag`, `git stash`, `git checkout` (для переключения/отката), `git switch`, `git restore`, `git clean`.
 - Агент может использовать Git только в режиме чтения: `git status`, `git log`, `git diff`, `git show`, `git blame`, `git branch --show-current`, `git rev-parse`.
 - Это строгое правило без исключений, пока пользователь явно не изменит политику в репозитории.
 - Детальная формулировка вынесена в отдельный файл: `GIT_POLICY.md`.
 
 ## Текущий статус (для будущих агентов)
+
 - Supabase local и Docker-окружение уже работают.
 - Уже подключены и используются таблицы `public.users`, `public.user_settings`, `public.reading_texts`, `public.reading_generation_attempts`, `public.user_active_reading_texts`, `public.user_daily_reading_completions`, `public.user_completed_reading_texts`, `public.user_subscriptions`, `public.user_vocabulary_words`, `public.user_vocabulary_word_sources`, `public.vocabulary_card_generation_attempts`, `public.user_daily_vocabulary_review_completions` и `public.support_reports`.
 - В `public.user_settings` есть настройки `english_level`, `daily_reading_minutes`.
@@ -264,7 +276,7 @@
 - AI-карточка слова хранит базовую форму, перевод, часть речи, данные глагола при необходимости и 3 английских примера по уровню пользователя; подготовка карточек сохраняет валидную часть batch-а, мержит совпадения по канонической форме, не блокирует карточку только из-за некорректного echo-поля `level` от AI и оставляет слова с невалидным или отсутствующим AI-ответом в `pending`.
 - На главной есть компактная карточка `Мои материалы`; пункт нижней навигации `Материалы` открывает экран материалов, плитка `Тексты` открывает таб текстов и показывает `Прочитано: N текст/текста/текстов` либо `История чтения`, если счетчик временно недоступен; плитка `Словарь` открывает таб словаря и показывает краткое состояние по `get-vocabulary-state`: `Добавить: N` или `В словаре: N`.
 - На главной карточка урока использует `homeProgress.lesson.status` и `homeProgress.lesson.currentStep`; daily lesson последовательно ведет на чтение, затем на повторение слов.
-- Шаг повторения на главной показывает `На сегодня нет слов`, когда сервер вернул `completed`, обязательный остаток равен нулю и `reviewedTodayCount = 0`; completed-подсветка при этом сохраняется.
+- Шаг повторения на главной показывает `Слов на повторение нет`, когда сервер вернул `completed`, обязательный остаток равен нулю и `reviewedTodayCount = 0`; completed-подсветка при этом сохраняется.
 - Счетчик с иконкой огонька на главной использует `streakDays`, который сервер считает как серию подряд идущих завершений чтения по учебным датам с границей `05:00 Europe/Moscow`; `useAppUserProfile` обновляет профиль при возврате в приложение и смене учебной даты, чтобы пропущенный день сбрасывал видимую серию без ручного перезапуска.
 - Если генерация упала, новая попытка уже списана, новый текст не сохраняется, а ранее активный текст независимо от даты генерации остается доступен после завершения состояния загрузки.
 - После неуспешной генерации экран чтения повторно запрашивает `get-reading-state`, чтобы синхронизировать активный текст и оставшиеся попытки с сервером.
@@ -287,14 +299,14 @@
   - `BotFather /setmenubutton URL` = FRONTEND TUNNEL URL
   - `.env.telegram.local VITE_SUPABASE_URL` = SUPABASE API TUNNEL URL.
 - Каждый Quick Tunnel создается один раз; команда ждёт публикацию URL в выводе `cloudflared`, но не блокирует запуск публичной DNS/HTTP-проверкой. `STARTUP SUMMARY` печатается после получения обоих URL.
-- `npm run dev:telegram` запускает production-like локальный режим для Telegram: Supabase + Edge Functions + API tunnel + frontend build в `dist-telegram` + Vite preview в mode `telegram-dev` + frontend tunnel. Обычный `pnpm build` пишет только в `dist` и не перезаписывает активный Telegram dev bundle.
+- `npm run dev:telegram` запускает production-like локальный режим для Telegram: Supabase + Edge Functions + API tunnel + frontend build и watcher в `dist-telegram` + Vite preview в mode `telegram-dev` + frontend tunnel. Обычный `pnpm build` пишет только в `dist` и не перезаписывает активный Telegram dev bundle.
 - Новые миграции без пересоздания БД применяются через `npx supabase migration up`; полный `npx supabase db reset` пересоздает локальную БД и удаляет текущие локальные данные.
 - `npm run dev:telegram` поднимает Edge Functions `approve-vocabulary-card`, `approve-vocabulary-cards`, `auth-telegram`, `save-user-settings`, `activate-subscription`, `complete-reading-text`, `dev-tools`, `get-reading-state`, `get-reading-history`, `get-vocabulary-review-state`, `review-vocabulary-word`, `get-vocabulary-state`, `get-vocabulary-words`, `generate-reading-text`, `prepare-vocabulary-cards`, `save-vocabulary-word` и `submit-support-report`.
 - Логи в dev-режимах цветные по источнику (`[frontend]`, `[edge]`, `[db]`, `[api]`, `[tunnel-*]`), HTTP-методы и статус-коды дополнительно подсвечиваются.
-- `// TODO:` после изменения frontend-кода, кода Edge Functions или server env для OpenRouter (`OPENROUTER_MODEL_*`, `OPENROUTER_API_KEY`) перезапускать активный dev-режим, чтобы локальная среда подхватила актуальную версию функций, env и frontend bundle.
+- После изменения frontend-кода дождаться успешной пересборки `[frontend-watch]` и обновить Mini App без перезапуска tunnel. Полный dev-режим перезапускать после изменения server env для OpenRouter (`OPENROUTER_MODEL_*`, `OPENROUTER_API_KEY`), `.env.telegram.local`, Vite config, dependencies или завершения обязательного процесса.
 - Quick Tunnel URL создаются один раз и не блокируют запуск Node DNS readiness-check: Windows `getaddrinfo` может временно сохранять отрицательный DNS-результат после публикации публичной записи. Если новый URL сразу не открылся в Telegram, нужно повторить открытие через несколько секунд, не перезапуская dev-stack.
 - После ответа BotFather `Success! Menu settings updated` Telegram Desktop может показать прежний текст menu button ещё некоторое время из-за клиентского кеша. Текущий dev-stack и Quick Tunnel нужно оставить запущенными; перезапуск требуется только при фактическом завершении обязательного процесса или недоступности URL после ожидания.
-- Неожиданное завершение frontend, Edge Functions или любого tunnel останавливает dev-stack с ошибкой; завершение необязательного DB/API log-stream только фиксируется в логах.
+- Неожиданное завершение frontend preview, frontend watcher, Edge Functions или любого tunnel останавливает dev-stack с ошибкой; завершение необязательного DB/API log-stream только фиксируется в логах.
 - Live-потоки DB/API используют `docker logs --tail 0 --follow`, чтобы накопленная история контейнеров не скрывала `STARTUP SUMMARY`.
 - Для локального Telegram-старта использовать `npm run dev:telegram`, для остановки Supabase: `npm run dev:stop`.
 - Security-контекст зафиксирован в `notes/security-threat-model.md`, результат проверки базового контура — в `notes/security-audit-2026-04-30.md`.

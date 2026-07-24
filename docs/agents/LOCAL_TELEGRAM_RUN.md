@@ -72,6 +72,7 @@
 5. Смотреть логи в этом же терминале:
 
 - `[frontend]` — Vite preview со свежей production-like сборкой из `dist-telegram`
+- `[frontend-watch]` — автоматическая пересборка `dist-telegram` после изменений frontend-кода
 - `[edge]` — Supabase Edge Functions
 - `[api]` — Supabase API
 - `[db]` — Postgres
@@ -88,16 +89,25 @@
 5. После получения URL обновляет `VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY` только в `.env.telegram.local`.
 6. Собирает frontend (`pnpm build:telegram`) с env, переданным скриптом, в отдельную папку `dist-telegram`; Vite не загружает обычные env-файлы для mode `telegram-dev`.
 7. Запускает frontend через Vite preview (`pnpm preview:telegram`) в mode `telegram-dev` на `localhost:3000` и обслуживает `dist-telegram`.
-8. Поднимает HTTPS Quick Tunnel для frontend (`localhost:3000`) и ждёт появления URL в выводе `cloudflared`.
-9. Печатает `STARTUP SUMMARY` с именем dev-бота и двумя созданными URL.
-10. Подключает live-логи DB/API только с момента запуска stream (`docker logs --tail 0 --follow`), чтобы старая история контейнеров не скрывала summary.
+8. Запускает `pnpm watch:telegram` с тем же изолированным env; watcher автоматически пересобирает `dist-telegram` при изменении frontend-кода.
+9. Поднимает HTTPS Quick Tunnel для frontend (`localhost:3000`) и ждёт появления URL в выводе `cloudflared`.
+10. Печатает `STARTUP SUMMARY` с именем dev-бота и двумя созданными URL.
+11. Подключает live-логи DB/API только с момента запуска stream (`docker logs --tail 0 --follow`), чтобы старая история контейнеров не скрывала summary.
 
 Обычный `pnpm build` использует только `dist`, поэтому production-проверка не
 перезаписывает bundle уже запущенного Telegram dev-preview. После изменения
-frontend-кода активный `dev:telegram` по-прежнему нужно перезапустить: preview
-обслуживает статическую сборку без HMR.
+frontend-кода дождись успешного сообщения `[frontend-watch]` и обнови либо
+повторно открой Mini App. Tunnel, BotFather URL и весь `dev:telegram`
+перезапускать не нужно.
 
-Frontend, Edge Functions и оба tunnel являются обязательными процессами. Если один из них неожиданно завершается, команда останавливает весь локальный стек с ошибкой. Потоки DB/API-логов вспомогательные: их завершение только фиксируется в терминале.
+Watcher пересобирает production-like bundle, но не использует HMR: состояние
+открытой страницы не заменяется автоматически. Не запускай
+`pnpm build:telegram` вручную во время активного dev-stack — изолированный
+Telegram-env передает именно оркестратор. Полный перезапуск требуется после
+изменения `.env.telegram.local`, `vite.config.ts`, package dependencies или
+обязательного процесса инфраструктуры.
+
+Frontend preview, frontend watcher, Edge Functions и оба tunnel являются обязательными процессами. Если один из них неожиданно завершается, команда останавливает весь локальный стек с ошибкой. Потоки DB/API-логов вспомогательные: их завершение только фиксируется в терминале.
 
 Локально поднимаются Edge Functions:
 

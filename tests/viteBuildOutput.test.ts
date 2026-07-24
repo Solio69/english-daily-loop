@@ -21,3 +21,26 @@ test("Telegram preview explicitly serves the isolated build directory", () => {
   assert.match(previewScript, /--mode telegram-dev/);
   assert.match(previewScript, /--outDir dist-telegram/);
 });
+
+test("Telegram frontend watcher rebuilds the isolated bundle with dev-stack env", () => {
+  const packageJson = JSON.parse(
+    readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+  ) as { scripts?: Record<string, string> };
+  const watcherScript = packageJson.scripts?.["watch:telegram"] ?? "";
+  const devStackSource = readFileSync(
+    new URL("../scripts/dev-stack.mjs", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(watcherScript, /^vite build /);
+  assert.match(watcherScript, /--mode telegram-dev/);
+  assert.match(watcherScript, /--watch/);
+  assert.match(
+    devStackSource,
+    /\["watch:telegram"\],[\s\S]*?\{\s*env:\s*getTelegramDevChildEnv\(\),\s*replaceEnv:\s*true\s*\}/,
+  );
+  assert.match(
+    devStackSource,
+    /startFrontend\(\);\s*startFrontendWatcher\(\);/,
+  );
+});

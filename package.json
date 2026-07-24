@@ -9,6 +9,7 @@
     "dev:stop": "npx supabase stop",
     "build": "vite build",
     "build:telegram": "vite build --mode telegram-dev",
+    "watch:telegram": "vite build --mode telegram-dev --watch",
     "preview": "vite preview",
     "preview:telegram": "vite preview --mode telegram-dev --outDir dist-telegram --host=0.0.0.0 --port=3000 --strictPort",
     "clean": "node -e \"for (const dir of ['dist', 'dist-telegram']) require('node:fs').rmSync(dir, { recursive: true, force: true })\"",

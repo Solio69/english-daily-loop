@@ -112,9 +112,7 @@ Use:
 
 ```tsx
 <div className="min-h-[100dvh] w-full bg-[var(--background)]">
-  <main className="flex min-h-[100dvh] w-full flex-col pb-20">
-    ...
-  </main>
+  <main className="flex min-h-[100dvh] w-full flex-col pb-20">...</main>
 </div>
 ```
 
@@ -193,7 +191,7 @@ Progress steps:
 - status text: `14px`, `leading-5`.
 - connector width: `80px`; на `390px+` используется `96px`.
 - Completed review with `reviewedTodayCount = 0` and no required words uses the
-  status text `На сегодня нет слов` while keeping the primary/cyan completed
+  status text `Слов на повторение нет` while keeping the primary/cyan completed
   icon state.
 
 Chips:

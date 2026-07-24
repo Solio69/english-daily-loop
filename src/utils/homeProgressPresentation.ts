@@ -35,16 +35,14 @@ export const getReviewProgressPresentation = ({
   return {
     state,
     label: isEmptyCompletedDay
-      ? "На сегодня нет слов"
+      ? "Слов на повторение нет"
       : REVIEW_STATUS_LABELS[status],
   };
 };
 
 const TEXT_FORMS = ["текст", "текста", "текстов"] as const;
 
-export const getCompletedReadingTextLabel = (
-  count: number | null,
-): string =>
+export const getCompletedReadingTextLabel = (count: number | null): string =>
   count === null
     ? "История чтения"
     : `Прочитано: ${count} ${getRussianPlural(count, TEXT_FORMS)}`;
