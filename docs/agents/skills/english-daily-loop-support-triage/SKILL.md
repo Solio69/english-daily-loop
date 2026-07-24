@@ -1,72 +1,72 @@
 ---
 name: english-daily-loop-support-triage
-description: Analyze english-daily-loop support reports and production/local diagnostics. Use when Codex needs to inspect or explain entries from public.support_reports, correlate request_ids with Edge Function logs, triage AI generation failures, review safe AI diagnostics, or propose fixes from user-submitted error reports.
+description: "Анализировать отчёты поддержки и production/local диагностику English Daily Loop. Использовать, когда Codex должен проверить или объяснить записи из public.support_reports, сопоставить request_ids с логами Edge Functions, разобрать ошибки AI-генерации, изучить безопасную AI-диагностику или предложить исправления по пользовательским отчётам об ошибках."
 ---
 
-# English Daily Loop Support Triage
+# Разбор отчётов поддержки English Daily Loop
 
-## Overview
+## Назначение
 
-Use this skill to triage user-submitted error reports for `english-daily-loop`. Keep the analysis read-only unless the user explicitly asks for a code fix after the diagnosis.
+Разбирать пользовательские отчёты об ошибках в `english-daily-loop`. До явного запроса пользователя на исправление кода проводить только read-only анализ и диагностику.
 
-## Required Project Context
+## Обязательный контекст проекта
 
-Before diagnosing, read the current project docs if they are available in the repo:
+Перед диагностикой прочитать актуальную проектную документацию, если она есть в репозитории:
 
 - `AGENTS.md`
 - `notes/support-diagnostics.md`
-- `notes/ai-observability-diagnostics.md` when AI diagnostics are present
-- `notes/security-threat-model.md` when the report touches auth, secrets, access, or DB exposure
+- `notes/ai-observability-diagnostics.md`, если отчёт содержит AI-диагностику
+- `notes/security-threat-model.md`, если отчёт затрагивает auth, secrets, доступ или раскрытие данных БД
 
-## Safety Rules
+## Правила безопасности
 
-- Do not apply migrations or mutate DB data.
-- Do not ask the user to paste Telegram `initData`, tokens, provider raw responses, full prompts, full generated texts, or secrets.
-- Use read-only SQL only.
-- Treat `public.support_reports` as sensitive operational data. Quote only the relevant fields in the answer.
-- If you do not have DB access, ask the user for either the report id plus exported report row, or screenshots/SQL output from the read-only queries.
+- Не применять миграции и не изменять данные БД.
+- Не просить пользователя присылать Telegram `initData`, токены, необработанные ответы провайдера, полные prompts, полные сгенерированные тексты или secrets.
+- Использовать только read-only SQL.
+- Считать `public.support_reports` чувствительными операционными данными. Цитировать в ответе только релевантные поля.
+- Если доступа к БД нет, запросить у пользователя идентификатор отчёта вместе с экспортированной строкой либо скриншоты/вывод read-only SQL-запросов.
 
-## Triage Workflow
+## Порядок разбора
 
-1. Identify the report.
-   - Prefer a concrete `support_reports.id`.
-   - If there is no id, inspect the latest reports by `created_at`.
+1. Найти отчёт.
+   - Предпочитать конкретный `support_reports.id`.
+   - Если идентификатора нет, проверить последние отчёты по `created_at`.
 
-2. Read the report shape.
-   - Check `user_comment`, `current_screen`, `created_at`, `request_ids`, `ai_diagnostics`, `events`, and `app_context`.
-   - Note `telegram_user_id`, `app_role`, and effective access only as debugging context.
+2. Изучить содержимое отчёта.
+   - Проверить `user_comment`, `current_screen`, `created_at`, `request_ids`, `ai_diagnostics`, `events` и `app_context`.
+   - Использовать `telegram_user_id`, `app_role` и effective access только как контекст диагностики.
 
-3. Classify the likely area.
-   - Auth/bootstrap: `auth-telegram`, missing/expired initData, role/subscription summary.
-   - Reading generation: `generate-reading-text`, OpenRouter, validation, active text persistence.
-   - Vocabulary cards: `prepare-vocabulary-cards`, provider response, output validation, card persistence.
-   - Review flow: `get-vocabulary-review-state`, `review-vocabulary-word`, counters/completion markers.
-   - Client UI/state: screen events, repeated navigation, stale state, modal/form errors.
-   - Local infrastructure: tunnel/API reachability, stale function bundle, missing migration.
+3. Определить вероятную область проблемы.
+   - Auth/bootstrap: `auth-telegram`, отсутствующий или просроченный initData, сводка роли/подписки.
+   - Генерация текста: `generate-reading-text`, OpenRouter, валидация, сохранение active text.
+   - Словарные карточки: `prepare-vocabulary-cards`, ответ провайдера, валидация результата, сохранение карточек.
+   - Повторение: `get-vocabulary-review-state`, `review-vocabulary-word`, счётчики и completion markers.
+   - Клиентский UI/state: события экранов, повторная навигация, устаревшее состояние, ошибки модальных окон и форм.
+   - Локальная инфраструктура: доступность tunnel/API, устаревшая сборка функции, неприменённая миграция.
 
-4. Correlate evidence.
-   - Use `request_ids` to search Edge/API logs.
-   - Use `ai_diagnostics` to inspect stage/model/promptVersion safely.
-   - Use attempt tables for AI failures:
+4. Сопоставить доказательства.
+   - Использовать `request_ids` для поиска в логах Edge/API.
+   - Использовать `ai_diagnostics` для безопасной проверки stage/model/promptVersion.
+   - Для ошибок AI использовать таблицы попыток:
      - `public.reading_generation_attempts`
      - `public.vocabulary_card_generation_attempts`
 
-5. Produce a concise diagnosis.
-   - Start with the likely cause.
-   - Include evidence with field names and dates.
-   - Separate confirmed facts from hypotheses.
-   - Suggest the smallest safe next fix or next check.
+5. Сформулировать краткий диагноз.
+   - Начать с вероятной причины.
+   - Привести доказательства с названиями полей и датами.
+   - Отделить подтверждённые факты от гипотез.
+   - Предложить минимальное безопасное исправление или следующую проверку.
 
-## SQL Reference
+## SQL-справочник
 
-Read `references/sql.md` for read-only queries. Use only the queries needed for the current report.
+Для read-only запросов прочитать `references/sql.md`. Использовать только запросы, необходимые для текущего отчёта.
 
-## Response Shape
+## Формат ответа
 
-Use this structure unless the user asks for another format:
+Использовать следующую структуру, если пользователь не запросил другой формат:
 
-- **Что видно:** short factual summary.
-- **Вероятная причина:** one or two likely causes.
-- **Доказательства:** report fields, request ids, AI stage/model, relevant attempt rows.
-- **Что проверить дальше:** minimal next checks.
-- **Что править:** proposed code/config/docs fix if enough evidence exists.
+- **Что видно:** краткое описание подтверждённых фактов.
+- **Вероятная причина:** одна или две наиболее вероятные причины.
+- **Доказательства:** поля отчёта, request ids, AI stage/model и релевантные строки попыток.
+- **Что проверить дальше:** минимальный набор следующих проверок.
+- **Что править:** предлагаемое изменение кода, конфигурации или документации, если доказательств достаточно.

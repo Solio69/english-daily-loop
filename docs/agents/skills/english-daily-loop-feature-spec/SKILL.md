@@ -1,108 +1,124 @@
 ---
 name: english-daily-loop-feature-spec
-description: Create and refine project-specific feature specifications for english-daily-loop before coding. Use when Codex is asked to groom, analyze, formulate, document, or prepare a new product or technical feature; create or update a draft in the external feature folder; compare implementation options; ask product questions; define scope, technical plan, acceptance criteria, and a detailed manual test checklist. Do not use for bug triage, support-report diagnosis, or direct implementation.
+description: "Создавать и уточнять проектные спецификации фич English Daily Loop до начала разработки. Использовать, когда Codex должен провести груминг, анализ, формулирование, документирование или подготовку новой продуктовой либо технической фичи; создать или обновить черновик во внешней папке фич; сравнить варианты реализации; задать продуктовые вопросы; определить границы, технический план, критерии приёмки, короткий понятный владельцу smoke-checklist и подробные сценарии ручного тестирования. Не использовать для triage багов, диагностики support-отчётов или непосредственной реализации."
 ---
 
-# English Daily Loop Feature Spec
+# Спецификация фич English Daily Loop
 
-## Purpose
+## Назначение
 
-Turn a raw feature idea into a project-aware specification that the owner can approve before coding. Treat the external feature file as the canonical product and implementation brief. Do not change application code while grooming the feature.
+Преобразовывать исходную идею фичи в учитывающую контекст проекта спецификацию, которую владелец может согласовать до начала разработки. Считать внешний файл фичи каноническим описанием продукта и реализации. Во время груминга не изменять код приложения.
 
-## Required Context
+## Обязательный контекст
 
-Before writing the specification, inspect:
+Перед написанием спецификации проверить:
 
-- `AGENTS.md`, `GIT_POLICY.md`, and `README.md`;
-- relevant files in `notes/` and `docs/agents/`;
-- `docs/agents/DESIGN_SYSTEM.md` for any user-facing UI change;
-- relevant implementation, types, migrations, tests, and read-only Git context;
-- existing feature drafts in `D:\anastasiaStorage\pet-projects\English daily loop\Фичи`.
+- `AGENTS.md`, `GIT_POLICY.md` и `README.md`;
+- релевантные файлы в `notes/` и `docs/agents/`;
+- `docs/agents/DESIGN_SYSTEM.md` для любого пользовательского изменения UI;
+- релевантную реализацию, типы, миграции, тесты и read-only Git-контекст;
+- существующие черновики фич в `D:\anastasiaStorage\pet-projects\English daily loop\Фичи`.
 
-Use `D:\anastasiaStorage\pet-projects\English daily loop\Фичи\Продумать flow версионирования и оформление release notes.md` as the current style example when available. Read `references/feature-template.md` before creating the draft and `docs/agents/references/manual-testing-guide.md` before writing its test checklist.
+При наличии использовать `D:\anastasiaStorage\pet-projects\English daily loop\Фичи\Продумать flow версионирования и оформление release notes.md` как актуальный пример оформления. Перед созданием черновика прочитать `references/feature-template.md`, а перед написанием тестового checklist — `docs/agents/references/manual-testing-guide.md`.
 
-Do not invent current behavior. Verify it in code or documentation, and mark anything that cannot be verified as an open question or assumption.
+Не придумывать текущее поведение. Проверять его по коду или документации, а всё, что нельзя подтвердить, отмечать как открытый вопрос или предположение.
 
-## Scope Boundary
+## Границы применения
 
-- Use this skill for new features and planned product or technical improvements.
-- Use the separate bug workflow for bug cards and approved bug batches.
-- Use the support-triage skill for submitted error reports and diagnostics.
-- Do not implement code, install packages, apply migrations, mutate DB data, change secrets, deploy, or run Git-changing commands during feature grooming.
-- Do not mark a feature ready for development without explicit approval from the project owner.
+- Использовать этот skill для новых фич и запланированных продуктовых или технических улучшений.
+- Для карточек багов и согласованных баг-пачек использовать отдельный bug workflow.
+- Для пользовательских отчётов об ошибках и диагностики использовать support-triage skill.
+- Во время груминга фичи не реализовывать код, не устанавливать пакеты, не применять миграции, не изменять данные БД или secrets, не выполнять deploy и изменяющие Git-команды.
+- Не переводить фичу в статус готовности к разработке без явного согласия владельца проекта.
 
-## Workflow
+## Порядок работы
 
-### 1. Investigate
+### 1. Исследовать текущее состояние
 
-Map the current behavior and affected surfaces before proposing a solution:
+Перед предложением решения описать текущее поведение и затрагиваемые области:
 
-- user flow and navigation;
-- frontend components, state, services, and shared types;
-- Edge Functions, RPCs, tables, RLS, grants, limits, and dates when relevant;
-- observability, support diagnostics, local development, deployment, and documentation;
-- existing tests and likely regression areas.
+- пользовательский flow и навигацию;
+- frontend-компоненты, состояние, сервисы и общие типы;
+- Edge Functions, RPC, таблицы, RLS, grants, лимиты и даты, если они относятся к задаче;
+- наблюдаемость, support-диагностику, локальную разработку, deployment и документацию;
+- существующие тесты и вероятные области регрессий.
 
-Separate confirmed facts from inferences. Prefer existing project patterns over new abstractions.
+Отделять подтверждённые факты от выводов. Предпочитать существующие проектные паттерны новым абстракциям.
 
-### 2. Groom the Product Decision
+### 2. Согласовать продуктовое решение
 
-- Explain at least two viable options when a meaningful tradeoff exists.
-- State the advantages, disadvantages, and recommendation in project terms.
-- Ask only questions that require a product decision or block a safe technical design. Resolve implementation details from the repository when possible.
-- Format every unanswered owner question exactly like this:
+- При наличии значимого компромисса описывать минимум два жизнеспособных варианта.
+- Указывать преимущества, недостатки и рекомендацию с учётом контекста проекта.
+- Задавать только вопросы, требующие продуктового решения или блокирующие безопасное техническое проектирование. Детали реализации по возможности выяснять из репозитория.
+- Каждый вопрос владельцу без ответа оформлять строго так:
 
 ```md
 - Текст вопроса?
 <mark>решение:</mark>
 ```
 
-Do not hide unresolved decisions inside prose.
+Не скрывать несогласованные решения внутри обычного текста.
 
-### 3. Create the Draft
+### 3. Создать черновик
 
-Create or update:
+Создать или обновить:
 
 `D:\anastasiaStorage\pet-projects\English daily loop\Фичи\<Название фичи>.md`
 
-Rules:
+Правила:
 
-- The filename is the visible title; do not duplicate it with an H1 inside the file.
-- A new file starts with `Статус: черновик для согласования.`
-- Follow `references/feature-template.md`, omitting only sections that are genuinely irrelevant.
-- Preserve the owner's original intent, but rewrite ambiguous notes into testable behavior.
-- Keep the document about the intended current solution, not a history of how proposals changed.
+- Имя файла является видимым заголовком; не дублировать его заголовком H1 внутри файла.
+- Новый файл начинать со строки `Статус: черновик для согласования.`
+- Следовать `references/feature-template.md`, пропуская только действительно нерелевантные разделы.
+- Сохранять исходный замысел владельца, но преобразовывать неоднозначные заметки в проверяемое поведение.
+- Описывать в документе актуальное целевое решение, а не историю изменения предложений.
 
-### 4. Make the Specification Verifiable
+### 4. Сделать спецификацию проверяемой
 
-The draft must cover, when relevant:
+Когда это применимо, черновик должен содержать:
 
-- goal and current context;
-- open product questions;
-- considered options and recommendation;
-- target user flow and states;
-- frontend, backend, DB, security, and observability design;
-- MVP boundaries, rollout, compatibility, and rollback;
-- numbered implementation plan;
-- acceptance criteria;
-- automated checks;
-- detailed manual test scenarios;
-- actions that only the project owner may perform;
-- official references for unstable external behavior.
+- цель и текущий контекст;
+- открытые продуктовые вопросы;
+- рассмотренные варианты и рекомендацию;
+- целевой пользовательский flow и состояния;
+- проектирование frontend, backend, БД, безопасности и наблюдаемости;
+- границы MVP, rollout, совместимость и rollback;
+- нумерованный план реализации;
+- критерии приёмки;
+- автоматические проверки;
+- короткий и понятный владельцу smoke-checklist;
+- подробные сценарии ручного тестирования;
+- действия, которые может выполнять только владелец проекта;
+- официальные источники для нестабильного внешнего поведения.
 
-Every acceptance criterion must map to an automated check, a manual scenario, or both. A one-line manual checklist is not sufficient.
+Каждый критерий приёмки связывать с автоматической проверкой, ручным сценарием или обоими видами проверок. Ручного checklist из одной строки недостаточно.
 
-### 5. Resolve and Approve
+### Два уровня ручного тестирования
 
-After the owner answers:
+Всегда размещать `## Короткий чек-лист проверки` непосредственно перед `## Ручная проверка`.
 
-1. Fold each answer into the target behavior and technical solution.
-2. Remove obsolete alternatives, placeholders, and resolved question blocks.
-3. Recheck the plan, acceptance criteria, risks, and test scenarios for consistency.
-4. Keep `Статус: черновик для согласования.` until the owner explicitly approves the whole feature.
-5. On explicit approval, set `Статус: готово к разработке.`
+Короткий checklist должен:
 
-Use these lifecycle values consistently:
+- начинаться с указания среды и предусловий для тестирования;
+- содержать 4–8 хронологических шагов, написанных простым языком;
+- использовать конкретные временные интервалы или переходы состояния, если фича зависит от учебной даты;
+- указывать, что владелец должен увидеть после каждого основного шага;
+- покрывать основной успешный сценарий и наиболее рискованную регрессию;
+- ссылаться на подробные сценарии `M-n`, не повторяя их полную подготовку и детали БД.
+
+Не добавлять checkbox в короткий checklist. Подробные сценарии `M-n` остаются единственным источником истины о выполнении ручной проверки, поэтому их состояния `[ ]` не должны расходиться с дублирующим списком.
+
+### 5. Учесть решения и получить согласование
+
+После ответов владельца:
+
+1. Включить каждый ответ в целевое поведение и техническое решение.
+2. Удалить устаревшие альтернативы, placeholders и блоки решённых вопросов.
+3. Повторно проверить согласованность плана, критериев приёмки, рисков и тестовых сценариев.
+4. Сохранять `Статус: черновик для согласования.`, пока владелец явно не согласует фичу целиком.
+5. После явного согласования поставить `Статус: готово к разработке.`
+
+Последовательно использовать следующие статусы:
 
 - `черновик для согласования`;
 - `готово к разработке`;
@@ -110,29 +126,30 @@ Use these lifecycle values consistently:
 - `готово к ручной проверке`;
 - `проверено`.
 
-Do not infer approval from silence or from an answer to only one open question.
+Не считать молчание или ответ только на один открытый вопрос согласованием всей фичи.
 
-### 6. Hand Off
+### 6. Передать результат
 
-When the project workflow requests it and the TickTick integration is available, sync the body into the same-named TickTick task. The Markdown file remains canonical; do not let the two copies diverge silently. If the integration is unavailable, report that clearly instead of claiming synchronization.
+Если этого требует проектный workflow и доступна интеграция TickTick, синхронизировать содержимое с одноимённой задачей TickTick. Каноническим источником остаётся Markdown-файл; не допускать незаметного расхождения двух копий. Если интеграция недоступна, явно сообщить об этом и не утверждать, что синхронизация выполнена.
 
-Finish by reporting:
+В завершение сообщить:
 
-- canonical file path;
-- current status;
-- unresolved decisions;
-- owner-only actions;
-- whether the specification is ready for development.
+- путь к каноническому файлу;
+- текущий статус;
+- несогласованные решения;
+- действия, доступные только владельцу;
+- готова ли спецификация к разработке.
 
-## Quality Gate
+## Проверка качества
 
-Before completing the grooming task, verify:
+Перед завершением груминга проверить:
 
-- current behavior and file names were checked against the repository;
-- all acceptance criteria are testable and traceable;
-- each manual scenario has preconditions, actions, and expected results;
-- happy path, relevant failures, persistence/re-entry, permissions, and regressions are covered;
-- responsive viewports and both themes are covered only when the feature affects UI;
-- migration, secret, deployment, and data-change responsibilities are explicit;
-- the file has no duplicate H1, unresolved placeholders, or stale alternatives presented as decisions;
-- no product code or Git state was changed during grooming.
+- текущее поведение и имена файлов проверены по репозиторию;
+- все критерии приёмки проверяемы и связаны с конкретными проверками;
+- короткий smoke-checklist понятен без чтения технического решения и согласован с подробными сценариями `M-n`;
+- каждый ручной сценарий содержит предусловия, действия и ожидаемые результаты;
+- покрыты успешный сценарий, релевантные ошибки, сохранение состояния/повторный вход, права доступа и регрессии;
+- responsive viewport и обе темы покрыты только тогда, когда фича действительно затрагивает UI;
+- ответственность за миграции, secrets, deployment и изменение данных указана явно;
+- в файле нет дублирующего H1, нерешённых placeholders или устаревших альтернатив, представленных как принятые решения;
+- во время груминга не изменялись продуктовый код и Git-состояние.

@@ -108,6 +108,19 @@ Do not copy this heading into a generated feature file. The filename is the feat
 - [ ] `pnpm build` или релевантная production-сборка.
 - [ ] <Точечные unit/integration проверки новой логики.>
 
+## Короткий чек-лист проверки
+
+Среда и предусловия: <где проверять и что должно быть подготовлено до начала>.
+
+1. <Первое действие или исходное состояние простыми словами>.
+   - Ожидаемый результат: <главный наблюдаемый результат>.
+2. <Следующее действие, повторный вход, смена времени или состояния>.
+   - Ожидаемый результат: <главный наблюдаемый результат>.
+3. <Ключевая регрессия или завершение сценария>.
+   - Ожидаемый результат: <главный наблюдаемый результат>.
+
+Подробные предусловия, тестовые данные и доказательства описаны в сценариях `M-n` ниже; отметки о выполнении ставятся только там.
+
 ## Ручная проверка
 
 - [ ] `M-1`. Сценарий: <название проверяемого поведения>.
@@ -140,3 +153,4 @@ Do not copy this heading into a generated feature file. The filename is the feat
 - State explicitly when no package, migration, secret, deployment action, or DB mutation is required.
 - Order implementation steps by dependency and keep each step independently verifiable.
 - Describe acceptance criteria as observable outcomes. Internal architecture belongs in the technical section.
+- Keep `Короткий чек-лист проверки` chronological, plain-language, and free of duplicate checkboxes; keep technical evidence in `M-n`.
