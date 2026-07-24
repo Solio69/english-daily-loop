@@ -15,7 +15,7 @@ import {
   createServiceClient,
   getAppUserByTelegramId,
 } from "../_shared/app.ts";
-import { getMoscowDate } from "../_shared/moscow-date.ts";
+import { getMoscowStudyDate } from "../_shared/moscow-study-date.ts";
 import { type VocabularyReviewAction } from "../_shared/vocabulary-review.ts";
 
 const LOG_PREFIX = "[review-vocabulary-word]";
@@ -74,7 +74,7 @@ Deno.serve(async (req: Request) => {
       tgUser.id,
       LOG_PREFIX,
     );
-    const reviewDate = getMoscowDate();
+    const reviewDate = getMoscowStudyDate();
     const { data, error } = await supabase.rpc("review_vocabulary_word", {
       p_user_id: appUser.id,
       p_word_id: wordId,
@@ -95,6 +95,7 @@ Deno.serve(async (req: Request) => {
     const result = data as
       | {
           ok: true;
+          reviewDate: string;
           wordId: string;
           word: string;
           status: string;
@@ -120,7 +121,7 @@ Deno.serve(async (req: Request) => {
     }
 
     return successResponse(200, {
-      reviewDate,
+      reviewDate: result.reviewDate,
       wordId: result.wordId,
       word: result.word,
       status: result.status,

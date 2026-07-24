@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { getCurrentAppUser } from "../services/userService";
 import type { AppUser } from "../types/user";
-import { getMoscowDate } from "../utils/moscowDate";
+import { getMoscowStudyDate } from "../utils/moscowStudyDate";
 import type { ShowToast } from "./useToast";
 
 type UseAppUserProfileParams = {
@@ -16,7 +16,7 @@ export const useAppUserProfile = ({
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [profileSnapshotDate, setProfileSnapshotDate] = useState(() =>
-    getMoscowDate(),
+    getMoscowStudyDate(),
   );
 
   const appUserId = appUser?.id ?? null;
@@ -24,7 +24,7 @@ export const useAppUserProfile = ({
   const refreshCurrentUser = useCallback(async () => {
     const user = await getCurrentAppUser();
     setAppUser(user);
-    setProfileSnapshotDate(getMoscowDate());
+    setProfileSnapshotDate(getMoscowStudyDate());
     return user;
   }, []);
 
@@ -56,7 +56,7 @@ export const useAppUserProfile = ({
     const refreshIfDateChanged = async () => {
       if (document.visibilityState === "hidden") return;
 
-      const currentDate = getMoscowDate();
+      const currentDate = getMoscowStudyDate();
       if (currentDate === profileSnapshotDate || isRefreshing) return;
 
       isRefreshing = true;

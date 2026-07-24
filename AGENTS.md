@@ -97,23 +97,25 @@
 - Миграция `supabase/migrations/20260705130000_promote_vocabulary_needs_approval_cards.sql` переводит существующие `needs_approval`-карточки в текущий `ready` + `not_started` flow повторения.
 - Миграция `supabase/migrations/20260706120000_add_user_app_roles.sql` добавляет `users.app_role` со значениями `admin | tester | user`; новые пользователи по умолчанию получают роль `tester`.
 - Миграция `supabase/migrations/20260707120000_add_support_reports.sql` добавляет `public.support_reports` для пользовательских отчетов об ошибках, закрывает таблицу для `anon`/`authenticated` и создает scheduled cleanup job `cleanup_support_reports` для удаления отчетов старше `30` дней.
+- Миграция `supabase/migrations/20260723120000_add_moscow_study_day_and_carry_active_text.sql` добавляет server-only SQL-helper учебной даты с границей `05:00 Europe/Moscow`, снимает date-scope с единственного active text и обновляет reading/review RPC без переписывания исторических данных; timestamp-чувствительные mutation RPC получают дату из того же DB timestamp, который сохраняют.
 - В проекте есть базовые миграции и сиды для локальной разработки (dev user + моковые тексты).
 - Миграция `supabase/migrations/20260424113000_drop_daily_review_words_from_user_settings.sql` удаляет устаревшее поле `daily_review_words` из `public.user_settings`.
 - Миграция `supabase/migrations/20260513120000_drop_daily_exercise_minutes_from_user_settings.sql` удаляет поле `daily_exercise_minutes` из `public.user_settings`.
 - Миграция `supabase/migrations/20260427165000_enable_rls_for_users_and_settings.sql` включает RLS для `public.users` и `public.user_settings`.
 - Серверные транзакционные операции вынесены в Postgres RPC:
   - `public.claim_reading_generation_attempt(...)` — атомарная проверка лимита и списание попытки генерации
-  - `public.complete_daily_reading_text(...)` — завершение active text текущей даты, completion, удаление active text и онбординг-флаг
+  - `public.get_moscow_study_date(...)` — server-only расчет учебной даты с границей `05:00 Europe/Moscow`; timestamp-чувствительные mutation RPC используют его с единым DB timestamp.
+  - `public.complete_daily_reading_text(...)` — завершение единственного active text независимо от даты генерации, атомарная фиксация DB timestamp и соответствующей учебной даты, удаление active text и онбординг-флаг
   - `public.activate_mvp_subscription(...)` — активация MVP-подписки с advisory lock по пользователю.
-  - `public.save_pending_vocabulary_word_with_source(...)` — атомарное сохранение pending-слова и source из active text текущей даты с advisory lock по пользователю.
+  - `public.save_pending_vocabulary_word_with_source(...)` — атомарное сохранение pending-слова и source из актуального active text независимо от даты генерации с advisory lock по пользователю.
   - `public.claim_vocabulary_card_generation_attempt(...)` — атомарная проверка лимита и списание попытки подготовки словарных карточек.
-  - `public.review_vocabulary_word(...)` — атомарный переход по шкале повторения и создание дневного completion-marker.
+  - `public.review_vocabulary_word(...)` — атомарный переход по шкале повторения и создание дневного completion-marker на учебную дату того же DB timestamp, который сохраняется в `last_reviewed_at`.
   - `public.get_or_create_vocabulary_review_state(...)` — точный snapshot очереди и фиксация завершения пустого плана с advisory lock по пользователю и дате.
   - `public.dev_complete_vocabulary_reviews_at_step(...)` — local dev-only перенос обязательной очереди повторения на абсолютный шаг с созданием дневного completion-marker.
 - Корневой `tsconfig.json` исключает `supabase/functions`, потому что Edge Functions работают в Deno-рантайме и не должны проверяться frontend `tsc`.
 - Общая server-инфраструктура Edge Functions находится в `supabase/functions/_shared/server.ts`: CORS, POST guard, JSON parsing, env helpers, Telegram `initData` validation, request id, безопасные JSON-ответы и `AppError`; общий helper safe AI diagnostics находится в `supabase/functions/_shared/ai-diagnostics.ts`.
 - Общая server-логика ролей, effective subscription summary и лимитов доступа находится в `supabase/functions/_shared/access.ts`; лимит, подсчет и обновление metadata попыток подготовки словарных карточек находятся в `supabase/functions/_shared/vocabulary-card-generation.ts`.
-- Общий helper московской учебной даты находится в `supabase/functions/_shared/moscow-date.ts`; server helper'ы повторения, home progress, streak и счетчика истории находятся в `supabase/functions/_shared/vocabulary-review.ts`, `supabase/functions/_shared/vocabulary-review-state.ts`, `supabase/functions/_shared/home-progress.ts`, `supabase/functions/_shared/reading-streak.ts` и `supabase/functions/_shared/reading-history.ts`; best-effort расчет производных метрик после завершения чтения оркестрирует `supabase/functions/_shared/reading-completion-metrics.ts`.
+- Общий helper московской учебной даты с границей `05:00` находится в `supabase/functions/_shared/moscow-study-date.ts`; server helper'ы повторения, home progress, streak и счетчика истории находятся в `supabase/functions/_shared/vocabulary-review.ts`, `supabase/functions/_shared/vocabulary-review-state.ts`, `supabase/functions/_shared/home-progress.ts`, `supabase/functions/_shared/reading-streak.ts` и `supabase/functions/_shared/reading-history.ts`; best-effort расчет производных метрик после завершения чтения оркестрирует `supabase/functions/_shared/reading-completion-metrics.ts`.
 - Edge Functions `auth-telegram`, `save-user-settings`, `activate-subscription`, `complete-reading-text`, `dev-tools`, `get-reading-state`, `get-reading-history`, `generate-reading-text`, `save-vocabulary-word`, `get-vocabulary-state`, `get-vocabulary-words`, `get-vocabulary-review-state`, `review-vocabulary-word`, `prepare-vocabulary-cards`, `approve-vocabulary-card`, `approve-vocabulary-cards` и `submit-support-report` используют общий helper для Telegram auth/error/env/http слоя; бизнес-валидация остается внутри конкретных функций.
 - Telegram auth реализована через Edge Function `supabase/functions/auth-telegram/index.ts`:
   - серверная валидация `initData` (подпись + `auth_date`)
@@ -167,18 +169,18 @@
   - output validation проверяет JSON, title/body, `estimatedMinutes`, `level`, длину с допуском примерно `±20%` и базовые content-safety patterns
   - observability AI-попыток хранится в `reading_generation_attempts` как metadata без полного prompt, raw provider response, полного generated text, Telegram `initData`, secrets и stack trace
   - timeout одного запроса к OpenRouter: `25` секунд, общий budget генерации текста: `90` секунд
-  - сохранение последнего успешного непрочитанного текста в `user_active_reading_texts` с `reading_date` текущей московской даты
+  - сохранение последнего успешного непрочитанного текста в `user_active_reading_texts` с `reading_date` текущей учебной даты; предыдущий active text заменяется только после валидного AI-ответа
   - единый контракт ответа (`ok/data` или `ok/error`).
 - Состояние экрана чтения реализовано через Edge Function `supabase/functions/get-reading-state/index.ts`:
   - серверная валидация `Telegram initData`
-  - дата дня считается по timezone `Europe/Moscow`
-  - возвращает активный текст только для текущей московской даты, дневной лимит, использованные/оставшиеся попытки и флаг `isReadingCompletedToday`.
+  - учебная дата начинается в `05:00` по timezone `Europe/Moscow`
+  - возвращает единственный активный текст пользователя независимо от даты генерации, дневной лимит, использованные/оставшиеся попытки текущей учебной даты и флаг `isReadingCompletedToday`.
 - Завершение чтения реализовано через Edge Function `supabase/functions/complete-reading-text/index.ts`:
   - серверная валидация `Telegram initData`
-  - транзакционное завершение активного текста текущей московской даты через RPC `complete_daily_reading_text`
+  - транзакционное завершение единственного активного текста независимо от даты генерации через RPC `complete_daily_reading_text`
   - запись дневного completion-marker в `user_daily_reading_completions` для progress/streak
   - сохранение отдельного snapshot прочитанного текста в `user_completed_reading_texts`
-  - удаление активного непрочитанного текста текущей даты из `user_active_reading_texts`
+  - удаление завершенного активного непрочитанного текста из `user_active_reading_texts`
   - заполнение `users.first_text_completed_at` только для онбординга, если это первый прочитанный текст пользователя.
   - best-effort пересчет `streakDays` как серии подряд идущих дней по `user_daily_reading_completions`.
   - best-effort возврат `completedReadingTextCount` после сохранения snapshot; сбой производных метрик не меняет успешный результат уже выполненного RPC.
@@ -247,7 +249,7 @@
 - Редактирование словарных карточек не доступно в пользовательском UI; заготовка action-кнопки скрыта в `src/components/vocabulary/VocabularyWordActions.tsx` через TODO-флаг до реализации полного flow редактирования.
 - Подтверждение AI-карточек не доступно в пользовательском UI; заготовка approval-flow скрыта через TODO-флаг `SHOW_VOCABULARY_CARD_APPROVAL_FLOW` до реализации проверки/редактирования карточек.
 - Ошибки подготовки словарных карточек показываются внутри summary-карточки под action `Готовить` и над compact info panel; ошибки загрузки и просмотра словаря остаются встроенными статусами через `InlineStatusCard`.
-- Сохранение словаря реализовано через `public.user_vocabulary_words`, `public.user_vocabulary_word_sources` и Edge Function `save-vocabulary-word`: слово добавляется только из активного текста текущей московской даты без AI, сохраняется как `not_started` + `card_status = pending`.
+- Сохранение словаря реализовано через `public.user_vocabulary_words`, `public.user_vocabulary_word_sources` и Edge Function `save-vocabulary-word`: слово добавляется только из актуального active text пользователя с проверкой `reading_text_id`, независимо от даты генерации, без AI и сохраняется как `not_started` + `card_status = pending`.
 - Карточки слов готовятся отдельно в табе `Словарь` через Edge Function `prepare-vocabulary-cards`, batch-ом до `5` pending-слов за запрос; перед AI-запросом сервер списывает попытку через RPC `claim_vocabulary_card_generation_attempt`; валидные AI-карточки получают `card_status = ready` и `status = not_started`, а слова без валидной карточки остаются в `pending`.
 - Если AI приводит pending-слово к канонической форме, которая уже есть у пользователя, подготовка карточек переносит `user_vocabulary_word_sources` и удаляет pending-дубликат; прогресс `active`-слова сохраняется, а `learned`-слово возвращается в `not_started`.
 - Prompt/output слой подготовки словарных карточек находится в `supabase/functions/prepare-vocabulary-cards/ai-pipeline.ts`; сохранение подготовленных карточек и merge pending-дубликатов находятся в `supabase/functions/prepare-vocabulary-cards/card-persistence.ts`; общий OpenRouter client/model allowlist переиспользуется из `supabase/functions/_shared/openrouter.ts`.
@@ -257,14 +259,14 @@
 - Состояния учебного прогресса слова: `not_started | active | learned`; шкала интервалов: `1 день`, `3 дня`, `7 дней`, `14 дней`, `1–6 месяцев`, затем `learned`.
 - Завершение обязательной очереди фиксируется в `user_daily_vocabulary_review_completions`; новые карточки после completion доступны дополнительно и не открывают завершенный план заново.
 - `get-vocabulary-review-state` возвращает `required*`-счетчики для обязательного плана и `display*`-счетчики для экрана `Слова`; если completion-marker уже есть, главная остается завершенной, а экран повторения показывает дополнительные новые карточки в общем прогрессе.
-- Для связи слов с текстами активные и завершенные тексты имеют стабильный `reading_text_id`; active text также хранит `reading_date`, а при завершении чтения RPC `complete_daily_reading_text` переносит этот id из `user_active_reading_texts` в `user_completed_reading_texts`.
-- Сохранение pending-слова выполняется через RPC `save_pending_vocabulary_word_with_source` с advisory lock по пользователю и проверкой `reading_date`; лимит словаря проверяется server-side по effective access (`free: 30`, `paid/internal: 300`), прямых записей словаря с клиента нет.
+- Для связи слов с текстами активные и завершенные тексты имеют стабильный `reading_text_id`; active text также хранит `reading_date` генерации, бессрочно переносится между учебными днями, а при завершении чтения RPC `complete_daily_reading_text` переносит этот id из `user_active_reading_texts` в `user_completed_reading_texts`.
+- Сохранение pending-слова выполняется через RPC `save_pending_vocabulary_word_with_source` с advisory lock по пользователю и проверкой владельца/актуального `reading_text_id` без date-фильтра; лимит словаря проверяется server-side по effective access (`free: 30`, `paid/internal: 300`), прямых записей словаря с клиента нет.
 - AI-карточка слова хранит базовую форму, перевод, часть речи, данные глагола при необходимости и 3 английских примера по уровню пользователя; подготовка карточек сохраняет валидную часть batch-а, мержит совпадения по канонической форме, не блокирует карточку только из-за некорректного echo-поля `level` от AI и оставляет слова с невалидным или отсутствующим AI-ответом в `pending`.
 - На главной есть компактная карточка `Мои материалы`; пункт нижней навигации `Материалы` открывает экран материалов, плитка `Тексты` открывает таб текстов и показывает `Прочитано: N текст/текста/текстов` либо `История чтения`, если счетчик временно недоступен; плитка `Словарь` открывает таб словаря и показывает краткое состояние по `get-vocabulary-state`: `Добавить: N` или `В словаре: N`.
 - На главной карточка урока использует `homeProgress.lesson.status` и `homeProgress.lesson.currentStep`; daily lesson последовательно ведет на чтение, затем на повторение слов.
 - Шаг повторения на главной показывает `На сегодня нет слов`, когда сервер вернул `completed`, обязательный остаток равен нулю и `reviewedTodayCount = 0`; completed-подсветка при этом сохраняется.
-- Счетчик с иконкой огонька на главной использует `streakDays`, который сервер считает как серию подряд идущих завершений чтения по timezone `Europe/Moscow`; `useAppUserProfile` обновляет профиль при возврате в приложение и смене московской даты, чтобы пропущенный день сбрасывал видимую серию без ручного перезапуска.
-- Если генерация упала, новая попытка уже списана, новый текст не сохраняется, а ранее активный текст текущей даты остается доступен после завершения состояния загрузки.
+- Счетчик с иконкой огонька на главной использует `streakDays`, который сервер считает как серию подряд идущих завершений чтения по учебным датам с границей `05:00 Europe/Moscow`; `useAppUserProfile` обновляет профиль при возврате в приложение и смене учебной даты, чтобы пропущенный день сбрасывал видимую серию без ручного перезапуска.
+- Если генерация упала, новая попытка уже списана, новый текст не сохраняется, а ранее активный текст независимо от даты генерации остается доступен после завершения состояния загрузки.
 - После неуспешной генерации экран чтения повторно запрашивает `get-reading-state`, чтобы синхронизировать активный текст и оставшиеся попытки с сервером.
 - Экран чтения показывает источник текста (`AI` + модель или `DB`) через metadata `ReadingText.source/generation`.
 - Настройка времени чтения влияет на размер AI-текста:
@@ -276,7 +278,7 @@
 - `users.first_text_completed_at` используется только для онбординга; ежедневный факт прочтения хранится отдельно в `user_daily_reading_completions`.
 - Экран настроек содержит уровень английского, время чтения, отправку отчета об ошибке через `src/components/settings/SupportReportCard.tsx` и опциональную ссылку обратной связи через `VITE_FEEDBACK_TELEGRAM_USERNAME`; dev tools панель отображается только для роли `admin` и свернута по умолчанию.
 - После сохранения первоначальных настроек доступны `Главная`, `Текст`, `Слова` и `Материалы`; дневной урок при этом по-прежнему начинается с шага `Текст`.
-- После нажатия "Завершить текст" active text текущей даты сохраняется в историю и удаляется; генерация в текущий день остается доступна, пока не исчерпан дневной лимит генераций.
+- После нажатия "Завершить текст" единственный active text сохраняется в историю с текущей учебной датой и удаляется; генерация в текущий учебный день остается доступна, пока не исчерпан дневной лимит генераций.
 - Для прогресса дня и streak достаточно первого завершенного текста за дату; `user_completed_reading_texts` может хранить несколько завершенных текстов с одинаковым `completed_date`, различающихся `completed_at`.
 - App-level toast-сообщения вынесены в `src/components/Toast.tsx`: `AppToast` поддерживает variant-состояния `success`, `warning`, `error`, а совместимый wrapper `Toast` мапит текущие тоны `default`, `onboarding`, `success`, `error`; toast показывается сверху как floating glass card с кнопкой закрытия.
 - Inline status-сообщения внутри экранов должны использовать `src/components/InlineStatusCard.tsx`; app-level floating сообщения остаются в `src/components/Toast.tsx`.

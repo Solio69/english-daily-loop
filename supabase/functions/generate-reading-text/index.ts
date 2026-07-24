@@ -13,7 +13,7 @@ import {
   parseJsonBody,
   successResponse,
 } from "../_shared/server.ts";
-import { getMoscowDate } from "../_shared/moscow-date.ts";
+import { getMoscowStudyDate } from "../_shared/moscow-study-date.ts";
 import { getDailyReadingGenerationLimit } from "../_shared/access.ts";
 import {
   buildSafeAiDiagnostics,
@@ -368,7 +368,7 @@ Deno.serve(async (req: Request) => {
       },
     );
     const settings = await getUserReadingSettingsFromDb(supabase, tgUser.id);
-    const today = getMoscowDate();
+    const studyDate = getMoscowStudyDate();
     const dailyLimit = await getDailyReadingGenerationLimit(
       supabase,
       settings.appUserId,
@@ -378,7 +378,7 @@ Deno.serve(async (req: Request) => {
     const claimedAttempt = await claimGenerationAttempt(
       supabase,
       settings.appUserId,
-      today,
+      studyDate,
       dailyLimit,
     );
 
@@ -402,7 +402,7 @@ Deno.serve(async (req: Request) => {
       appUserId: settings.appUserId,
       attemptId: startedAttempt.attemptId,
       promptVersion: READING_TEXT_PROMPT_VERSION,
-      attemptDate: today,
+      studyDate,
       usedAttempts: claimedAttempt.usedAttempts,
       remainingAttempts: claimedAttempt.remainingAttempts,
       dailyLimit,
@@ -454,7 +454,7 @@ Deno.serve(async (req: Request) => {
           provider: OPENROUTER_PROVIDER,
           model: generated.usedModel,
           fallback_used: fallbackUsed,
-          reading_date: today,
+          reading_date: studyDate,
           generated_at: new Date().toISOString(),
         },
         { onConflict: "user_id" },

@@ -15,7 +15,7 @@ import {
   createServiceClient,
   getAppUserByTelegramId,
 } from "../_shared/app.ts";
-import { getMoscowDate } from "../_shared/moscow-date.ts";
+import { getMoscowStudyDate } from "../_shared/moscow-study-date.ts";
 import {
   getVocabularyCardGenerationState,
 } from "../_shared/vocabulary-card-generation.ts";
@@ -48,7 +48,7 @@ Deno.serve(async (req: Request) => {
       tgUser.id,
       LOG_PREFIX,
     );
-    const today = getMoscowDate();
+    const studyDate = getMoscowStudyDate();
     const [
       { count: pendingCount, error: pendingError },
       { count: needsApprovalCount, error: needsApprovalError },
@@ -75,7 +75,12 @@ Deno.serve(async (req: Request) => {
         .from("user_vocabulary_words")
         .select("id", { count: "exact", head: true })
         .eq("user_id", appUser.id),
-      getVocabularyCardGenerationState(supabase, appUser.id, today, LOG_PREFIX),
+      getVocabularyCardGenerationState(
+        supabase,
+        appUser.id,
+        studyDate,
+        LOG_PREFIX,
+      ),
     ]);
 
     if (pendingError || needsApprovalError || readyError || totalError) {

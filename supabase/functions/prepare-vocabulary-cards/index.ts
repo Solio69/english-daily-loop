@@ -20,7 +20,7 @@ import {
   getUserEnglishLevel,
   type ServiceClient,
 } from "../_shared/app.ts";
-import { getMoscowDate } from "../_shared/moscow-date.ts";
+import { getMoscowStudyDate } from "../_shared/moscow-study-date.ts";
 import {
   DEFAULT_FALLBACK_MODEL,
   DEFAULT_PRIMARY_MODEL,
@@ -242,7 +242,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const words = (pendingRows ?? []) as PendingWordRow[];
-    const today = getMoscowDate();
+    const studyDate = getMoscowStudyDate();
     const dailyLimit = await getDailyVocabularyCardGenerationLimit(
       supabase,
       appUser.id,
@@ -253,7 +253,7 @@ Deno.serve(async (req: Request) => {
       const generationState = await getVocabularyCardGenerationState(
         supabase,
         appUser.id,
-        today,
+        studyDate,
         LOG_PREFIX,
       );
 
@@ -273,7 +273,7 @@ Deno.serve(async (req: Request) => {
     const claimedAttempt = await claimVocabularyCardGenerationAttempt(
       supabase,
       appUser.id,
-      today,
+      studyDate,
       dailyLimit,
       words.length,
       LOG_PREFIX,

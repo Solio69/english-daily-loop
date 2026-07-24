@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
-import { getMoscowDate } from "../_shared/moscow-date.ts";
+import { getMoscowStudyDate } from "../_shared/moscow-study-date.ts";
 import { getReadingCompletionStreak } from "../_shared/reading-streak.ts";
 import { getCompletedReadingTextCount } from "../_shared/reading-history.ts";
 import { getSubscriptionSummary } from "../_shared/access.ts";
@@ -169,7 +169,7 @@ Deno.serve(async (req: Request) => {
       getReadingCompletionStreak(
         supabase,
         appUser.id,
-        getMoscowDate(),
+        getMoscowStudyDate(),
         "[auth-telegram]",
       ),
       getCompletedReadingTextCount(supabase, appUser.id, "[auth-telegram]"),

@@ -13,7 +13,7 @@ import {
   parseJsonBody,
   successResponse,
 } from "../_shared/server.ts";
-import { getMoscowDate } from "../_shared/moscow-date.ts";
+import { getMoscowStudyDate } from "../_shared/moscow-study-date.ts";
 import { assertAdminRole } from "../_shared/access.ts";
 
 type DevToolAction =
@@ -425,37 +425,45 @@ Deno.serve(async (req: Request) => {
     );
     const appUser = await getAppUser(supabase, tgUser.id);
     await assertAdminRole(supabase, appUser.id, "[dev-tools]");
-    const today = getMoscowDate();
+    const studyDate = getMoscowStudyDate();
 
     const changes =
       action === "reset_generation_attempts"
-        ? await resetGenerationAttempts(supabase, appUser.id, today)
+        ? await resetGenerationAttempts(supabase, appUser.id, studyDate)
         : action === "reset_vocabulary_card_attempts"
-          ? await resetVocabularyCardAttempts(supabase, appUser.id, today)
+          ? await resetVocabularyCardAttempts(supabase, appUser.id, studyDate)
         : action === "reset_vocabulary_review_progress"
           ? await resetVocabularyReviewProgress(supabase, appUser.id)
         : action === "make_vocabulary_reviews_due_today"
-          ? await makeVocabularyReviewsDueToday(supabase, appUser.id, today)
+          ? await makeVocabularyReviewsDueToday(
+              supabase,
+              appUser.id,
+              studyDate,
+            )
         : action === "complete_today_vocabulary_reviews_at_step"
           ? await completeTodayVocabularyReviewsAtStep(
               supabase,
               appUser.id,
-              today,
+              studyDate,
               reviewStep,
             )
         : action === "clear_today_vocabulary_review_completion"
           ? await clearTodayVocabularyReviewCompletion(
               supabase,
               appUser.id,
-              today,
+              studyDate,
             )
         : action === "delete_today_reading_completion"
-          ? await deleteTodayReadingCompletions(supabase, appUser.id, today)
+          ? await deleteTodayReadingCompletions(
+              supabase,
+              appUser.id,
+              studyDate,
+            )
           : await resetSubscriptions(supabase, appUser.id);
 
     return successResponse(200, {
       action,
-      today,
+      today: studyDate,
       changes,
     });
   } catch (error) {

@@ -14,7 +14,7 @@ import {
   createServiceClient,
   getAppUserByTelegramId,
 } from "../_shared/app.ts";
-import { getMoscowDate } from "../_shared/moscow-date.ts";
+import { getMoscowStudyDate } from "../_shared/moscow-study-date.ts";
 import { getReviewActionOptions } from "../_shared/vocabulary-review.ts";
 import {
   loadVocabularyReviewSnapshot,
@@ -48,7 +48,7 @@ const loadReviewState = async (
   supabase: ReturnType<typeof createServiceClient>,
   userId: string,
 ) => {
-  const today = getMoscowDate();
+  const studyDate = getMoscowStudyDate();
   const {
     currentCard,
     currentCardIsOptional,
@@ -56,7 +56,7 @@ const loadReviewState = async (
   } = await loadVocabularyReviewSnapshot(
     supabase,
     userId,
-    today,
+    studyDate,
     LOG_PREFIX,
   );
 

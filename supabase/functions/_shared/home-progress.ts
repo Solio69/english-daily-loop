@@ -1,7 +1,7 @@
 /// <reference path="../deno-globals.d.ts" />
 
 import type { ServiceClient } from "./app.ts";
-import { getMoscowDate } from "./moscow-date.ts";
+import { getMoscowStudyDate } from "./moscow-study-date.ts";
 import { fail } from "./server.ts";
 import { loadVocabularyReviewSnapshot } from "./vocabulary-review-state.ts";
 
@@ -13,7 +13,7 @@ export const getHomeProgress = async (
   userId: string,
   logPrefix: string,
 ) => {
-  const today = getMoscowDate();
+  const studyDate = getMoscowStudyDate();
   const [
     { data: readingCompletionRows, error: readingCompletionError },
     { data: activeTextRow, error: activeTextError },
@@ -23,15 +23,14 @@ export const getHomeProgress = async (
       .from("user_daily_reading_completions")
       .select("user_id")
       .eq("user_id", userId)
-      .eq("completed_date", today)
+      .eq("completed_date", studyDate)
       .limit(1),
     supabase
       .from("user_active_reading_texts")
       .select("user_id")
       .eq("user_id", userId)
-      .eq("reading_date", today)
       .maybeSingle(),
-    loadVocabularyReviewSnapshot(supabase, userId, today, logPrefix),
+    loadVocabularyReviewSnapshot(supabase, userId, studyDate, logPrefix),
   ]);
 
   if (readingCompletionError || activeTextError) {

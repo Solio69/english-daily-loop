@@ -84,13 +84,13 @@ subscription таблицам, а также к server-only RPC. Доступ и
 
 `get-reading-state`:
 - валидирует Telegram `initData`
-- возвращает active text текущей московской даты, дневной лимит, использованные/оставшиеся попытки и флаг завершения чтения за день
-- считает дневной цикл по timezone `Europe/Moscow`
+- возвращает единственный active text пользователя независимо от даты генерации, дневной лимит, использованные/оставшиеся попытки и флаг завершения чтения за учебный день
+- считает учебный цикл с границей `05:00 Europe/Moscow`
 - возвращает клиенту безопасное сообщение для неожиданных внутренних ошибок
 
 `complete-reading-text`:
 - валидирует Telegram `initData`
-- завершает active text текущей московской даты через RPC `complete_daily_reading_text`
+- завершает единственный active text пользователя независимо от даты генерации через RPC `complete_daily_reading_text`
 - сохраняет snapshot прочитанного текста в `user_completed_reading_texts`
 - после успешного RPC best-effort возвращает `streakDays` и `completedReadingTextCount`
 - не возвращает ошибку завершения из-за сбоя производных метрик после уже выполненной транзакции
@@ -153,11 +153,11 @@ subscription таблицам, а также к server-only RPC. Доступ и
 - возвращает `attemptId`, `usedAttempts`, `remainingAttempts`
 
 `public.complete_daily_reading_text(...)`:
-- берет transaction-level advisory lock на пользователя и дату завершения
-- проверяет наличие active text для даты завершения
+- фиксирует один DB timestamp, вычисляет из него учебную дату через server-only SQL-helper и берет transaction-level advisory lock на пользователя и эту дату
+- блокирует единственный active text пользователя независимо от даты генерации
 - пишет дневной completion-marker для progress/streak
 - копирует active text в историю завершенных текстов отдельной записью
-- удаляет active text
+- удаляет тот же active text по `reading_text_id`
 - заполняет `users.first_text_completed_at` для онбординга
 
 `public.activate_mvp_subscription(...)`:
@@ -177,7 +177,9 @@ subscription таблицам, а также к server-only RPC. Доступ и
 - атомарно проверяет дневной лимит и создает metadata попытки.
 
 `public.review_vocabulary_word(...)`:
-- берет advisory lock по пользователю и дате и row lock выбранной карточки;
+- фиксирует один DB timestamp, вычисляет из него учебную дату и берет advisory lock по пользователю и этой дате;
+- использует тот же timestamp для `last_reviewed_at`, поэтому действие не может разделиться между двумя учебными днями на границе `05:00`;
+- берет row lock выбранной карточки;
 - применяет только allowlist-действия алгоритма;
 - обновляет шаг, следующую дату и счетчики;
 - фиксирует completion-marker после последней обязательной карточки.

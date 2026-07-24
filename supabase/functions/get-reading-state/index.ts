@@ -12,7 +12,7 @@ import {
   parseJsonBody,
   successResponse,
 } from "../_shared/server.ts";
-import { getMoscowDate } from "../_shared/moscow-date.ts";
+import { getMoscowStudyDate } from "../_shared/moscow-study-date.ts";
 import { getDailyReadingGenerationLimit } from "../_shared/access.ts";
 
 type UserRow = {
@@ -89,7 +89,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const appUser = userRow as UserRow;
-    const today = getMoscowDate();
+    const studyDate = getMoscowStudyDate();
     const dailyLimit = await getDailyReadingGenerationLimit(
       supabase,
       appUser.id,
@@ -105,12 +105,12 @@ Deno.serve(async (req: Request) => {
         .from("reading_generation_attempts")
         .select("id", { count: "exact", head: true })
         .eq("user_id", appUser.id)
-        .eq("attempt_date", today),
+        .eq("attempt_date", studyDate),
       supabase
         .from("user_daily_reading_completions")
         .select("id")
         .eq("user_id", appUser.id)
-        .eq("completed_date", today)
+        .eq("completed_date", studyDate)
         .maybeSingle(),
       supabase
         .from("user_active_reading_texts")
@@ -118,7 +118,6 @@ Deno.serve(async (req: Request) => {
           "user_id, reading_text_id, title, body, level, estimated_minutes, provider, model, fallback_used, generated_at",
         )
         .eq("user_id", appUser.id)
-        .eq("reading_date", today)
         .maybeSingle(),
     ]);
 
@@ -196,7 +195,7 @@ Deno.serve(async (req: Request) => {
       : null;
 
     return successResponse(200, {
-      today,
+      today: studyDate,
       dailyLimit,
       usedAttempts,
       remainingAttempts: Math.max(dailyLimit - usedAttempts, 0),
