@@ -131,6 +131,7 @@ npx supabase functions deploy get-reading-state
 npx supabase functions deploy generate-reading-text
 npx supabase functions deploy complete-reading-text
 npx supabase functions deploy get-reading-history
+npx supabase functions deploy save-reading-position
 npx supabase functions deploy save-vocabulary-word
 npx supabase functions deploy get-vocabulary-state
 npx supabase functions deploy get-vocabulary-words

@@ -455,6 +455,7 @@ Deno.serve(async (req: Request) => {
           model: generated.usedModel,
           fallback_used: fallbackUsed,
           reading_date: studyDate,
+          last_read_paragraph_index: null,
           generated_at: new Date().toISOString(),
         },
         { onConflict: "user_id" },
@@ -500,6 +501,7 @@ Deno.serve(async (req: Request) => {
           body: generated.body,
           level: generated.level,
           estimatedMinutes: generated.estimatedMinutes,
+          lastReadParagraphIndex: null,
         },
         generation: {
           provider: OPENROUTER_PROVIDER,

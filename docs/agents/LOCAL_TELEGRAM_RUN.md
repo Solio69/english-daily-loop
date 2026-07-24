@@ -126,6 +126,7 @@ Frontend preview, frontend watcher, Edge Functions и оба tunnel являют
 - `generate-reading-text`
 - `prepare-vocabulary-cards`
 - `review-vocabulary-word`
+- `save-reading-position`
 - `save-vocabulary-word`
 - `submit-support-report`
 

@@ -8,6 +8,8 @@ export type AppToastProps = {
   variant: AppToastVariant;
   title: string;
   description?: string;
+  actionLabel?: string;
+  onAction?: () => void;
   onClose?: () => void;
   className?: string;
 };
@@ -76,6 +78,8 @@ export function AppToast({
   variant,
   title,
   description,
+  actionLabel,
+  onAction,
   onClose,
   className,
 }: AppToastProps) {
@@ -110,6 +114,15 @@ export function AppToast({
           <p className="mt-1 text-[14px] font-normal leading-[1.45] text-[#50678F] dark:text-[#AFC1DA]">
             {description}
           </p>
+        ) : null}
+        {actionLabel && onAction ? (
+          <button
+            type="button"
+            onClick={onAction}
+            className="mt-2 inline-flex min-h-9 items-center justify-center rounded-[18px] border border-[var(--border-strong)] bg-[var(--surface)] px-3 py-1.5 font-heading text-xs font-semibold text-[var(--primary)] transition hover:bg-[var(--primary-soft)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+          >
+            {actionLabel}
+          </button>
         ) : null}
       </div>
 

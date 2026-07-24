@@ -1,3 +1,4 @@
+import { ArrowUp } from "lucide-react";
 import React, { useEffect, useEffectEvent, useState } from "react";
 import { Button } from "../components/Button";
 import { InlineStatusCard } from "../components/InlineStatusCard";
@@ -7,11 +8,13 @@ import { ReadingGenerationCard } from "../components/reading/ReadingGenerationCa
 import { ReadingInfoCard } from "../components/reading/ReadingInfoCard";
 import { ReadingTextCard } from "../components/reading/ReadingTextCard";
 import { ScreenHeader } from "../components/ScreenHeader";
+import { AppToast } from "../components/Toast";
 import {
   generateReadingText,
   getReadingState,
 } from "../services/readingService";
 import { saveVocabularyWord } from "../services/vocabularyService";
+import { useReadingPosition } from "../hooks/useReadingPosition";
 import { ReadingHomeStatus } from "../types/homeProgress";
 import { ReadingText } from "../types/reading";
 import { normalizeSelectableWord } from "../utils/readingText";
@@ -61,6 +64,13 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
   } | null>(null);
   const [savingWordIndex, setSavingWordIndex] = useState<number | null>(null);
   const [isFinishing, setIsFinishing] = useState(false);
+  const {
+    registerParagraph,
+    isScrollTopVisible,
+    positionError,
+    retryPositionSave,
+    scrollToPageTop,
+  } = useReadingPosition(text, !loading);
   const emitReadingStatusChange = useEffectEvent(
     (status: ReadingHomeStatus) => {
       onReadingStatusChange?.(status);
@@ -299,6 +309,7 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
             setSelectedWord(null);
             setWordFeedback(null);
           }}
+          onParagraphRef={registerParagraph}
         />
       )}
 
@@ -311,6 +322,31 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
         >
           {isFinishing ? "Сохраняем..." : "Завершить текст"}
         </Button>
+      )}
+
+      {positionError && text && !loading && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+88px)] z-40 flex justify-center px-4">
+          <AppToast
+            variant="warning"
+            title="Позиция чтения пока не сохранена"
+            description={positionError}
+            actionLabel="Повторить"
+            onAction={retryPositionSave}
+          />
+        </div>
+      )}
+
+      {text && !loading && isScrollTopVisible && !positionError && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+88px)] z-30 mx-auto w-full max-w-[430px] px-3.5 min-[390px]:px-4 min-[480px]:max-w-[390px] min-[480px]:px-3">
+          <button
+            type="button"
+            onClick={scrollToPageTop}
+            aria-label="Вернуться к началу страницы"
+            className="glass-control pointer-events-auto ml-auto grid size-12 place-items-center rounded-full text-[var(--primary)] shadow-primary-glow transition active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+          >
+            <ArrowUp className="size-5" strokeWidth={2.4} />
+          </button>
+        </div>
       )}
     </div>
   );

@@ -4,6 +4,7 @@ import {
   GenerateReadingTextResult,
   ReadingState,
   ReadingText,
+  SaveReadingPositionResult,
 } from "../types/reading";
 
 type GenerateReadingTextPayload = {
@@ -53,3 +54,15 @@ export const completeReadingText =
       {},
       "Не удалось сохранить завершение текста.",
     );
+
+export const saveReadingPosition = async (
+  readingTextId: string,
+  paragraphIndex: number | null,
+): Promise<SaveReadingPositionResult> =>
+  invokeFunction<SaveReadingPositionResult>(
+    "save-reading-position",
+    { readingTextId, paragraphIndex },
+    paragraphIndex === null
+      ? "Не удалось сбросить позицию чтения."
+      : "Не удалось сохранить позицию чтения.",
+  );

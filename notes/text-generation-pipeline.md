@@ -49,7 +49,7 @@ Supabase Edge Function, базой и внешней AI-моделью.
 13. Если router-level fallback не помог или ответ пришел с невалидным JSON/длиной/content pattern, приложение исключает использованную модель и пробует следующую.
 14. Валидирует JSON-ответ модели как недоверенный output.
 15. Записывает безопасные observability metadata в `public.reading_generation_attempts`.
-16. При успехе сохраняет/перезаписывает `public.user_active_reading_texts` с `reading_date`.
+16. При успехе сохраняет/перезаписывает `public.user_active_reading_texts` с `reading_date` и явно сбрасывает `last_read_paragraph_index` в `null`.
 17. Помечает попытку как `succeeded`; при ошибке после списания помечает как `failed`.
 18. Возвращает единый контракт:
 - успех: `{ ok: true, data: { text, generation, dailyLimit, usedAttempts, remainingAttempts } }`
@@ -147,7 +147,7 @@ Server env:
 ## 8) Дневные попытки и активный текст
 Таблицы:
 - `public.reading_generation_attempts` — история списанных попыток генерации.
-- `public.user_active_reading_texts` — последний успешный непрочитанный текст пользователя с `reading_date`.
+- `public.user_active_reading_texts` — последний успешный непрочитанный текст пользователя с `reading_date` и nullable-позицией абзаца; `null` означает абсолютный верх страницы.
 - `public.user_daily_reading_completions` — дневной marker: пользователь завершил хотя бы один текст за дату.
 - `public.user_completed_reading_texts` — snapshot каждого завершенного текста для раздела `Мои материалы`.
 

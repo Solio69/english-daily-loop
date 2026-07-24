@@ -307,10 +307,16 @@ Generated text state:
   - `glass-card rounded-[20px] p-4`
   - title `18px`, `font-heading`, `font-semibold`
   - source badge is a glass pill with `AI · model` or `DB`
-  - body text uses `17px`, `leading-7`, controlled paragraph spacing `space-y-3`
+  - body text uses `19px`, `leading-8`, controlled paragraph spacing `space-y-3`
   - selectable words use primary hover/selected state
   - saved words use warm accent state
 - The finish CTA `Завершить текст` is a full-width shared `Button` below the text card.
+- После ухода ниже верхней части экрана появляется круглая кнопка наверх:
+  - fixed-контейнер выровнен по ширине reading content;
+  - кнопка использует `glass-control`, `size-12`, `ArrowUp` и focus-visible ring;
+  - нижний offset `calc(env(safe-area-inset-bottom) + 88px)` держит кнопку над bottom nav;
+  - действие возвращает к абсолютному верху страницы и сбрасывает server-side позицию, а не сохраняет первый абзац.
+- Ошибка сохранения позиции показывается как fixed `AppToast` с `warning` и действием `Повторить` над bottom nav; уведомление не меняет высоту текста и временно заменяет кнопку наверх.
 
 Status states:
 

@@ -37,6 +37,7 @@ export const edgeFunctionNames = [
   "generate-reading-text",
   "prepare-vocabulary-cards",
   "review-vocabulary-word",
+  "save-reading-position",
   "save-vocabulary-word",
   "submit-support-report",
 ];

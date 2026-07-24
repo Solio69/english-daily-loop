@@ -31,6 +31,7 @@ type ActiveReadingTextRow = {
   model: string;
   fallback_used: boolean;
   generated_at: string;
+  last_read_paragraph_index: number | null;
 };
 
 type VocabularyWordSourceRow = {
@@ -115,7 +116,7 @@ Deno.serve(async (req: Request) => {
       supabase
         .from("user_active_reading_texts")
         .select(
-          "user_id, reading_text_id, title, body, level, estimated_minutes, provider, model, fallback_used, generated_at",
+          "user_id, reading_text_id, title, body, level, estimated_minutes, provider, model, fallback_used, generated_at, last_read_paragraph_index",
         )
         .eq("user_id", appUser.id)
         .maybeSingle(),
@@ -184,6 +185,8 @@ Deno.serve(async (req: Request) => {
           level: (activeTextRow as ActiveReadingTextRow).level,
           estimatedMinutes: (activeTextRow as ActiveReadingTextRow)
             .estimated_minutes,
+          lastReadParagraphIndex: (activeTextRow as ActiveReadingTextRow)
+            .last_read_paragraph_index,
           savedWordIndexes,
           source: "ai",
           generation: {
