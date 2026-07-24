@@ -1,7 +1,7 @@
 {
   "name": "english-daily-loop",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.1",
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0 --strictPort",
@@ -14,7 +14,8 @@
     "preview:telegram": "vite preview --mode telegram-dev --outDir dist-telegram --host=0.0.0.0 --port=3000 --strictPort",
     "clean": "node -e \"for (const dir of ['dist', 'dist-telegram']) require('node:fs').rmSync(dir, { recursive: true, force: true })\"",
     "lint": "tsc --noEmit",
-    "test": "tsx --test tests/*.test.ts"
+    "test": "tsx --test tests/*.test.ts",
+    "release:check": "tsx scripts/release-check.ts"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",

@@ -25,6 +25,7 @@ Telegram Mini App для ежедневной практики английск�
 - Общие UI primitives: `ScreenHeader`, `LoadingState`, `InlineStatusCard`, shared `Button`.
 - Роли доступа `admin` / `tester` / `user`; `admin` и `tester` получают internal paid-like доступ без платежей, а пользовательский flow подписки скрыт до подключения реальной оплаты.
 - Отправка отчета об ошибке из настроек: пользовательский комментарий, последние client events, request ids и safe AI diagnostics сохраняются в `public.support_reports`.
+- Версия приложения и описание последнего релиза доступны в настройках; техническая история хранится в `CHANGELOG.md`.
 - Базовый security-контур: server-side Telegram auth, RLS/grants hardening, защищенные секреты и безопасные ошибки Edge Functions.
 - Локальный Telegram-запуск через `npm run dev:telegram`.
 
@@ -183,6 +184,8 @@ OPENROUTER_MODEL_CHAIN="qwen/qwen3-next-80b-a3b-instruct:free,nvidia/nemotron-na
 
 Отчеты об ошибках отправляются из настроек через `submit-support-report` и не требуют отдельного env: отчет сохраняется в `public.support_reports`, а разработчик просматривает его в БД.
 
+Номер версии берется из `package.json` во время Vite-сборки. Vercel build также получает безопасные system metadata: Git commit SHA как `buildId` и `production`/`preview` как environment. Для локальных сборок используются `buildId = local` и environment `development` либо `telegram-dev`; дополнительные env-файлы и secrets для этого не нужны.
+
 `SUBSCRIPTION_FLOW_ENABLED` оставляем `"false"`, пока пользовательский flow подписки и реальные платежи выключены.
 
 Правило безопасности: во frontend доступны только переменные с префиксом `VITE_`. AI-ключи, Telegram token и service role key должны оставаться только на серверной стороне.
@@ -298,7 +301,13 @@ pnpm lint
 pnpm test
 ```
 
-Запускает unit-тесты интервалов повторения, навигационного стека и русских форм счетчиков.
+Запускает unit- и архитектурные тесты frontend, release flow и server helpers.
+
+```bash
+pnpm release:check
+```
+
+Только читает `package.json`, `src/constants/currentRelease.ts` и `CHANGELOG.md` и проверяет, что версия, дата и release note согласованы. Команда ничего не исправляет и не запускает deploy.
 
 ```bash
 pnpm build
@@ -324,6 +333,8 @@ pnpm build
 - Панель dev tools показывается только пользователю с ролью `admin`, а изменения БД выполняются только при server env `DEV_TOOLS_ENABLED="true"` и server-side проверке `users.app_role = 'admin'`.
 - После изменения frontend-кода дождись сообщения `[frontend-watch]` об успешной пересборке и обнови Mini App; tunnel и `dev:telegram` перезапускать не нужно.
 - После изменения `.env.telegram.local`, Vite config, dependencies или server env перезапусти `npm run dev:telegram`.
+- Текущий номер приложения вручную меняется только в `package.json`; тот же номер и дата релиза должны быть согласованы с `src/constants/currentRelease.ts` и `CHANGELOG.md` через `pnpm release:check`.
+- Пользовательский release note содержит только последний релиз; полная техническая история остается в `CHANGELOG.md`.
 - После существенных изменений стоит запускать минимум `pnpm lint`.
 
 ## Документация проекта
@@ -338,6 +349,7 @@ pnpm build
 - `docs/agents/skills/english-daily-loop-support-triage` — project-local skill source для разбора support reports и AI diagnostics.
 - `docs/agents/skills/triage-english-daily-loop-bugs` — project-local skill source для pre-code разбора сырых багов и формирования согласуемых баг-пачек.
 - `docs/agents/skills/english-daily-loop-feature-spec` — project-local skill source для grooming новых фич, подготовки согласуемой спецификации и подробного checklist ручного тестирования.
+- `CHANGELOG.md` — курируемая техническая история релизов.
 - `notes/server-side-data-guards.md` — серверные границы доступа, RLS и транзакционные RPC.
 - `notes/security-threat-model.md` — модель угроз MVP и чеклист security-аудита.
 - `notes/security-audit-2026-04-30.md` — результат проверки базового security-контура.

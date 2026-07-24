@@ -11,6 +11,8 @@
 - [ ] Production URL: `https://english-daily-loop.vercel.app`
 - [ ] Supabase project: `english-daily-loop-prod`
 - [ ] Проверяется актуальный Vercel production deployment.
+- [ ] Версия в `package.json`, `currentRelease` и `CHANGELOG.md` совпадает.
+- [ ] Известен Git commit SHA текущего Vercel deployment.
 - [ ] Проверяется актуальная версия Supabase Edge Functions.
 - [ ] Проверяющий пользователь имеет роль `admin` в `public.users.app_role`, если нужно проверить dev tools.
 
@@ -51,12 +53,17 @@
 
 - [ ] Экран `Настройки` открывается.
 - [ ] Блок отчета об ошибке отображается.
+- [ ] После блока отчета отображается карточка `Версия приложения` с номером текущего релиза.
+- [ ] Release notes не открываются автоматически.
+- [ ] `Что нового` открывает modal с версией, датой и пунктами только последнего релиза.
+- [ ] Modal закрывается крестиком и `Escape`, а повторное открытие не зависит от storage или сети.
 - [ ] Модальное окно отчета открывается.
 - [ ] Комментарий можно ввести.
 - [ ] Отчет отправляется без ошибки.
 - [ ] Пользователь видит report id.
 - [ ] Запись появляется в `public.support_reports`.
 - [ ] В отчете есть safe diagnostics: current screen, app context, client events, request ids.
+- [ ] `app_context` содержит ожидаемые `appVersion`, `environment = production` и `buildId`, совпадающий с Vercel Git commit SHA.
 - [ ] В отчете нет Telegram `initData`, токенов, secrets, prompt, raw AI response, полного generated text и stack trace.
 
 ## Admin And Internal Access
@@ -108,6 +115,8 @@ Result: pass / fail
 Known issues:
 Follow-up tasks:
 ```
+
+Tag и GitHub Release создаются только после результата `pass`.
 
 ## Related Docs
 

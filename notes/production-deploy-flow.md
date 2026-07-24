@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Этот runbook описывает ручной первый production-деплой схемы `Supabase Cloud + Vercel`.
+Этот runbook описывает ручной production-релиз схемы `Supabase Cloud + Vercel`.
 
 Главная идея: frontend деплоится как Vite static build на Vercel, а backend/data слой живет в Supabase Cloud: Postgres, RLS/grants, RPC, Edge Functions, secrets, logs и backups.
 
@@ -13,6 +13,8 @@
 - Supabase CLI `secrets set`: https://supabase.com/docs/reference/cli/supabase-secrets-set
 - Vite on Vercel: https://vercel.com/docs/frameworks/frontend/vite
 - Vercel environment variables: https://vercel.com/docs/environment-variables
+- Vercel system environment variables: https://vercel.com/docs/environment-variables/system-environment-variables
+- GitHub Releases: https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository
 
 ## Safety Rules
 
@@ -22,15 +24,19 @@
 - Не использовать `supabase db reset --linked` для production.
 - Перед применением миграций на production сначала смотреть dry run.
 - Первый деплой выполняется вручную владельцем проекта, без автоматического CI/CD применения миграций.
+- Исполняемые команды применения production-миграций в этом runbook не приводятся: владелец выполняет их только по отдельно проверенной operational-процедуре.
+- Tag и GitHub Release создаются только после успешного production smoke.
 
 ## Phase 0: Local Preflight
 
 Перед production-действиями локальная рабочая версия должна проходить базовые проверки:
 
 ```bash
+pnpm release:check
 pnpm lint
 pnpm test
 pnpm build
+pnpm build:telegram
 ```
 
 Проверить, что:
@@ -39,6 +45,8 @@ pnpm build
 - в локальных env-файлах, логах и screenshots нет production secrets;
 - список production env актуален в `notes/production-env.md`;
 - smoke checklist подготовлен до переключения BotFather URL.
+- `package.json`, `src/constants/currentRelease.ts` и `CHANGELOG.md` содержат одну версию и дату релиза;
+- секция `Unreleased` сохранена для следующих изменений.
 
 ## Phase 1: Supabase Cloud Project
 
@@ -65,19 +73,17 @@ npx supabase link --project-ref <project-ref>
 
 `<project-ref>` берется из Supabase project URL или dashboard. При `link` CLI может запросить database password.
 
-## Phase 3: Apply Database Migrations
+## Phase 3: Review And Apply Database Migrations
 
-Сначала посмотреть, какие миграции будут применены:
+Этот этап относится к production БД. Исполняемые команды намеренно не указаны.
 
-```bash
-npx supabase db push --dry-run
-```
+Владелец проекта:
 
-Если список миграций ожидаемый, применить:
-
-```bash
-npx supabase db push
-```
+1. Сверяет список migration-файлов релиза с release scope.
+2. Получает dry-run через утвержденную production operational-процедуру.
+3. Проверяет порядок, ожидаемые locks, совместимость с предыдущим frontend и forward-fix план.
+4. Применяет только согласованные миграции через утвержденную процедуру.
+5. Не продолжает rollout при неожиданном SQL, расхождении migration history или отсутствии backup/forward-fix плана.
 
 После применения проверить в Supabase Dashboard:
 
@@ -179,6 +185,9 @@ VITE_FEEDBACK_TELEGRAM_USERNAME="<telegram-username-without-at>"
 - приложение грузится без белого экрана;
 - нет видимых ошибок сборки;
 - frontend обращается к production `VITE_SUPABASE_URL`, а не к локальному tunnel.
+- Vercel deployment связан с ожидаемым Git commit;
+- в настройках отображается номер из `package.json`;
+- support report содержит `environment = production` и ожидаемый Vercel Git SHA в `buildId`.
 
 ## Phase 8: Telegram BotFather
 
@@ -204,10 +213,33 @@ Telegram Mini App получает настоящий `initData` только в
 - карточки словаря готовятся;
 - повторение слов открывается и принимает действие интервала;
 - отчет об ошибке отправляется и появляется в `public.support_reports`;
+- карточка версии показывает текущий номер, а `Что нового` открывает последний release note;
+- support report содержит ожидаемые `appVersion`, `buildId`, `environment`;
 - admin видит dev tools, tester/user не видит dev tools;
 - subscription entry скрыт.
 
 Подробный чеклист для ручной проверки хранится в `notes/production-smoke-checklist.md`.
+
+## Phase 10: Tag And GitHub Release
+
+Только после успешного production smoke владелец читает текущую версию из `package.json`, формирует tag `v<package.json.version>` и фиксирует им проверенный production commit. Агент эти Git-команды не выполняет.
+
+```powershell
+$releaseVersion = node -p "require('./package.json').version"
+$releaseTag = "v$releaseVersion"
+$productionCommitSha = "REPLACE_WITH_PRODUCTION_COMMIT_SHA"
+git tag -a $releaseTag $productionCommitSha -m "Release $releaseTag"
+git push origin $releaseTag
+```
+
+GitHub Release создается владельцем из того же `$releaseTag`; описание курируется по соответствующей версии секции в `CHANGELOG.md`:
+
+```powershell
+$releaseNotesFile = "REPLACE_WITH_RELEASE_NOTES_FILE"
+gh release create $releaseTag --title $releaseTag --notes-file $releaseNotesFile
+```
+
+Номер tag всегда совпадает с `package.json.version`. Если production smoke не пройден, tag и GitHub Release не создаются; исправление выпускается отдельным следующим SemVer.
 
 ## Rollback
 
@@ -233,3 +265,4 @@ Database rollback:
 - `notes/production-readiness.md`
 - `notes/server-side-data-guards.md`
 - `notes/security-threat-model.md`
+- `CHANGELOG.md`

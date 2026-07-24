@@ -60,6 +60,7 @@ Frontend не имеет прямого доступа к `public.support_report
 
 Разрешенные данные в отчете:
 
+- версия приложения, build id и тип окружения из безопасных compile-time metadata
 - роль пользователя
 - тип доступа и лимиты
 - настройки уровня и времени чтения
@@ -74,6 +75,7 @@ Frontend не имеет прямого доступа к `public.support_report
 
 - Telegram `initData`
 - токены, ключи, env/secrets
+- полный `process.env`
 - полный prompt
 - raw AI provider response
 - полный generated text
@@ -92,8 +94,9 @@ cleanup_support_reports
 
 1. Найти свежий отчет в `public.support_reports`.
 2. Посмотреть `user_comment` и `current_screen`.
-3. Сопоставить `request_ids` с Edge/API логами.
-4. Если проблема связана с AI, смотреть `ai_diagnostics` и metadata попыток:
+3. Сверить `app_context.appVersion`, `buildId` и `environment` с Vercel deployment; локальный build использует `buildId = local`.
+4. Сопоставить `request_ids` с Edge/API логами.
+5. Если проблема связана с AI, смотреть `ai_diagnostics` и metadata попыток:
    - `public.reading_generation_attempts`
    - `public.vocabulary_card_generation_attempts`
 
