@@ -11,17 +11,17 @@ import {
   errorResponse,
   fail,
   getRequiredEnv,
+  getRequestId,
+  getSafeErrorDetails,
   getTelegramUserFromBody,
   handleCorsPreflight,
   parseJsonBody,
   successResponse,
-  type TelegramUser,
 } from "../_shared/server.ts";
 import { getHomeProgress as getSharedHomeProgress } from "../_shared/home-progress.ts";
 
 type UserRow = {
   id: string;
-  telegram_user_id: number;
   first_name: string | null;
   settings_completed_at: string | null;
   first_text_completed_at: string | null;
@@ -68,6 +68,8 @@ Deno.serve(async (req: Request) => {
     return corsResponse;
   }
 
+  const requestId = getRequestId(req);
+
   try {
     assertPostRequest(req);
 
@@ -89,9 +91,7 @@ Deno.serve(async (req: Request) => {
       body,
       env.TELEGRAM_BOT_TOKEN,
     );
-    console.log("[auth-telegram] initData validated", {
-      telegramUserId: tgUser.id,
-    });
+    console.log("[auth-telegram] initData validated");
 
     const supabase = createClient(
       env.SUPABASE_URL,
@@ -104,14 +104,16 @@ Deno.serve(async (req: Request) => {
     const { data: existingUser, error: findError } = await supabase
       .from("users")
       .select(
-        "id, telegram_user_id, first_name, settings_completed_at, first_text_completed_at, app_role",
+        "id, first_name, settings_completed_at, first_text_completed_at, app_role",
       )
       .eq("telegram_user_id", tgUser.id)
       .maybeSingle();
 
     if (findError) {
       console.error("[auth-telegram] failed to find user", {
-        error: findError.message,
+        requestId,
+        stage: "user_lookup",
+        ...getSafeErrorDetails(findError, [tgUser.id]),
       });
       fail(500, "USER_FIND_FAILED", "Failed to find user.");
     }
@@ -124,35 +126,34 @@ Deno.serve(async (req: Request) => {
         .upsert(
           {
             telegram_user_id: tgUser.id,
-            username: tgUser.username ?? null,
             first_name: tgUser.first_name ?? null,
-            last_name: tgUser.last_name ?? null,
-            language_code: tgUser.language_code ?? null,
             is_active: true,
           },
           { onConflict: "telegram_user_id" },
         )
         .select(
-          "id, telegram_user_id, first_name, settings_completed_at, first_text_completed_at, app_role",
+          "id, first_name, settings_completed_at, first_text_completed_at, app_role",
         )
         .single();
 
       if (createError || !createdUser) {
         console.error("[auth-telegram] failed to create user", {
-          error: createError?.message,
+          requestId,
+          stage: "user_create",
+          ...getSafeErrorDetails(createError, [tgUser.id]),
         });
         fail(500, "USER_CREATE_FAILED", "Failed to create user.");
       }
 
       appUser = createdUser as UserRow;
       console.log("[auth-telegram] user created", {
+        requestId,
         appUserId: appUser.id,
-        telegramUserId: appUser.telegram_user_id,
       });
     } else {
       console.log("[auth-telegram] existing user found", {
+        requestId,
         appUserId: appUser.id,
-        telegramUserId: appUser.telegram_user_id,
       });
     }
 
@@ -178,7 +179,6 @@ Deno.serve(async (req: Request) => {
     return successResponse(200, {
       user: {
         id: appUser.id,
-        telegramUserId: appUser.telegram_user_id,
         firstName: appUser.first_name,
         settingsCompletedAt: appUser.settings_completed_at,
         firstTextCompletedAt: appUser.first_text_completed_at,

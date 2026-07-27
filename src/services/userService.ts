@@ -15,7 +15,6 @@ const AUTH_DEBUG_ENABLED =
 
 type UserRow = {
   id: string;
-  telegram_user_id: number;
   role: AppRole;
   first_name: string | null;
   settings_completed_at: string | null;
@@ -33,7 +32,6 @@ type AuthenticatedUserRow = UserRow & {
 type AuthTelegramFunctionData = {
   user: {
     id: string;
-    telegramUserId: number;
     role: AppRole;
     firstName: string | null;
     settingsCompletedAt: string | null;
@@ -49,7 +47,6 @@ type AuthTelegramFunctionData = {
 type SaveUserSettingsFunctionData = {
   user: {
     id: string;
-    telegramUserId: number;
     role: AppRole;
     firstName: string | null;
     settingsCompletedAt: string | null;
@@ -102,7 +99,6 @@ const mapUser = (
 
   return {
     id: user.id,
-    telegramUserId: user.telegram_user_id,
     role: user.role,
     firstName: user.first_name,
     streakDays,
@@ -139,13 +135,11 @@ const getAuthenticatedUser = async (
   );
 
   authLog("auth-telegram success", {
-    telegramUserId: payload.user.telegramUserId,
     appUserId: payload.user.id,
   });
 
   return {
     id: payload.user.id,
-    telegram_user_id: payload.user.telegramUserId,
     role: payload.user.role ?? "user",
     first_name: payload.user.firstName,
     streak_days: payload.streakDays,
@@ -178,7 +172,6 @@ export const getCurrentAppUser = async (): Promise<AppUser> => {
   const streakDays = (user as Partial<AuthenticatedUserRow>).streak_days ?? 0;
   authLog("Bootstrapped app user", {
     appUserId: user.id,
-    telegramUserId: user.telegram_user_id,
     hasSettings: Boolean(settings),
     subscriptionTier: subscription.tier,
     readingStatus: homeProgress.reading.status,
@@ -220,7 +213,6 @@ export const saveCurrentUserSettings = async (
 
   const userRow: UserRow = {
     id: payload.user.id,
-    telegram_user_id: payload.user.telegramUserId,
     role: payload.user.role ?? "user",
     first_name: payload.user.firstName,
     settings_completed_at: payload.user.settingsCompletedAt,

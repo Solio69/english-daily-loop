@@ -62,6 +62,8 @@ subscription таблицам, а также к server-only RPC. Доступ и
 `auth-telegram`:
 - валидирует Telegram `initData`
 - создает или находит пользователя по `telegram_user_id`
+- сохраняет для нового пользователя только `telegram_user_id`, `first_name` и технические поля с defaults
+- возвращает frontend внутренний профиль без Telegram ID
 - возвращает `role`, `settings`, `subscription`, `homeProgress`, `streakDays` и nullable `completedReadingTextCount`
 - не блокирует bootstrap при временной ошибке подсчета истории: ошибка логируется, а счетчик возвращается как `null`
 - разделяет ошибки Telegram validation и внутренние DB/server ошибки
@@ -73,6 +75,7 @@ subscription таблицам, а также к server-only RPC. Доступ и
 - сохраняет `english_level`, `daily_reading_minutes`
 - заполняет `users.settings_completed_at`, если настройки сохраняются впервые
 - возвращает актуальное состояние пользователя для frontend
+- не возвращает Telegram ID
 - возвращает клиенту безопасное сообщение для неожиданных внутренних ошибок
 
 `generate-reading-text`:
@@ -142,8 +145,10 @@ subscription таблицам, а также к server-only RPC. Доступ и
 - определяет текущего пользователя по `telegram_user_id`;
 - применяет rate limit отчетов;
 - санитизирует diagnostic snapshot server-side;
-- сохраняет отчет в `public.support_reports` через `SUPABASE_SERVICE_ROLE_KEY`;
+- сохраняет отчет в `public.support_reports` только со связью по внутреннему `user_id` через `SUPABASE_SERVICE_ROLE_KEY`;
 - не доверяет `user_id` и роли из body.
+
+Прикладные frontend/server logs не содержат прямой Telegram ID. До определения пользователя для диагностики используются request id, стадия и безопасное сообщение, после определения — внутренний `appUserId`.
 
 ## 5) Transactional RPC
 `public.claim_reading_generation_attempt(...)`:

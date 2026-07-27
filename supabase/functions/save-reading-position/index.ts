@@ -93,6 +93,7 @@ Deno.serve(async (req: Request) => {
       supabase,
       tgUser.id,
       LOG_PREFIX,
+      requestId,
     );
 
     const { data: activeTextRow, error: activeTextError } = await supabase

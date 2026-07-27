@@ -13,70 +13,57 @@
 
 ## 3) Базовый auth flow (Telegram)
 1. Клиент Mini App получает `initData` из Telegram WebApp API.
-2. Клиент отправляет `initData` на backend endpoint (например, `/auth/telegram`).
-3. Backend валидирует подпись `initData` через токен бота.
-4. Если валидно, backend делает `find-or-create` пользователя по `telegram_user_id`.
-5. Backend выдает сессию приложения (cookie/JWT).
-6. Дальше клиент работает от имени этой сессии.
+2. Клиент отправляет `initData` в Edge Function `auth-telegram`.
+3. Edge Function валидирует подпись и срок действия `initData` через токен бота.
+4. При успешной проверке сервер делает `find-or-create` пользователя по `telegram_user_id`.
+5. Frontend получает внутренний `id`, роль, `firstName`, настройки и прогресс без Telegram ID.
+6. Следующие Edge Functions повторно определяют текущего пользователя из валидного `initData`.
 
 Важно:
 - Проверка `initData` только на сервере.
 - Секреты Telegram и server keys никогда не в клиенте.
 
-## 4) Минимальная таблица пользователя
+## 4) Минимальный профиль пользователя
 
 ### Таблица `users`
 Назначение: единый реестр пользователей приложения.
 
-Поля:
+Поля минимального runtime-профиля:
 - `id uuid pk default gen_random_uuid()`
 - `telegram_user_id bigint unique not null`
-- `username text`
 - `first_name text`
-- `last_name text`
-- `language_code text`
 - `is_active boolean not null default true`
+- `app_role text not null`
+- onboarding timestamps
 - `created_at timestamptz not null default now()`
 - `updated_at timestamptz not null default now()`
 
-Индексы:
-- `unique (telegram_user_id)`
-
 Комментарий:
 - `id` — внутренний ключ приложения.
-- `telegram_user_id` — внешний ключ идентичности из Telegram.
+- `telegram_user_id` — server-only внешний ключ идентичности из Telegram.
+- `first_name` — отображаемое имя для персонального приветствия.
+- nullable-столбцы `username`, `last_name`, `language_code` сохраняются в схеме только до отдельного contract cleanup и приложением не заполняются.
+- frontend-контракт не содержит `telegram_user_id`.
 
-## 5) Опционально (если делаем собственные сессии)
-
-### Таблица `auth_sessions` (опционально)
-Поля:
-- `id uuid pk default gen_random_uuid()`
-- `user_id uuid not null references users(id) on delete cascade`
-- `session_token_hash text not null unique`
-- `created_at timestamptz not null default now()`
-- `expires_at timestamptz not null`
-- `revoked_at timestamptz`
-
-Когда нужна:
-- Если backend управляет своими сессиями и logout/revoke.
-
-## 6) RLS и доступ
+## 5) RLS и доступ
 - Таблица `users`: чтение/запись через backend.
 - Клиент не использует `service_role`.
-- Если включаем прямой клиентский доступ, пользователь должен видеть только свою строку.
+- Прямой доступ `anon` и `authenticated` к таблице закрыт.
+- Telegram ID не пишется в прикладные логи и support reports.
 
-## 7) Definition of Done (только auth)
+## 6) Definition of Done (только auth)
 - Пользователь надежно распознается по `telegram_user_id`.
 - Повторный вход не создает дубликаты.
-- Сессия создается и валидируется backend-слоем.
+- Каждый чувствительный запрос валидируется backend-слоем.
+- Frontend получает только внутренний профиль без Telegram ID.
 - Все секреты остаются на сервере.
 
-## 8) Что сознательно не включено в этот документ
+## 7) Что сознательно не включено в этот документ
 - Уроки, тексты, словарь, повторение.
 - Прогресс, daily plan, AI-генерация контента.
 - Эти части будут добавляться отдельными шагами.
 
-## 9) Product Invariants (зафиксировано для следующих этапов)
+## 8) Product Invariants (зафиксировано для следующих этапов)
 Ниже правила уже согласованы и должны считаться обязательными при проектировании модулей контента/прогресса.
 
 1. Разблокировка модулей при первом входе:
@@ -96,7 +83,7 @@
 - В истории сохраняются только тексты, для которых пользователь нажал `Завершить текст`.
 - Новая успешная генерация перезаписывает активный непрочитанный текст, если он не был завершен.
 
-## 10) Текущее поведение онбординга (реализовано)
+## 9) Текущее поведение онбординга
 1. При старте фронт получает пользователя из `users` и, если `settings_completed_at` заполнен, также загружает настройки из `user_settings`.
 2. После сохранения настроек значения должны сразу приходить обратно на фронт и использоваться в UI без моков.
 3. После сохранения настроек доступны `Главная`, `Текст`, `Слова` и `Материалы`, даже если `first_text_completed_at is null`.

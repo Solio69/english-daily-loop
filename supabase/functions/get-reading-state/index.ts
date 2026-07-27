@@ -7,6 +7,7 @@ import {
   errorResponse,
   fail,
   getRequiredEnv,
+  getRequestId,
   getTelegramUserFromBody,
   handleCorsPreflight,
   parseJsonBody,
@@ -14,11 +15,7 @@ import {
 } from "../_shared/server.ts";
 import { getMoscowStudyDate } from "../_shared/moscow-study-date.ts";
 import { getDailyReadingGenerationLimit } from "../_shared/access.ts";
-
-type UserRow = {
-  id: string;
-  telegram_user_id: number;
-};
+import { getAppUserByTelegramId } from "../_shared/app.ts";
 
 type ActiveReadingTextRow = {
   user_id: string;
@@ -44,6 +41,8 @@ Deno.serve(async (req: Request) => {
     return corsResponse;
   }
 
+  const requestId = getRequestId(req);
+
   try {
     assertPostRequest(req);
 
@@ -67,29 +66,12 @@ Deno.serve(async (req: Request) => {
       },
     );
 
-    const { data: userRow, error: userError } = await supabase
-      .from("users")
-      .select("id, telegram_user_id")
-      .eq("telegram_user_id", tgUser.id)
-      .maybeSingle();
-
-    if (userError) {
-      console.error("[get-reading-state] failed to load user", {
-        telegramUserId: tgUser.id,
-        error: userError.message,
-      });
-      fail(500, "USER_FIND_FAILED", "Failed to load user profile.");
-    }
-
-    if (!userRow) {
-      fail(
-        404,
-        "USER_NOT_FOUND",
-        "User profile was not found. Complete Telegram auth first.",
-      );
-    }
-
-    const appUser = userRow as UserRow;
+    const appUser = await getAppUserByTelegramId(
+      supabase,
+      tgUser.id,
+      "[get-reading-state]",
+      requestId,
+    );
     const studyDate = getMoscowStudyDate();
     const dailyLimit = await getDailyReadingGenerationLimit(
       supabase,

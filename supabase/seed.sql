@@ -4,27 +4,18 @@
 insert into public.users (
   id,
   telegram_user_id,
-  username,
   first_name,
-  last_name,
-  language_code,
   is_active
 )
 values (
   '11111111-1111-4111-8111-111111111111',
   999000001,
-  'dev_user',
   'Dev',
-  'User',
-  'ru',
   true
 )
 on conflict (telegram_user_id) do update
 set
-  username = excluded.username,
   first_name = excluded.first_name,
-  last_name = excluded.last_name,
-  language_code = excluded.language_code,
   is_active = excluded.is_active;
 
 insert into public.reading_texts (

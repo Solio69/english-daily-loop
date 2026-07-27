@@ -22,6 +22,7 @@ test("support app context includes only the provided safe release metadata", () 
   assert.equal(appContext.buildId, "commit-sha");
   assert.equal(appContext.environment, "production");
   assert.equal(appContext.userAgent, "test-agent");
+  assert.equal(Object.hasOwn(appContext, "telegramUserId"), false);
 });
 
 test("support release metadata does not read process env or known secrets", () => {

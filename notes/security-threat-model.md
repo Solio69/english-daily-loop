@@ -96,6 +96,7 @@ Edge Functions:
 - Subscription activation должна быть закрыта server env флагом, пока пользовательский flow подписки выключен.
 - Ошибки клиенту возвращаются без секретов, stack trace и SQL/provider details.
 - Логи не должны содержать секреты, полный `initData` или чувствительные ключи.
+- Прикладные логи, frontend state и support reports не должны содержать прямой Telegram ID; после auth для корреляции используется внутренний `appUserId`.
 - AI observability хранит только metadata попытки; полный prompt, raw provider response, полный generated text и stack trace не пишутся в `reading_generation_attempts`.
 - Пользовательские support reports хранят только sanitized diagnostic snapshot; полный `initData`, secrets, prompt, raw AI response, полный generated text и stack trace не пишутся в `support_reports`.
 

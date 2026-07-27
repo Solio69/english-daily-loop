@@ -218,6 +218,7 @@ Deno.serve(async (req: Request) => {
       supabase,
       tgUser.id,
       "[prepare-vocabulary-cards]",
+      requestId,
     );
     const englishLevel = await getUserEnglishLevel(
       supabase,

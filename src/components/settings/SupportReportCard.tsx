@@ -148,7 +148,8 @@ export const SupportReportCard: React.FC<SupportReportCardProps> = ({
             />
 
             <p className="mt-2 text-xs leading-4 text-[var(--text-muted)]">
-              Отправим технический отчет без токенов и полного текста.
+              Не указывай пароли, контакты и другие личные данные. Отправим
+              технический отчет без токенов и полного текста.
             </p>
 
             {errorMessage ? (

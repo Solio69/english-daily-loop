@@ -24,7 +24,7 @@ Telegram Mini App для ежедневной практики английск�
 - Единые app-level toast-сообщения показываются сверху как floating glass card с variant-состояниями `success`, `warning`, `error`.
 - Общие UI primitives: `ScreenHeader`, `LoadingState`, `InlineStatusCard`, shared `Button`.
 - Роли доступа `admin` / `tester` / `user`; `admin` и `tester` получают internal paid-like доступ без платежей, а пользовательский flow подписки скрыт до подключения реальной оплаты.
-- Отправка отчета об ошибке из настроек: пользовательский комментарий, последние client events, request ids и safe AI diagnostics сохраняются в `public.support_reports`.
+- Отправка отчета об ошибке из настроек: пользовательский комментарий, последние client events, request ids и safe AI diagnostics сохраняются в `public.support_reports` со связью только по внутреннему `user_id`.
 - Версия приложения и описание последнего релиза доступны в настройках; техническая история хранится в `CHANGELOG.md`.
 - Базовый security-контур: server-side Telegram auth, RLS/grants hardening, защищенные секреты и безопасные ошибки Edge Functions.
 - Локальный Telegram-запуск через `npm run dev:telegram`.
@@ -89,6 +89,8 @@ Telegram Mini App для ежедневной практики английск�
 
 Все чувствительные операции выполняются на сервере. `TELEGRAM_BOT_TOKEN`, `SUPABASE_SERVICE_ROLE_KEY` и `OPENROUTER_API_KEY` нельзя использовать в клиентском коде. Неожиданные внутренние ошибки Edge Functions логируются на сервере, а клиент получает безопасный код и сообщение без SQL/provider details.
 
+`users.telegram_user_id` используется только server-side для Telegram auth и будущего Bot API flow. Frontend user contract, новые support reports и прикладные логи не содержат прямой Telegram ID. Новый профиль сохраняет только Telegram ID, `first_name` и технические поля; `username`, `last_name` и `language_code` не собираются.
+
 Общая server-инфраструктура Edge Functions находится в `supabase/functions/_shared/server.ts`: CORS, POST guard, JSON parsing, чтение env, Telegram `initData` validation, request id, `AppError` и единый формат JSON-ответов. Общий helper safe AI diagnostics находится в `supabase/functions/_shared/ai-diagnostics.ts`. Общий helper московской учебной даты с границей `05:00 Europe/Moscow` находится в `supabase/functions/_shared/moscow-study-date.ts`. Роли, effective subscription summary и лимиты доступа считаются в `supabase/functions/_shared/access.ts`. Общий OpenRouter client/model allowlist находится в `supabase/functions/_shared/openrouter.ts`, общие AI text helpers — в `supabase/functions/_shared/ai-text.ts`. Лимит, подсчет и metadata попыток подготовки карточек вынесены в `supabase/functions/_shared/vocabulary-card-generation.ts`, snapshot повторения и home progress — в `supabase/functions/_shared/vocabulary-review-state.ts` и `supabase/functions/_shared/home-progress.ts`, streak чтения и счетчик истории — в `supabase/functions/_shared/reading-streak.ts` и `supabase/functions/_shared/reading-history.ts`, а best-effort post-completion orchestration — в `supabase/functions/_shared/reading-completion-metrics.ts`.
 Prompt/output слой словарных карточек находится рядом с функцией подготовки: `supabase/functions/prepare-vocabulary-cards/ai-pipeline.ts`. Сохранение подготовленных карточек и merge pending-дубликатов в существующие канонические карточки вынесены в `supabase/functions/prepare-vocabulary-cards/card-persistence.ts`.
 
@@ -122,7 +124,7 @@ AI attempt metadata хранится `90` дней; scheduled cleanup выпол
 
 `public.vocabulary_card_generation_attempts` хранит дневные попытки подготовки AI-карточек словаря: provider/model, prompt version, model chain, количество запрошенных/подготовленных/неподготовленных карточек, merge/reactivation counters, duration и sanitized error details. Записи хранятся `90` дней; scheduled cleanup выполняется server-side через `pg_cron` job `cleanup_vocabulary_card_generation_attempts`.
 
-`public.support_reports` хранит только вручную отправленные пользователем отчеты об ошибках: комментарий, текущий экран, безопасный app context, последние client events, request ids и safe AI diagnostics. Таблица закрыта для `anon`/`authenticated`, запись идет через Edge Function `submit-support-report`; отчеты хранятся `30` дней и очищаются job `cleanup_support_reports`.
+`public.support_reports` хранит только вручную отправленные пользователем отчеты об ошибках: внутренний `user_id`, комментарий, текущий экран, безопасный app context, последние client events, request ids и safe AI diagnostics. Прямой Telegram ID в новые отчеты не записывается. Nullable-столбец `telegram_user_id` и существующие старые строки остаются до отдельного contract cleanup. Таблица закрыта для `anon`/`authenticated`, запись идет через Edge Function `submit-support-report`; отчеты хранятся `30` дней и очищаются job `cleanup_support_reports`.
 
 Критичные операции, где важна защита от параллельных запросов, вынесены в Postgres RPC:
 

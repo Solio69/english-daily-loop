@@ -36,12 +36,74 @@ const REQUEST_ID_HEADER = "x-request-id";
 const REQUEST_ID_PATTERN = /^[a-zA-Z0-9_-]{8,80}$/;
 
 export type SafeDiagnostics = Record<string, unknown>;
+export type SafeErrorDetails = {
+  errorCode: string;
+  errorMessage: string;
+};
+
+const normalizeLogValue = (value: string, maxLength: number): string =>
+  value.replace(/\s+/g, " ").trim().slice(0, maxLength);
+
+const redactSensitiveLogValues = (
+  value: string,
+  sensitiveValues: Array<string | number>,
+): string => {
+  let sanitized = value
+    .replace(/bearer\s+\S+/gi, "Bearer [redacted]")
+    .replace(
+      /(telegram_user_id|telegramUserId)\s*[=:]\s*\S+/gi,
+      "$1=[redacted]",
+    );
+
+  for (const sensitiveValue of sensitiveValues) {
+    const rawValue = String(sensitiveValue).trim();
+    if (!rawValue) continue;
+    sanitized = sanitized.split(rawValue).join("[redacted]");
+  }
+
+  return sanitized;
+};
+
+export const getSafeErrorDetails = (
+  error: unknown,
+  sensitiveValues: Array<string | number> = [],
+): SafeErrorDetails => {
+  const errorRecord =
+    error && typeof error === "object"
+      ? error as Record<string, unknown>
+      : null;
+  const rawCode = errorRecord?.code;
+  const code =
+    typeof rawCode === "string" || typeof rawCode === "number"
+      ? String(rawCode)
+      : "UNKNOWN_ERROR";
+  const rawMessage =
+    error instanceof Error
+      ? error.message
+      : typeof errorRecord?.message === "string"
+        ? errorRecord.message
+        : "Unknown server error.";
+
+  return {
+    errorCode: normalizeLogValue(
+      redactSensitiveLogValues(code, sensitiveValues),
+      80,
+    ) || "UNKNOWN_ERROR",
+    errorMessage: normalizeLogValue(
+      redactSensitiveLogValues(rawMessage, sensitiveValues),
+      300,
+    ) || "Unknown server error.",
+  };
+};
 
 export const createRequestId = (): string => `req_${crypto.randomUUID()}`;
 
+export const isValidRequestId = (value: string): boolean =>
+  REQUEST_ID_PATTERN.test(value);
+
 export const getRequestId = (req: Request): string => {
   const rawRequestId = req.headers.get(REQUEST_ID_HEADER)?.trim();
-  if (rawRequestId && REQUEST_ID_PATTERN.test(rawRequestId)) {
+  if (rawRequestId && isValidRequestId(rawRequestId)) {
     return rawRequestId;
   }
 

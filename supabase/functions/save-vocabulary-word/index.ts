@@ -6,6 +6,7 @@ import {
   errorResponse,
   fail,
   getRequiredEnv,
+  getRequestId,
   getTelegramUserFromBody,
   handleCorsPreflight,
   parseJsonBody,
@@ -126,6 +127,8 @@ Deno.serve(async (req: Request) => {
     return corsResponse;
   }
 
+  const requestId = getRequestId(req);
+
   try {
     assertPostRequest(req);
 
@@ -166,6 +169,7 @@ Deno.serve(async (req: Request) => {
       supabase,
       tgUser.id,
       "[save-vocabulary-word]",
+      requestId,
     );
     const studyDate = getMoscowStudyDate();
 

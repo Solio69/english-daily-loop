@@ -132,6 +132,7 @@
 - Миграция `supabase/migrations/20260705130000_promote_vocabulary_needs_approval_cards.sql` переводит существующие `needs_approval`-карточки в текущий `ready` + `not_started` flow повторения.
 - Миграция `supabase/migrations/20260706120000_add_user_app_roles.sql` добавляет `users.app_role` со значениями `admin | tester | user`; новые пользователи по умолчанию получают роль `tester`.
 - Миграция `supabase/migrations/20260707120000_add_support_reports.sql` добавляет `public.support_reports` для пользовательских отчетов об ошибках, закрывает таблицу для `anon`/`authenticated` и создает scheduled cleanup job `cleanup_support_reports` для удаления отчетов старше `30` дней.
+- Миграция `supabase/migrations/20260727120000_prepare_personal_data_minimization.sql` делает совместимый столбец `support_reports.telegram_user_id` nullable; новые отчеты связываются только через внутренний `user_id`, а физическое удаление лишних столбцов отложено до отдельного contract cleanup после production rollout и backup gate.
 - Миграция `supabase/migrations/20260723120000_add_moscow_study_day_and_carry_active_text.sql` добавляет server-only SQL-helper учебной даты с границей `05:00 Europe/Moscow`, снимает date-scope с единственного active text и обновляет reading/review RPC без переписывания исторических данных; timestamp-чувствительные mutation RPC получают дату из того же DB timestamp, который сохраняют.
 - Миграция `supabase/migrations/20260724120000_add_active_reading_position.sql` добавляет nullable-позицию абзаца `last_read_paragraph_index` в единственный active text; `null` означает абсолютный верх страницы.
 - В проекте есть базовые миграции и сиды для локальной разработки (dev user + моковые тексты).
@@ -156,6 +157,7 @@
 - Telegram auth реализована через Edge Function `supabase/functions/auth-telegram/index.ts`:
   - серверная валидация `initData` (подпись + `auth_date`)
   - идемпотентный `find-or-create/upsert` пользователя по `telegram_user_id`
+  - новый профиль сохраняет только `telegram_user_id`, `first_name` и технические поля с defaults; `username`, `last_name`, `language_code` не собираются
   - ошибки Telegram validation возвращаются как `401 AUTH_VALIDATION_FAILED`, а внутренние DB/server ошибки как отдельные `5xx` коды
   - неожиданные внутренние ошибки возвращаются клиенту с безопасным сообщением без SQL/provider details, подробности остаются в server logs
   - возвращает `settings`, если `settings_completed_at` уже заполнен
@@ -165,6 +167,7 @@
   - возвращает `homeProgress.review` (`status`, `dueCount`, `reviewedTodayCount`) для шага повторения
   - возвращает `streakDays` для счетчика с иконкой огонька
   - возвращает nullable `completedReadingTextCount` как общее количество завершенных текстов пользователя; временная ошибка агрегатного запроса не блокирует bootstrap
+  - не возвращает Telegram ID во frontend user contract и не пишет его в прикладные логи
   - единый контракт ответа (`ok/data` или `ok/error`).
 - Сохранение настроек пользователя реализовано через Edge Function `supabase/functions/save-user-settings/index.ts`:
   - серверная валидация `Telegram initData`
@@ -243,6 +246,7 @@
   - rate limit: `5` отчетов на пользователя в час
   - максимальный diagnostic snapshot: `100KB`; при превышении сервер отбрасывает старые client events
   - сохраняет только sanitized данные в `public.support_reports`: комментарий, текущий экран, app context, последние client events, request ids и safe AI diagnostics
+  - связывает новый отчет с пользователем только через внутренний `user_id`; Telegram ID не записывается в строку или `app_context`
   - не сохраняет Telegram `initData`, токены, secrets, prompt, raw AI response, полный generated text и stack trace
   - отчеты очищаются через `pg_cron` после `30` дней.
 - Текущие MVP-лимиты подписок:

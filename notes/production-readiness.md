@@ -96,3 +96,13 @@
 - `public.support_reports` закрыта для `anon` и `authenticated`; запись идет через Edge Function с `SUPABASE_SERVICE_ROLE_KEY`.
 - Отчеты хранятся `30` дней и очищаются через `pg_cron` job `cleanup_support_reports`.
 - Перед production стоит добавить удобный admin-view или SQL-шаблон для просмотра свежих отчетов без ручного поиска по таблице.
+
+## 11) Минимизация пользовательских данных
+- `users.telegram_user_id` хранится только как server-side идентификатор для Telegram auth и будущих сообщений бота.
+- `users.first_name` используется для персонального приветствия.
+- Приложение не собирает `username`, `last_name` и `language_code`; совместимые nullable-столбцы остаются в схеме до отдельного contract cleanup.
+- Frontend user contract, новые support reports и прикладные логи не содержат прямой Telegram ID.
+- Новые support reports связаны с пользователем только через внутренний `user_id`; совместимый nullable-столбец `support_reports.telegram_user_id` остается до contract cleanup.
+- Contract cleanup допускается только после успешного production rollout текущего runtime-контракта и проверки backup/restore flow.
+- Self-service удаление аккаунта и экспорт пользовательских данных остаются отдельными product/privacy задачами.
+- Полная карта хранения и сроков зафиксирована в `notes/user-data-storage.md`.

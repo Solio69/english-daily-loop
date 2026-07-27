@@ -31,7 +31,6 @@ export const buildSupportAppContext = (
   buildId: metadata.buildId,
   environment: metadata.environment,
   appUserId: appUser?.id ?? null,
-  telegramUserId: appUser?.telegramUserId ?? null,
   role: appUser?.role ?? null,
   settings: appUser?.settings ?? null,
   subscription: appUser
