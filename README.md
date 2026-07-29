@@ -58,7 +58,7 @@ Telegram Mini App для ежедневной практики английск�
 - `supabase/migrations` — схема базы данных.
 - `supabase/functions` — серверная логика в Deno runtime.
 - `notes` — проектные решения и текущие ограничения.
-- `docs/agents` — рабочая документация для AI-агентов, включая дизайн-систему и локальный Telegram-запуск.
+- `docs/agents` — рабочая документация для владельца проекта и AI-агентов, включая единый workflow, дизайн-систему и локальный Telegram-запуск.
 - `scripts/dev-stack.mjs` и `scripts/dev/*` — локальная инфраструктура разработки.
 - `tools` — локальные утилиты вроде `cloudflared.exe`; папка не коммитится.
 
@@ -345,6 +345,7 @@ pnpm build
 
 - `AGENTS.md` — правила работы в репозитории и текущий статус.
 - `GIT_POLICY.md` — строгая политика Git для AI-агентов.
+- `docs/agents/WORKFLOW.md` — единый жизненный цикл задач, точки согласования и распределение ответственности.
 - `docs/agents/LOCAL_TELEGRAM_RUN.md` — подробный локальный запуск внутри Telegram.
 - `docs/agents/DESIGN_SYSTEM.md` — актуальная дизайн-система приложения.
 - `docs/agents/references/manual-testing-guide.md` — единый формат подробных сценариев ручного тестирования для фич и баг-пачек.
