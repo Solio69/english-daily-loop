@@ -312,6 +312,30 @@ pnpm release:check
 Только читает `package.json`, `src/constants/currentRelease.ts` и `CHANGELOG.md` и проверяет, что версия, дата и release note согласованы. Команда ничего не исправляет и не запускает deploy.
 
 ```bash
+pnpm backup:setup
+```
+
+Один раз подготавливает защищенную локальную папку и Windows-конфигурацию production backup. Пароль БД сохраняется через Windows DPAPI вне репозитория.
+
+```bash
+pnpm backup:schedule
+```
+
+Регистрирует ежедневный запуск backup в Windows Task Scheduler. Пропущенный запуск выполняется после следующего включения компьютера.
+
+```bash
+pnpm backup:production
+```
+
+Вручную запускает тот же production backup. Команда только читает production БД через Supabase CLI и сохраняет logical snapshot локально.
+
+```bash
+pnpm backup:status
+```
+
+Локально проверяет последний completed snapshot, checksums и возраст backup, не подключаясь к БД.
+
+```bash
 pnpm build
 ```
 
@@ -371,6 +395,7 @@ pnpm build
 - `notes/production-env.md` — production env inventory для Vercel и Supabase Edge Functions.
 - `notes/production-deploy-flow.md` — ручной runbook первого production-деплоя через Supabase Cloud + Vercel.
 - `notes/production-smoke-checklist.md` — ручной smoke checklist для проверки production-деплоя.
+- `notes/backup-and-restore.md` — production logical backups, локальное хранение, retention и изолированная проверка восстановления.
 - `notes/home-progress-and-toast.md` — прогресс главного экрана и toast-сообщения.
 - `notes/dev-mode-dx.md` — локальный Telegram-режим разработки и ограничения DX.
 - `notes/production-readiness.md` — что нужно пересмотреть перед production.

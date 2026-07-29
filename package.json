@@ -15,7 +15,11 @@
     "clean": "node -e \"for (const dir of ['dist', 'dist-telegram']) require('node:fs').rmSync(dir, { recursive: true, force: true })\"",
     "lint": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
-    "release:check": "tsx scripts/release-check.ts"
+    "release:check": "tsx scripts/release-check.ts",
+    "backup:setup": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/backup/initialize-production-backup.ps1",
+    "backup:schedule": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/backup/register-production-backup-task.ps1",
+    "backup:production": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/backup/run-production-backup.ps1",
+    "backup:status": "tsx scripts/backup/status.ts"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",

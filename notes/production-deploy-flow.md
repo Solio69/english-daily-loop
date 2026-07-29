@@ -4,7 +4,7 @@
 
 Этот runbook описывает ручной production-релиз схемы `Supabase Cloud + Vercel`.
 
-Главная идея: frontend деплоится как Vite static build на Vercel, а backend/data слой живет в Supabase Cloud: Postgres, RLS/grants, RPC, Edge Functions, secrets, logs и backups.
+Главная идея: frontend деплоится как Vite static build на Vercel, а backend/data слой живет в Supabase Cloud: Postgres, RLS/grants, RPC, Edge Functions, secrets и logs. На Supabase Free production БД защищается отдельным локальным logical backup по `notes/backup-and-restore.md`.
 
 ## Official References
 
@@ -37,6 +37,7 @@ pnpm lint
 pnpm test
 pnpm build
 pnpm build:telegram
+pnpm backup:status
 ```
 
 Проверить, что:
@@ -45,6 +46,8 @@ pnpm build:telegram
 - в локальных env-файлах, логах и screenshots нет production secrets;
 - список production env актуален в `notes/production-env.md`;
 - smoke checklist подготовлен до переключения BotFather URL.
+- есть свежий завершенный production snapshot; critical-статус backup блокирует действия с риском потери данных;
+- recovery drill уже подтверждал восстановимость текущего формата snapshot;
 - `package.json`, `src/constants/currentRelease.ts` и `CHANGELOG.md` содержат одну версию и дату релиза;
 - секция `Unreleased` сохранена для следующих изменений.
 
@@ -55,7 +58,7 @@ pnpm build:telegram
 3. Сохранить database password в password manager.
 4. Скопировать production Project URL: `https://<project-ref>.supabase.co`.
 5. Скопировать production anon key для frontend.
-6. Проверить, что в проекте доступны Edge Functions, logs и нужный план backups.
+6. Проверить, что в проекте доступны Edge Functions и logs. Для Supabase Free использовать локальную backup-стратегию из `notes/backup-and-restore.md`.
 
 После создания проекта не переносить данные вручную через UI. Схема накатывается миграциями.
 
@@ -82,8 +85,9 @@ npx supabase link --project-ref <project-ref>
 1. Сверяет список migration-файлов релиза с release scope.
 2. Получает dry-run через утвержденную production operational-процедуру.
 3. Проверяет порядок, ожидаемые locks, совместимость с предыдущим frontend и forward-fix план.
-4. Применяет только согласованные миграции через утвержденную процедуру.
-5. Не продолжает rollout при неожиданном SQL, расхождении migration history или отсутствии backup/forward-fix плана.
+4. Проверяет локальный backup-статус и recovery gate по `notes/backup-and-restore.md`.
+5. Применяет только согласованные миграции через утвержденную процедуру.
+6. Не продолжает rollout при неожиданном SQL, расхождении migration history, critical backup status, непроверенном restore flow или отсутствии forward-fix плана.
 
 После применения проверить в Supabase Dashboard:
 
@@ -255,7 +259,8 @@ Database rollback:
 
 - не делать ручной откат production DB без отдельного плана;
 - для schema-проблем предпочтителен forward-fix миграцией;
-- для data-проблем сначала снять backup/dump и только потом выполнять согласованные SQL-действия.
+- для data-проблем восстанавливать snapshot сначала в изолированную БД и только затем готовить отдельный план выборочного восстановления;
+- не восстанавливать logical dump поверх production БД.
 
 ## Related Docs
 
@@ -263,6 +268,7 @@ Database rollback:
 - `notes/production-env.md`
 - `notes/production-smoke-checklist.md`
 - `notes/production-readiness.md`
+- `notes/backup-and-restore.md`
 - `notes/server-side-data-guards.md`
 - `notes/security-threat-model.md`
 - `CHANGELOG.md`

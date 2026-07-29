@@ -1,149 +1,160 @@
-# Deployment platform decision
+# Выбор платформы для production
 
-## Decision
+## Решение
 
 Для первого production-релиза используется связка:
 
 ```text
 Frontend: Vercel
-Backend/data: Supabase Cloud
-AI provider: OpenRouter
-Telegram entrypoint: BotFather menu button URL -> Vercel production URL
+Backend и данные: Supabase Cloud
+AI-провайдер: OpenRouter
+Точка входа Telegram: URL кнопки меню BotFather -> production URL Vercel
 ```
 
-Это целевой путь для MVP. VPS/self-hosting остается возможным будущим вариантом, но не используется для первого релиза.
+Это целевая схема для MVP. VPS/self-hosting остаётся возможным будущим вариантом, но не используется для первого релиза.
 
-## Why This Path
+## Почему выбран этот вариант
 
 Приложение уже построено вокруг Supabase:
 
-- Postgres schema хранится в `supabase/migrations`
-- серверная бизнес-логика находится в Supabase Edge Functions
-- защищенные операции идут через `SUPABASE_SERVICE_ROLE_KEY`
-- frontend работает через сервисный слой и не пишет напрямую в защищенные таблицы
-- локальный Telegram-режим уже имитирует production-like схему: frontend build + Supabase API URL + Edge Functions
+- схема Postgres хранится в `supabase/migrations`;
+- серверная бизнес-логика находится в Supabase Edge Functions;
+- защищённые операции выполняются через `SUPABASE_SERVICE_ROLE_KEY`;
+- frontend работает через сервисный слой и не пишет напрямую в защищённые таблицы;
+- локальный Telegram-режим воспроизводит production-like схему: frontend build, Supabase API URL и Edge Functions.
 
-Vercel подходит для frontend-части, потому что Vite build является статическим приложением: `index.html`, JS, CSS, шрифты и assets. Telegram Mini App открывает этот HTTPS URL внутри WebView.
+Vercel подходит для frontend-части, потому что Vite build представляет собой статическое приложение: `index.html`, JS, CSS, шрифты и другие assets. Telegram Mini App открывает этот HTTPS URL внутри WebView.
 
-Supabase Cloud подходит для backend-части, потому что сохраняет текущую модель Postgres + Edge Functions без отдельного Express/Nest backend.
+Supabase Cloud подходит для backend-части, потому что сохраняет текущую модель Postgres + Edge Functions без отдельного backend на Express или Nest.
 
-## Runtime Architecture
+## Архитектура приложения
 
 ```text
 Telegram Mini App
-  -> opens Vercel HTTPS URL in Telegram WebView
-  -> loads Vite/React frontend
-  -> frontend reads Telegram.WebApp.initData
-  -> frontend calls Supabase Edge Functions
-  -> Edge Functions validate initData and use service role for server-side DB work
-  -> Postgres stores users, settings, reading, vocabulary, review and support reports
+  -> открывает HTTPS URL Vercel внутри Telegram WebView
+  -> загружает frontend на Vite/React
+  -> frontend читает Telegram.WebApp.initData
+  -> frontend вызывает Supabase Edge Functions
+  -> Edge Functions проверяют initData и используют service role для серверной работы с БД
+  -> Postgres хранит пользователей, настройки, чтение, словарь, повторение и отчёты об ошибках
 ```
 
-## Deployment Surfaces
+## Распределение ответственности между платформами
 
 ### Vercel
 
-Vercel hosts only frontend assets.
+Vercel хранит и раздаёт только frontend assets.
 
-Vercel env contains only public frontend variables:
+Vercel env содержит только публичные frontend-переменные:
 
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_ANON_KEY`
-- `VITE_FEEDBACK_TELEGRAM_USERNAME`
+- `VITE_SUPABASE_URL`;
+- `VITE_SUPABASE_ANON_KEY`;
+- `VITE_FEEDBACK_TELEGRAM_USERNAME`.
 
-Never put server secrets into Vercel `VITE_*` variables.
+Серверные секреты запрещено помещать в переменные Vercel с префиксом `VITE_*`.
 
 ### Supabase Cloud
 
-Supabase Cloud hosts:
+В Supabase Cloud находятся:
 
-- Postgres database
-- RLS/grants/server-only RPC
-- Edge Functions
-- Edge Function secrets
-- platform logs
-- database backups
+- база данных Postgres;
+- RLS, grants и server-only RPC;
+- Edge Functions;
+- secrets для Edge Functions;
+- platform logs;
+- database runtime, который используется только как источник чтения для локальных logical backups.
 
-Supabase Edge Function secrets contain server-only values:
+Supabase Edge Function secrets содержат server-only значения:
 
-- `OPENROUTER_API_KEY`
-- `TELEGRAM_BOT_TOKEN`
-- `DEV_TOOLS_ENABLED`
-- `SUBSCRIPTION_FLOW_ENABLED`
-- optional OpenRouter model chain variables
+- `OPENROUTER_API_KEY`;
+- `TELEGRAM_BOT_TOKEN`;
+- `DEV_TOOLS_ENABLED`;
+- `SUBSCRIPTION_FLOW_ENABLED`;
+- необязательные переменные цепочки моделей OpenRouter.
 
-## Deploy Order
+## Порядок production-деплоя
 
-1. Create or choose Supabase Cloud project.
-2. Apply database migrations to Supabase Cloud.
-3. Configure Supabase Edge Function secrets.
-4. Deploy Supabase Edge Functions.
-5. Create Vercel project from the repository.
-6. Configure Vercel frontend env.
-7. Deploy frontend to Vercel.
-8. Set BotFather menu button URL to Vercel production URL.
-9. Run production smoke checklist in Telegram.
+1. Создать или выбрать проект Supabase Cloud.
+2. Применить миграции БД к Supabase Cloud.
+3. Настроить secrets для Supabase Edge Functions.
+4. Развернуть Supabase Edge Functions.
+5. Создать проект Vercel из репозитория.
+6. Настроить frontend env в Vercel.
+7. Развернуть frontend в Vercel.
+8. Установить production URL Vercel как URL кнопки меню в BotFather.
+9. Выполнить production smoke checklist внутри Telegram.
 
-## Region Choice
+## Выбор региона
 
-Supabase region should be chosen before creating the production project. For the MVP, prefer a stable European region available in the account, then verify real access from the target Telegram environment.
+Регион Supabase выбирается до создания production-проекта. Для MVP используется стабильный доступный европейский регион, после чего реальный доступ проверяется из целевого Telegram-окружения.
 
-The final choice must be validated by opening the deployed Mini App from Telegram on the user's actual network.
+Окончательный выбор подтверждается открытием развёрнутого Mini App через Telegram в реальной сети пользователя.
 
-## VPS / Self-hosting Position
+## Позиция по VPS и self-hosting
 
-VPS is not selected for the first release because it adds operational scope:
+VPS не используется для первого релиза, потому что добавляет дополнительную эксплуатационную работу:
 
-- server provisioning
-- HTTPS certificates
-- Docker/runtime updates
-- firewall
-- Postgres backups and restore drills
-- monitoring and logs
-- security patching
+- настройку сервера;
+- HTTPS-сертификаты;
+- обновление Docker и runtime;
+- firewall;
+- автоматизацию Postgres backup и проверки восстановления;
+- monitoring и logs;
+- обновления безопасности.
 
-The app can move later if needed. The current codebase keeps that path realistic by keeping data access in services, business logic in Edge Functions/server code, migrations in files, and env outside code.
+При необходимости приложение можно перенести позже. Текущая кодовая база сохраняет этот путь реалистичным: доступ к данным находится в сервисах, бизнес-логика — в Edge Functions и серверном коде, миграции — в отдельных файлах, а env — вне кода.
 
-## Fallbacks
+## Резервное копирование и восстановление
 
-If Vercel is not usable from the target environment:
+Supabase Free не предоставляет managed project backups для этого production-проекта. Поэтому MVP использует ежедневный logical backup, который создаётся на Windows-компьютере владельца и хранится вне репозитория.
 
-1. Keep Supabase Cloud for backend/data.
-2. Move frontend to another HTTPS static hosting provider.
-3. Update `VITE_SUPABASE_URL`, rebuild frontend and change BotFather URL.
+- Целевой RPO: `24 часа`; backup старше `72 часов` считается критическим нарушением.
+- Целевой RTO: `4 часа`.
+- Восстановление проверяется только в изолированной non-production БД Postgres.
+- Recovery drill выполняется минимум раз в квартал и перед destructive contract cleanup.
+- Актуальная процедура и правила локального хранения описаны в `notes/backup-and-restore.md`.
 
-If Supabase Cloud is not usable:
+## Резервные варианты
 
-1. Re-evaluate managed Postgres + serverless functions alternatives.
-2. Consider VPS/self-hosting as a separate infrastructure project.
+Если Vercel недоступен из целевого окружения:
 
-## Open Questions Before First Deploy
+1. Оставить Supabase Cloud для backend и данных.
+2. Перенести frontend к другому провайдеру статического HTTPS-хостинга.
+3. Обновить `VITE_SUPABASE_URL`, пересобрать frontend и изменить URL в BotFather.
 
-- Which Supabase region is available and stable for the user's target environment?
-- Which domain is used first: Vercel default domain or custom domain?
-- Is the current Supabase plan enough for backups, `pg_cron` and expected usage?
-- Is OpenRouter key usable from Supabase Edge Functions in the chosen region?
+Если недоступен Supabase Cloud:
 
-## Production Dev Tools
+1. Повторно оценить альтернативы managed Postgres и serverless functions.
+2. Рассматривать VPS/self-hosting как отдельный инфраструктурный проект.
 
-For the first production testing period, `DEV_TOOLS_ENABLED` is intentionally enabled:
+## Открытые вопросы перед первым деплоем
+
+- Какой регион Supabase доступен и стабилен для целевого окружения пользователя?
+- Какой домен используется первым: стандартный домен Vercel или собственный?
+- Достаточно ли текущего плана Supabase для `pg_cron` и ожидаемой нагрузки?
+- Доступен ли ключ OpenRouter из Supabase Edge Functions в выбранном регионе?
+
+## Инструменты разработки в production
+
+На первом этапе production-тестирования `DEV_TOOLS_ENABLED` намеренно включён:
 
 ```env
 DEV_TOOLS_ENABLED="true"
 ```
 
-Dev tools still require both gates:
+Dev tools по-прежнему требуют прохождения двух проверок:
 
-- frontend renders the panel only for `appUser.role === "admin"`
-- `supabase/functions/dev-tools` executes actions only when server env `DEV_TOOLS_ENABLED="true"` and `users.app_role = 'admin'`
+- frontend показывает панель только при `appUser.role === "admin"`;
+- `supabase/functions/dev-tools` выполняет действия только при server env `DEV_TOOLS_ENABLED="true"` и `users.app_role = 'admin'`.
 
-This is a temporary launch/testing decision. Revisit it after the first stable production run and either disable dev tools in production or reduce the available production actions to a safer subset.
+Это текущее решение для периода запуска и тестирования. После первого стабильного production-запуска dev tools нужно отключить либо сократить доступные production-действия до более безопасного набора.
 
-## Related Docs
+## Связанные документы
 
-- `notes/production-env.md`
-- `notes/production-deploy-flow.md`
-- `notes/production-readiness.md`
-- `notes/server-side-data-guards.md`
-- `notes/security-threat-model.md`
-- `docs/agents/LOCAL_TELEGRAM_RUN.md`
+- `notes/production-env.md`;
+- `notes/production-deploy-flow.md`;
+- `notes/production-readiness.md`;
+- `notes/backup-and-restore.md`;
+- `notes/server-side-data-guards.md`;
+- `notes/security-threat-model.md`;
+- `docs/agents/LOCAL_TELEGRAM_RUN.md`.

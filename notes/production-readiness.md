@@ -66,11 +66,20 @@
 ## 7.1) Deployment platform
 - Для первого production-релиза выбран путь `Supabase Cloud + Vercel`.
 - Frontend хостится на Vercel как Vite static build.
-- Backend/data слой остается в Supabase Cloud: Postgres, RLS/grants, Edge Functions, secrets, logs и backups.
+- Backend/data слой остается в Supabase Cloud: Postgres, RLS/grants, Edge Functions, secrets и logs.
 - Решение, fallback-варианты и открытые вопросы зафиксированы в `notes/deployment-platform-decision.md`.
 - Ручной runbook первого production-деплоя зафиксирован в `notes/production-deploy-flow.md`.
 - Ручной smoke checklist production-деплоя зафиксирован в `notes/production-smoke-checklist.md`.
 - `DEV_TOOLS_ENABLED` включен на первый production testing period только для admin-доступа; после стабильного запуска нужно выключить его или сократить production actions до безопасного subset.
+
+## 7.2) Backup and recovery
+
+- Supabase Free не хранит platform backups этого проекта.
+- Production БД ежедневно выгружается в локальный logical snapshot на компьютере владельца.
+- Цели MVP: RPO `24` часа и RTO `4` часа; snapshot старше `72` часов считается critical.
+- Restore выполняется только в изолированную non-production БД; quarterly drill проверяет данные, схему и серверные объекты.
+- Незашифрованное локальное хранение временно принято с ограничением доступа к папке; шифрование и offsite copy остаются отдельными backlog-задачами.
+- Полный runbook: `notes/backup-and-restore.md`.
 
 ## 8) Database API hardening
 - Защищенные таблицы доступны через Edge Functions с `SUPABASE_SERVICE_ROLE_KEY`.
@@ -103,6 +112,6 @@
 - Приложение не собирает `username`, `last_name` и `language_code`; совместимые nullable-столбцы остаются в схеме до отдельного contract cleanup.
 - Frontend user contract, новые support reports и прикладные логи не содержат прямой Telegram ID.
 - Новые support reports связаны с пользователем только через внутренний `user_id`; совместимый nullable-столбец `support_reports.telegram_user_id` остается до contract cleanup.
-- Contract cleanup допускается только после успешного production rollout текущего runtime-контракта и проверки backup/restore flow.
+- Contract cleanup допускается только после успешного production rollout текущего runtime-контракта, свежего completed snapshot и успешного recovery drill.
 - Self-service удаление аккаунта и экспорт пользовательских данных остаются отдельными product/privacy задачами.
 - Полная карта хранения и сроков зафиксирована в `notes/user-data-storage.md`.

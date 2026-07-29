@@ -25,6 +25,7 @@
 - Общие правила подробного ручного тестирования фич и баг-пачек: `docs/agents/references/manual-testing-guide.md`.
 - Подробности локального Telegram-запуска: `docs/agents/LOCAL_TELEGRAM_RUN.md`.
 - Шаблон локального Telegram env: `.env.telegram.example`; inventory production env: `.env.production.example` и `notes/production-env.md`.
+- Production backup, retention и recovery drill: `notes/backup-and-restore.md`.
 - Project-local skill sources лежат в `docs/agents/skills`; они не устанавливаются автоматически в `~/.codex/skills`.
 - Для разбора пользовательских отчетов об ошибках использовать skill source `docs/agents/skills/english-daily-loop-support-triage`.
 - Для pre-code разбора сырых багов и формирования согласуемых баг-пачек использовать skill source `docs/agents/skills/triage-english-daily-loop-bugs`.
@@ -79,6 +80,8 @@
 - Агенту запрещено применять миграции и самостоятельно выполнять команды, изменяющие данные даже в локальной БД; необходимые локальные команды передаются владельцу с объяснением ожидаемого результата.
 - Агенту запрещено выполнять и предлагать владельцу команды, которые могут изменить production БД, включая production-миграции, DDL, DML, reset, seed и административные операции.
 - Если задача или обсуждение относится к production БД, агент обязан явно сообщить владельцу: `Мы работаем с production БД`, и ограничить работу безопасным анализом, кодом миграции или документацией без выполнения и передачи изменяющих production-команд.
+- Production backup setup, запуск dump, регистрация Windows Task Scheduler, restore и recovery validation выполняет только владелец проекта по шагам из `notes/backup-and-restore.md`; агент не запускает эти команды самостоятельно.
+- Миграция, изменяющая public tables, server-only functions, critical indexes/triggers или cron jobs, должна в том же scope обновить versioned backup/recovery contract из `scripts/backup`, его тесты и `notes/backup-and-restore.md`; после изменения contract владелец создаёт новый snapshot и проводит recovery drill.
 
 ## Правила внесения изменений
 
@@ -341,4 +344,5 @@
 - Production env inventory зафиксирован в `notes/production-env.md`; реальные секреты в репозиторий не записывать.
 - Ручной runbook первого production-деплоя зафиксирован в `notes/production-deploy-flow.md`; миграции и production-секреты применяет владелец проекта.
 - Ручной smoke checklist production-деплоя зафиксирован в `notes/production-smoke-checklist.md`.
+- Production backup и проверка восстановления зафиксированы в `notes/backup-and-restore.md`; Supabase Free не предоставляет project backups, поэтому используется локальный logical snapshot и изолированный recovery drill.
 - Релизы используют SemVer; перед release commit должны совпадать `package.json.version`, `currentRelease` и version heading в `CHANGELOG.md`, что проверяет `pnpm release:check`.
