@@ -13,12 +13,17 @@ import {
 export type RecoveryDatabaseReport = {
   publicTableRowCounts: Record<string, number>;
   publicTables: string[];
+  columns: {
+    table: string;
+    name: string;
+    nullable: boolean;
+  }[];
   rlsEnabledTables: string[];
   protectedRolePrivileges: string[];
   serviceRoleMissingTablePrivileges: string[];
   serverFunctions: string[];
   insecureServerFunctions: string[];
-  serviceRoleMissingFunctions: string[];
+  serviceRoleFunctions: string[];
   extensions: string[];
   cronJobs: { name: string; schedule: string; active: boolean }[];
   indexes: string[];
@@ -32,6 +37,11 @@ const CRON_SCHEDULES: Record<string, string> = {
   cleanup_vocabulary_card_generation_attempts: "25 3 * * *",
   cleanup_support_reports: "35 3 * * *",
 };
+
+const MOSCOW_STUDY_DATE_MIGRATION = "20260723120000";
+const ACTIVE_READING_POSITION_MIGRATION = "20260724120000";
+const SUPPORT_REPORT_TELEGRAM_ID_NULLABLE_MIGRATION =
+  "20260727120000";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -48,6 +58,30 @@ const readStringArray = (
   }
   return value;
 };
+
+const isMigrationAtLeast = (
+  actual: string,
+  required: string,
+): boolean => {
+  const normalizedActual = actual.replace(/^0+(?=\d)/, "");
+  const normalizedRequired = required.replace(/^0+(?=\d)/, "");
+  if (normalizedActual.length !== normalizedRequired.length) {
+    return normalizedActual.length > normalizedRequired.length;
+  }
+  return normalizedActual >= normalizedRequired;
+};
+
+const requiredServerFunctionsForMigration = (
+  migrationVersion: string,
+): readonly string[] =>
+  REQUIRED_SERVER_FUNCTIONS.filter(
+    (functionName) =>
+      functionName !== "get_moscow_study_date" ||
+      isMigrationAtLeast(
+        migrationVersion,
+        MOSCOW_STUDY_DATE_MIGRATION,
+      ),
+  );
 
 export const parseRecoveryDatabaseReport = (
   value: unknown,
@@ -89,6 +123,25 @@ export const parseRecoveryDatabaseReport = (
     };
   });
 
+  if (!Array.isArray(value.columns)) {
+    throw new Error("columns должен быть массивом.");
+  }
+  const columns = value.columns.map((column) => {
+    if (
+      !isRecord(column) ||
+      typeof column.table !== "string" ||
+      typeof column.name !== "string" ||
+      typeof column.nullable !== "boolean"
+    ) {
+      throw new Error("Некорректная запись columns.");
+    }
+    return {
+      table: column.table,
+      name: column.name,
+      nullable: column.nullable,
+    };
+  });
+
   if (
     typeof value.foreignKeyCount !== "number" ||
     !Number.isSafeInteger(value.foreignKeyCount) ||
@@ -111,6 +164,7 @@ export const parseRecoveryDatabaseReport = (
   return {
     publicTableRowCounts,
     publicTables: readStringArray(value.publicTables, "publicTables"),
+    columns,
     rlsEnabledTables: readStringArray(
       value.rlsEnabledTables,
       "rlsEnabledTables",
@@ -131,9 +185,9 @@ export const parseRecoveryDatabaseReport = (
       value.insecureServerFunctions,
       "insecureServerFunctions",
     ),
-    serviceRoleMissingFunctions: readStringArray(
-      value.serviceRoleMissingFunctions,
-      "serviceRoleMissingFunctions",
+    serviceRoleFunctions: readStringArray(
+      value.serviceRoleFunctions,
+      "serviceRoleFunctions",
     ),
     extensions: readStringArray(value.extensions, "extensions"),
     cronJobs,
@@ -154,6 +208,9 @@ export const validateRecoveryDatabaseReport = (
   report: RecoveryDatabaseReport,
 ): string[] => {
   const errors: string[] = [];
+  const requiredServerFunctions = requiredServerFunctionsForMigration(
+    manifest.latestMigrationVersion,
+  );
   const missingTables = missingValues(
     EXPECTED_PUBLIC_TABLES,
     report.publicTables,
@@ -171,6 +228,44 @@ export const validateRecoveryDatabaseReport = (
     if (actualCount !== expectedCount) {
       errors.push(
         `public.${table}: ожидалось ${expectedCount} строк, получено ${actualCount ?? "missing"}.`,
+      );
+    }
+  }
+
+  const activeReadingPositionColumn = report.columns.find(
+    ({ table, name }) =>
+      table === "user_active_reading_texts" &&
+      name === "last_read_paragraph_index",
+  );
+  if (
+    isMigrationAtLeast(
+      manifest.latestMigrationVersion,
+      ACTIVE_READING_POSITION_MIGRATION,
+    ) &&
+    !activeReadingPositionColumn
+  ) {
+    errors.push(
+      "Не восстановлена column public.user_active_reading_texts.last_read_paragraph_index.",
+    );
+  }
+
+  const supportTelegramIdColumn = report.columns.find(
+    ({ table, name }) =>
+      table === "support_reports" &&
+      name === "telegram_user_id",
+  );
+  if (!supportTelegramIdColumn) {
+    errors.push(
+      "Не восстановлена column public.support_reports.telegram_user_id.",
+    );
+  } else {
+    const shouldBeNullable = isMigrationAtLeast(
+      manifest.latestMigrationVersion,
+      SUPPORT_REPORT_TELEGRAM_ID_NULLABLE_MIGRATION,
+    );
+    if (supportTelegramIdColumn.nullable !== shouldBeNullable) {
+      errors.push(
+        "public.support_reports.telegram_user_id имеет nullability, не соответствующую migration version snapshot.",
       );
     }
   }
@@ -194,7 +289,7 @@ export const validateRecoveryDatabaseReport = (
   }
 
   const missingFunctions = missingValues(
-    REQUIRED_SERVER_FUNCTIONS,
+    requiredServerFunctions,
     report.serverFunctions,
   );
   if (missingFunctions.length > 0) {
@@ -207,9 +302,13 @@ export const validateRecoveryDatabaseReport = (
       `anon/authenticated могут вызвать server-only functions: ${report.insecureServerFunctions.join(", ")}.`,
     );
   }
-  if (report.serviceRoleMissingFunctions.length > 0) {
+  const serviceRoleMissingFunctions = missingValues(
+    requiredServerFunctions,
+    report.serviceRoleFunctions,
+  );
+  if (serviceRoleMissingFunctions.length > 0) {
     errors.push(
-      `service_role не может вызвать functions: ${report.serviceRoleMissingFunctions.join(", ")}.`,
+      `service_role не может вызвать functions: ${serviceRoleMissingFunctions.join(", ")}.`,
     );
   }
 

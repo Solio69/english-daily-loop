@@ -539,12 +539,24 @@ const createRecoveryReport = (
 ): RecoveryDatabaseReport => ({
   publicTableRowCounts: { ...manifest.publicTableRowCounts },
   publicTables: [...EXPECTED_PUBLIC_TABLES],
+  columns: [
+    {
+      table: "user_active_reading_texts",
+      name: "last_read_paragraph_index",
+      nullable: true,
+    },
+    {
+      table: "support_reports",
+      name: "telegram_user_id",
+      nullable: true,
+    },
+  ],
   rlsEnabledTables: [...PROTECTED_PUBLIC_TABLES],
   protectedRolePrivileges: [],
   serviceRoleMissingTablePrivileges: [],
   serverFunctions: [...REQUIRED_SERVER_FUNCTIONS],
   insecureServerFunctions: [],
-  serviceRoleMissingFunctions: [],
+  serviceRoleFunctions: [...REQUIRED_SERVER_FUNCTIONS],
   extensions: [...REQUIRED_EXTENSIONS],
   cronJobs: REQUIRED_CRON_JOBS.map((name) => ({
     name,
@@ -597,6 +609,112 @@ test("recovery validator reports data and security mismatches", (context) => {
   assert.match(errors, /cron job/);
 });
 
+test(
+  "recovery validator selects requirements by snapshot migration",
+  (context) => {
+    const backupRoot = createTempBackupRoot();
+    context.after(() => removeTempBackupRoot(backupRoot));
+    const currentManifest = createValidSnapshot(backupRoot);
+    const productionManifest = {
+      ...currentManifest,
+      latestMigrationVersion: "20260707120000",
+    };
+    const productionReport = createRecoveryReport(productionManifest);
+    productionReport.serverFunctions =
+      productionReport.serverFunctions.filter(
+        (name) => name !== "get_moscow_study_date",
+      );
+    productionReport.serviceRoleFunctions =
+      productionReport.serviceRoleFunctions.filter(
+        (name) => name !== "get_moscow_study_date",
+      );
+    productionReport.columns = productionReport.columns
+      .filter(({ name }) => name !== "last_read_paragraph_index")
+      .map((column) =>
+        column.name === "telegram_user_id"
+          ? { ...column, nullable: false }
+          : column,
+      );
+
+    assert.deepEqual(
+      validateRecoveryDatabaseReport(
+        productionManifest,
+        productionReport,
+      ),
+      [],
+    );
+
+    const moscowManifest = {
+      ...currentManifest,
+      latestMigrationVersion: "20260723120000",
+    };
+    const moscowReport = createRecoveryReport(moscowManifest);
+    moscowReport.serverFunctions = moscowReport.serverFunctions.filter(
+      (name) => name !== "get_moscow_study_date",
+    );
+    moscowReport.serviceRoleFunctions =
+      moscowReport.serviceRoleFunctions.filter(
+        (name) => name !== "get_moscow_study_date",
+      );
+    moscowReport.columns = moscowReport.columns
+      .filter(({ name }) => name !== "last_read_paragraph_index")
+      .map((column) =>
+        column.name === "telegram_user_id"
+          ? { ...column, nullable: false }
+          : column,
+      );
+
+    const errors = validateRecoveryDatabaseReport(
+      moscowManifest,
+      moscowReport,
+    ).join("\n");
+    assert.match(errors, /get_moscow_study_date/);
+  },
+);
+
+test(
+  "recovery validator checks versioned column contracts",
+  (context) => {
+    const backupRoot = createTempBackupRoot();
+    context.after(() => removeTempBackupRoot(backupRoot));
+    const currentManifest = createValidSnapshot(backupRoot);
+
+    const positionManifest = {
+      ...currentManifest,
+      latestMigrationVersion: "20260724120000",
+    };
+    const positionReport = createRecoveryReport(positionManifest);
+    positionReport.columns = positionReport.columns
+      .filter(({ name }) => name !== "last_read_paragraph_index")
+      .map((column) =>
+        column.name === "telegram_user_id"
+          ? { ...column, nullable: false }
+          : column,
+      );
+    assert.match(
+      validateRecoveryDatabaseReport(
+        positionManifest,
+        positionReport,
+      ).join("\n"),
+      /last_read_paragraph_index/,
+    );
+
+    const nullableReport = createRecoveryReport(currentManifest);
+    nullableReport.columns = nullableReport.columns.map((column) =>
+      column.name === "telegram_user_id"
+        ? { ...column, nullable: false }
+        : column,
+    );
+    assert.match(
+      validateRecoveryDatabaseReport(
+        currentManifest,
+        nullableReport,
+      ).join("\n"),
+      /nullability/,
+    );
+  },
+);
+
 test("operational message sanitizer redacts credentials and database URLs", () => {
   const sanitized = sanitizeOperationalMessage(
     `password=${TEST_PASSWORD} postgresql://postgres:${TEST_PASSWORD}@db.example`,
@@ -640,6 +758,10 @@ test("backup and recovery source contracts do not contain production writes", ()
     recoveryValidationSql,
     /^\s*(insert\s+into|update\s+\S+\s+set|delete\s+from|truncate|alter\s+table|drop\s+table|create\s+table)\b/im,
   );
+  assert.match(
+    recoveryValidationSql,
+    /p\.prorettype <> 'event_trigger'::regtype/,
+  );
   assert.match(wrapperSource, /SUPABASE_DB_PASSWORD/);
   assert.doesNotMatch(wrapperSource, /--password/);
   assert.match(
@@ -666,6 +788,10 @@ test("isolated restore follows the Supabase safe restore sequence", () => {
     "scripts/backup/restore-recovery-snapshot.ps1",
     "utf8",
   );
+  const recoveryCronSource = readFileSync(
+    "scripts/backup/recovery-cron-jobs.sql",
+    "utf8",
+  );
 
   assert.match(
     restoreSource,
@@ -676,6 +802,11 @@ test("isolated restore follows the Supabase safe restore sequence", () => {
     /SET session_replication_role = replica/,
   );
   assert.match(restoreSource, /recovery-cron-jobs\.sql/);
+  assert.match(
+    recoveryCronSource,
+    /cron\.alter_job\(jobid, active := false\)/,
+  );
+  assert.doesNotMatch(recoveryCronSource, /update\s+cron\.job/i);
 });
 
 test("restore and validation require owner and isolated-target preflight", () => {
@@ -696,6 +827,14 @@ test("restore and validation require owner and isolated-target preflight", () =>
 
   assert.match(commonSource, /config\.windowsIdentity/);
   assert.match(commonSource, /recovery-preflight\.ts/);
+  assert.match(
+    commonSource,
+    /\$preflightOutput = & \$config\.nodeExecutable/,
+  );
+  assert.match(
+    commonSource,
+    /\$preflightOutput \| ForEach-Object \{ Write-Host \$_ \}/,
+  );
   for (const source of commandSources) {
     const preflightIndex = source.indexOf("Get-RecoveryContext");
     const passwordIndex = source.indexOf("Get-RecoveryPlainPassword");

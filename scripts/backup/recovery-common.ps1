@@ -71,7 +71,7 @@ function Get-RecoveryContext {
     }
   }
 
-  & $config.nodeExecutable `
+  $preflightOutput = & $config.nodeExecutable `
     $tsxCli `
     $preflightScript `
     "--snapshot=$resolvedSnapshotPath" `
@@ -80,6 +80,9 @@ function Get-RecoveryContext {
     "--target-db-user=$TargetDbUser"
   if ($LASTEXITCODE -ne 0) {
     throw "Recovery preflight rejected the target."
+  }
+  if ($null -ne $preflightOutput) {
+    $preflightOutput | ForEach-Object { Write-Host $_ }
   }
 
   & $config.dockerExecutable `

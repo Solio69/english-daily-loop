@@ -16,25 +16,12 @@ protected_tables(table_name) as (
     ('user_daily_vocabulary_review_completions'),
     ('support_reports')
 ),
-required_functions(function_name) as (
-  values
-    ('get_random_reading_text'),
-    ('claim_reading_generation_attempt'),
-    ('complete_daily_reading_text'),
-    ('activate_mvp_subscription'),
-    ('save_vocabulary_word_with_source'),
-    ('save_pending_vocabulary_word_with_source'),
-    ('claim_vocabulary_card_generation_attempt'),
-    ('get_moscow_study_date'),
-    ('get_or_create_vocabulary_review_state'),
-    ('review_vocabulary_word'),
-    ('dev_complete_vocabulary_reviews_at_step')
-),
 public_functions as (
   select p.oid, p.proname
   from pg_proc p
   join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public'
+    and p.prorettype <> 'event_trigger'::regtype
 ),
 validation as (
   select jsonb_build_object(
@@ -72,6 +59,22 @@ validation as (
         select jsonb_agg(tablename order by tablename)
         from pg_tables
         where schemaname = 'public'
+      ),
+      '[]'::jsonb
+    ),
+    'columns',
+    coalesce(
+      (
+        select jsonb_agg(
+          jsonb_build_object(
+            'table', table_name,
+            'name', column_name,
+            'nullable', is_nullable = 'YES'
+          )
+          order by table_name, ordinal_position
+        )
+        from information_schema.columns
+        where table_schema = 'public'
       ),
       '[]'::jsonb
     ),
@@ -186,9 +189,6 @@ validation as (
       (
         select jsonb_agg(distinct proname order by proname)
         from public_functions
-        where proname in (
-          select function_name from required_functions
-        )
       ),
       '[]'::jsonb
     ),
@@ -202,21 +202,12 @@ validation as (
       ),
       '[]'::jsonb
     ),
-    'serviceRoleMissingFunctions',
+    'serviceRoleFunctions',
     coalesce(
       (
-        select jsonb_agg(function_name order by function_name)
-        from required_functions required
-        where not exists (
-          select 1
-          from public_functions actual
-          where actual.proname = required.function_name
-            and has_function_privilege(
-              'service_role',
-              actual.oid,
-              'EXECUTE'
-            )
-        )
+        select jsonb_agg(distinct proname order by proname)
+        from public_functions
+        where has_function_privilege('service_role', oid, 'EXECUTE')
       ),
       '[]'::jsonb
     ),

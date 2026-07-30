@@ -413,6 +413,12 @@ Restore:
    восстановленные данные;
 6. останавливается при первой SQL error.
 
+Roles/schema/data, migration history и cron reconciliation выполняются
+отдельными transactions. Ошибка позднего этапа не откатывает уже завершённый
+ранний этап. После failed restore временный recovery project не используется
+для полного повторного restore: владелец создаёт новый пустой recovery project
+и повторяет процедуру после исправления причины.
+
 Эта команда изменяет только явно указанный **recovery project**. Её нельзя
 запускать с production connection parameters.
 
@@ -433,12 +439,21 @@ Validation выполняет только `SELECT` и проверяет:
 
 - 13 public tables;
 - row counts каждой таблицы по manifest;
-- последнюю Supabase migration version;
+- совпадение восстановленной Supabase migration history с
+  `manifest.latestMigrationVersion`;
+- version-dependent schema contract:
+  - `get_moscow_study_date` начиная с migration `20260723120000`;
+  - `user_active_reading_texts.last_read_paragraph_index` начиная с
+    migration `20260724120000`;
+  - nullable `support_reports.telegram_user_id` начиная с migration
+    `20260727120000`;
 - RLS на 12 protected tables;
 - отсутствие table access у `anon` и `authenticated`;
 - полный table access `service_role`;
-- 11 required server-only functions и отсутствие client execute на всех
-  functions в `public`;
+- required server-only functions, уже существующие на migration version
+  snapshot;
+- отсутствие client execute на обычных functions в `public`; PostgreSQL
+  event-trigger functions не считаются клиентскими RPC;
 - отсутствие execute у `anon` и `authenticated`;
 - execute access `service_role`;
 - `pgcrypto` и `pg_cron`;

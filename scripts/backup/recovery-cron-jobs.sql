@@ -38,8 +38,8 @@ select cron.schedule(
   $job$
 );
 
-update cron.job
-set active = false
+select cron.alter_job(jobid, active := false)
+from cron.job
 where jobname in (
   'cleanup_ai_generation_attempts',
   'cleanup_vocabulary_card_generation_attempts',
