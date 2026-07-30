@@ -359,7 +359,14 @@ repair получает собственный review и план.
 - recovery database password;
 - Docker Desktop;
 - local Docker image `postgres:17`;
-- доступ к GitHub, Vercel, Supabase, development bot и recovery-safe secrets.
+- доступ к GitHub, Vercel, Supabase, development bot и секретам для drill.
+
+Для Telegram используется только token отдельного development bot. В текущем
+solo-MVP владелец допускает временное повторное использование своего
+OpenRouter API key в recovery project: это разделяет Telegram-контуры, но
+оставляет общими OpenRouter quota, расходы и последствия компрометации ключа.
+Значение ключа не фиксируется в документации или drill evidence, а recovery
+project удаляется после проверки.
 
 Restore scripts используют `--pull=never` и сами ничего не скачивают. Если
 official PostgreSQL 17 image отсутствует, владелец получает его отдельной
@@ -469,10 +476,12 @@ Safe JSON result сохраняется в `drills`. Он содержит count
 После DB validation:
 
 1. подтвердить production Git commit по Vercel deployment и GitHub Release;
-2. deploy Edge Functions из этого commit в recovery project с явным recovery
-   project ref;
-3. задать только recovery-safe secrets;
-4. не задавать production bot token и production OpenRouter key;
+2. deploy все Edge Functions, существующие в этом commit, в recovery project с
+   явным recovery project ref;
+3. задать token отдельного development bot, feature gates и доступный владельцу
+   OpenRouter key;
+4. не задавать production bot token; общий OpenRouter key допускается только
+   как принятое для текущего solo-MVP исключение с общими quota и расходами;
 5. подключить Vercel preview или локальную recovery-сборку;
 6. открыть приложение через development bot;
 7. проверить auth, reading, history, vocabulary, review и support report;
@@ -481,6 +490,36 @@ Safe JSON result сохраняется в `drills`. Он содержит count
 10. удалить recovery project после сохранения evidence.
 
 Production Vercel env и production BotFather URL во время drill не меняются.
+
+### Последний подтверждённый drill
+
+Текущий recovery contract подтверждён полным isolated drill от `2026-07-30`:
+
+- snapshot: `2026-07-30T124541Z_d4771c56`;
+- production Git commit: `3e414616906b1d7cf03a59927d785a159dc9eb2a`;
+- migration version snapshot: `20260707120000`;
+- read-only DB validation подтвердила `13` public tables, row counts,
+  versioned schema/security contract и три inactive cron jobs;
+- в recovery project развёрнуты все `17` Edge Functions production commit;
+- frontend собран из production commit и открыт через локальный preview,
+  временный HTTPS tunnel и отдельный development bot;
+- auth, reading, history, vocabulary, card generation, review и support report
+  прошли end-to-end smoke;
+- измеренный RTO чистой успешной попытки: `2.62` часа при цели `4` часа;
+- возраст snapshot к завершению smoke: `2.07` часа при цели RPO `24` часа;
+- production Supabase, Vercel env и production Telegram bot не менялись;
+- development bot возвращён к предыдущей кнопке, локальные процессы
+  остановлены, recovery project удалён.
+
+Safe evidence:
+
+- `drills/2026-07-30_d4771c56.validation.json`;
+- `drills/2026-07-30_d4771c56.full-service.json`.
+
+RTO измерен от создания чистого recovery project до успешной записи test
+support report. Время первого failed recovery project недоступно после его
+удаления и не входит в измерение; следующие drill запускают таймер до создания
+первого recovery project.
 
 ## Реальное полное восстановление
 
