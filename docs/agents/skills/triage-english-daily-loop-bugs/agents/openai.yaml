@@ -1,4 +1,4 @@
 interface:
   display_name: "Разбор багов English Daily Loop"
   short_description: "Разбирает баги и готовит согласуемые пачки"
-  default_prompt: "Используй $triage-english-daily-loop-bugs, чтобы разобрать входящие баги English Daily Loop, вынести продуктовые вопросы в дневной план и подготовить готовые к согласованию пачки."
+  default_prompt: "Используй $triage-english-daily-loop-bugs, чтобы разобрать входящие баги English Daily Loop, вести единую очередь доработок в блоке `Все подряд` и подготовить готовые к согласованию пачки."
