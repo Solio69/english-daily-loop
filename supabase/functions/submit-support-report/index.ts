@@ -7,6 +7,7 @@ import {
   fail,
   getRequiredEnv,
   getRequestId,
+  getSafeErrorDetails,
   getTelegramUserFromBody,
   handleCorsPreflight,
   parseJsonBody,
@@ -16,6 +17,9 @@ import {
   createServiceClient,
   type ServiceClient,
 } from "../_shared/app.ts";
+import {
+  prepareSupportReport,
+} from "./sanitize-diagnostics.ts";
 
 type SupportReportBody = {
   initData?: unknown;
@@ -29,127 +33,28 @@ type SupportReportBody = {
 
 type AppUserRow = {
   id: string;
-  telegram_user_id: number;
   app_role: "admin" | "tester" | "user";
 };
 
 const LOG_PREFIX = "[submit-support-report]";
-const MAX_REPORT_BYTES = 100 * 1024;
-const MAX_COMMENT_LENGTH = 1000;
-const MAX_EVENTS = 100;
-const MAX_REQUEST_IDS = 50;
-const MAX_AI_DIAGNOSTICS = 20;
-const MAX_STRING_LENGTH = 500;
-const MAX_ARRAY_LENGTH = 50;
-const MAX_DEPTH = 5;
 const REPORTS_PER_HOUR_LIMIT = 5;
-const SENSITIVE_KEY_PATTERN =
-  /(authorization|bearer|body|content|hash|initdata|key|password|prompt|raw|secret|stack|text|token)/i;
-
-const textEncoder = new TextEncoder();
-
-const sanitizeValue = (value: unknown, depth = 0): unknown => {
-  if (depth > MAX_DEPTH) return "[truncated]";
-  if (value === null || value === undefined) return value;
-  if (typeof value === "number" || typeof value === "boolean") return value;
-  if (typeof value === "string") {
-    return value.length > MAX_STRING_LENGTH
-      ? `${value.slice(0, MAX_STRING_LENGTH)}...`
-      : value;
-  }
-  if (Array.isArray(value)) {
-    return value
-      .slice(0, MAX_ARRAY_LENGTH)
-      .map((item) => sanitizeValue(item, depth + 1));
-  }
-  if (typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>).map(([key, item]) => [
-        key,
-        SENSITIVE_KEY_PATTERN.test(key)
-          ? "[redacted]"
-          : sanitizeValue(item, depth + 1),
-      ]),
-    );
-  }
-
-  return String(value);
-};
-
-const sanitizeObject = (value: unknown): Record<string, unknown> => {
-  const sanitized = sanitizeValue(value);
-  return sanitized && typeof sanitized === "object" && !Array.isArray(sanitized)
-    ? (sanitized as Record<string, unknown>)
-    : {};
-};
-
-const sanitizeArray = (value: unknown, maxItems: number): unknown[] =>
-  Array.isArray(value)
-    ? value.slice(-maxItems).map((item) => sanitizeValue(item))
-    : [];
-
-const normalizeRequestIds = (value: unknown): string[] => {
-  if (!Array.isArray(value)) return [];
-
-  const requestIds = new Set<string>();
-  for (const item of value) {
-    if (typeof item !== "string") continue;
-    const requestId = item.trim();
-    if (!requestId || requestId.length > 80) continue;
-    requestIds.add(requestId);
-  }
-
-  return [...requestIds].slice(-MAX_REQUEST_IDS);
-};
-
-const getJsonByteLength = (value: unknown): number =>
-  textEncoder.encode(JSON.stringify(value)).byteLength;
-
-const trimReportToBudget = (report: {
-  currentScreen: string;
-  userComment: string;
-  appContext: Record<string, unknown>;
-  events: unknown[];
-  requestIds: string[];
-  aiDiagnostics: unknown[];
-}): typeof report => {
-  let nextReport = { ...report, events: [...report.events] };
-
-  while (getJsonByteLength(nextReport) > MAX_REPORT_BYTES && nextReport.events.length > 0) {
-    nextReport.events.shift();
-  }
-
-  if (getJsonByteLength(nextReport) > MAX_REPORT_BYTES) {
-    nextReport = {
-      ...nextReport,
-      aiDiagnostics: nextReport.aiDiagnostics.slice(-5),
-    };
-  }
-
-  if (getJsonByteLength(nextReport) > MAX_REPORT_BYTES) {
-    nextReport = {
-      ...nextReport,
-      appContext: { truncated: true },
-    };
-  }
-
-  return nextReport;
-};
 
 const getAppUser = async (
   supabase: ServiceClient,
   telegramUserId: number,
+  requestId: string,
 ): Promise<AppUserRow> => {
   const { data: userRow, error: userError } = await supabase
     .from("users")
-    .select("id, telegram_user_id, app_role")
+    .select("id, app_role")
     .eq("telegram_user_id", telegramUserId)
     .maybeSingle();
 
   if (userError) {
     console.error(`${LOG_PREFIX} failed to load user`, {
-      telegramUserId,
-      error: userError.message,
+      requestId,
+      stage: "user_lookup",
+      ...getSafeErrorDetails(userError, [telegramUserId]),
     });
     fail(500, "USER_FIND_FAILED", "Failed to load user profile.");
   }
@@ -220,29 +125,23 @@ Deno.serve(async (req: Request) => {
       fail(400, "SUPPORT_COMMENT_REQUIRED", "Report comment is required.");
     }
 
-    const currentScreen =
-      typeof body.currentScreen === "string" && body.currentScreen.trim()
-        ? body.currentScreen.trim().slice(0, 80)
-        : "unknown";
-
     const supabase = createServiceClient(env);
-    const appUser = await getAppUser(supabase, tgUser.id);
+    const appUser = await getAppUser(supabase, tgUser.id, requestId);
     await assertReportRateLimit(supabase, appUser.id);
-
-    const preparedReport = trimReportToBudget({
-      currentScreen,
-      userComment: comment.slice(0, MAX_COMMENT_LENGTH),
-      appContext: sanitizeObject(body.appContext),
-      events: sanitizeArray(body.events, MAX_EVENTS),
-      requestIds: normalizeRequestIds(body.requestIds),
-      aiDiagnostics: sanitizeArray(body.aiDiagnostics, MAX_AI_DIAGNOSTICS),
+    const preparedReport = prepareSupportReport({
+      currentScreen: body.currentScreen,
+      userComment: comment,
+      appContext: body.appContext,
+      events: body.events,
+      requestIds: body.requestIds,
+      aiDiagnostics: body.aiDiagnostics,
+      telegramUserId: tgUser.id,
     });
 
     const { data: insertedReport, error: insertError } = await supabase
       .from("support_reports")
       .insert({
         user_id: appUser.id,
-        telegram_user_id: appUser.telegram_user_id,
         app_role: appUser.app_role,
         current_screen: preparedReport.currentScreen,
         user_comment: preparedReport.userComment,

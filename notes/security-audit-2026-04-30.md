@@ -18,7 +18,7 @@
   dev-only `VITE_DEBUG_AUTH`.
 - `SUPABASE_SERVICE_ROLE_KEY`, `TELEGRAM_BOT_TOKEN` и `OPENROUTER_API_KEY`
   читаются только в Supabase Edge Functions через `Deno.env`.
-- `.gitignore` закрывает `.env*`, кроме `.env.example`.
+- `.gitignore` закрывает реальные `.env*`, кроме безопасных шаблонов `.env.production.example` и `.env.telegram.example`.
 
 ### Клиентский слой
 - `src/services` вызывает backend через `supabase.functions.invoke(...)`.

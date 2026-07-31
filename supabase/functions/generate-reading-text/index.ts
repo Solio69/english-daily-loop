@@ -13,8 +13,9 @@ import {
   parseJsonBody,
   successResponse,
 } from "../_shared/server.ts";
-import { getMoscowDate } from "../_shared/moscow-date.ts";
+import { getMoscowStudyDate } from "../_shared/moscow-study-date.ts";
 import { getDailyReadingGenerationLimit } from "../_shared/access.ts";
+import { getAppUserByTelegramId } from "../_shared/app.ts";
 import {
   buildSafeAiDiagnostics,
   sanitizeDiagnosticMessage,
@@ -32,17 +33,12 @@ import {
   type ReadingMinutes,
 } from "./ai-pipeline.ts";
 
-type UserRow = {
-  id: string;
-  telegram_user_id: number;
-};
 type UserSettingsRow = {
   english_level: EnglishLevel;
   daily_reading_minutes: number;
 };
 
 type UserReadingSettings = {
-  appUser: UserRow;
   appUserId: string;
   englishLevel: EnglishLevel;
   dailyReadingMinutes: ReadingMinutes;
@@ -255,30 +251,14 @@ const claimGenerationAttempt = async (
 const getUserReadingSettingsFromDb = async (
   supabase: ReturnType<typeof createClient>,
   telegramUserId: number,
+  requestId: string,
 ): Promise<UserReadingSettings> => {
-  const { data: userRow, error: userError } = await supabase
-    .from("users")
-    .select("id, telegram_user_id")
-    .eq("telegram_user_id", telegramUserId)
-    .maybeSingle();
-
-  if (userError) {
-    console.error("[generate-reading-text] failed to load user", {
-      telegramUserId,
-      error: userError.message,
-    });
-    fail(500, "USER_FIND_FAILED", "Failed to load user profile.");
-  }
-
-  if (!userRow) {
-    fail(
-      404,
-      "USER_NOT_FOUND",
-      "User profile was not found. Complete Telegram auth first.",
-    );
-  }
-
-  const appUser = userRow as UserRow;
+  const appUser = await getAppUserByTelegramId(
+    supabase,
+    telegramUserId,
+    "[generate-reading-text]",
+    requestId,
+  );
   const { data: settingsRow, error: settingsError } = await supabase
     .from("user_settings")
     .select("english_level, daily_reading_minutes")
@@ -299,7 +279,6 @@ const getUserReadingSettingsFromDb = async (
 
   const settings = settingsRow as UserSettingsRow;
   return {
-    appUser,
     appUserId: appUser.id,
     englishLevel: parseEnglishLevel(settings.english_level),
     dailyReadingMinutes: parseReadingMinutes(settings.daily_reading_minutes),
@@ -367,8 +346,12 @@ Deno.serve(async (req: Request) => {
         auth: { persistSession: false },
       },
     );
-    const settings = await getUserReadingSettingsFromDb(supabase, tgUser.id);
-    const today = getMoscowDate();
+    const settings = await getUserReadingSettingsFromDb(
+      supabase,
+      tgUser.id,
+      requestId,
+    );
+    const studyDate = getMoscowStudyDate();
     const dailyLimit = await getDailyReadingGenerationLimit(
       supabase,
       settings.appUserId,
@@ -378,7 +361,7 @@ Deno.serve(async (req: Request) => {
     const claimedAttempt = await claimGenerationAttempt(
       supabase,
       settings.appUserId,
-      today,
+      studyDate,
       dailyLimit,
     );
 
@@ -397,12 +380,11 @@ Deno.serve(async (req: Request) => {
     );
 
     console.log("[generate-reading-text] start", {
-      telegramUserId: tgUser.id,
       requestId,
       appUserId: settings.appUserId,
       attemptId: startedAttempt.attemptId,
       promptVersion: READING_TEXT_PROMPT_VERSION,
-      attemptDate: today,
+      studyDate,
       usedAttempts: claimedAttempt.usedAttempts,
       remainingAttempts: claimedAttempt.remainingAttempts,
       dailyLimit,
@@ -454,7 +436,8 @@ Deno.serve(async (req: Request) => {
           provider: OPENROUTER_PROVIDER,
           model: generated.usedModel,
           fallback_used: fallbackUsed,
-          reading_date: today,
+          reading_date: studyDate,
+          last_read_paragraph_index: null,
           generated_at: new Date().toISOString(),
         },
         { onConflict: "user_id" },
@@ -500,6 +483,7 @@ Deno.serve(async (req: Request) => {
           body: generated.body,
           level: generated.level,
           estimatedMinutes: generated.estimatedMinutes,
+          lastReadParagraphIndex: null,
         },
         generation: {
           provider: OPENROUTER_PROVIDER,

@@ -108,7 +108,7 @@ export const SupportReportCard: React.FC<SupportReportCardProps> = ({
           aria-modal="true"
           aria-labelledby="support-report-title"
         >
-          <section className="glass-card w-full max-w-[360px] rounded-[24px] p-4 shadow-soft">
+          <section className="glass-card glass-modal w-full max-w-[360px] rounded-[24px] p-4 shadow-soft">
             <div className="flex items-start gap-3">
               <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-[var(--accent-warm-soft)] text-[var(--accent-warm)]">
                 <Bug size={20} strokeWidth={2.2} aria-hidden="true" />
@@ -148,7 +148,8 @@ export const SupportReportCard: React.FC<SupportReportCardProps> = ({
             />
 
             <p className="mt-2 text-xs leading-4 text-[var(--text-muted)]">
-              Отправим технический отчет без токенов и полного текста.
+              Не указывай пароли, контакты и другие личные данные. Отправим
+              технический отчет без токенов и полного текста.
             </p>
 
             {errorMessage ? (

@@ -7,6 +7,8 @@ import {
   errorResponse,
   fail,
   getRequiredEnv,
+  getRequestId,
+  getSafeErrorDetails,
   getTelegramUserFromBody,
   handleCorsPreflight,
   parseJsonBody,
@@ -20,7 +22,6 @@ type DailyReadingMinutes = 3 | 5 | 10 | 15;
 
 type UserRow = {
   id: string;
-  telegram_user_id: number;
   first_name: string | null;
   settings_completed_at: string | null;
   first_text_completed_at: string | null;
@@ -58,6 +59,8 @@ Deno.serve(async (req: Request) => {
   if (corsResponse) {
     return corsResponse;
   }
+
+  const requestId = getRequestId(req);
 
   try {
     assertPostRequest(req);
@@ -101,15 +104,16 @@ Deno.serve(async (req: Request) => {
     const { data: userRow, error: userError } = await supabase
       .from("users")
       .select(
-        "id, telegram_user_id, first_name, settings_completed_at, first_text_completed_at, app_role",
+        "id, first_name, settings_completed_at, first_text_completed_at, app_role",
       )
       .eq("telegram_user_id", tgUser.id)
       .maybeSingle();
 
     if (userError) {
       console.error("[save-user-settings] failed to load user", {
-        telegramUserId: tgUser.id,
-        error: userError.message,
+        requestId,
+        stage: "user_lookup",
+        ...getSafeErrorDetails(userError, [tgUser.id]),
       });
       fail(500, "USER_FIND_FAILED", "Failed to load user profile.");
     }
@@ -151,7 +155,7 @@ Deno.serve(async (req: Request) => {
       .eq("id", appUser.id)
       .is("settings_completed_at", null)
       .select(
-        "id, telegram_user_id, first_name, settings_completed_at, first_text_completed_at, app_role",
+        "id, first_name, settings_completed_at, first_text_completed_at, app_role",
       )
       .maybeSingle();
 
@@ -172,7 +176,6 @@ Deno.serve(async (req: Request) => {
     return successResponse(200, {
       user: {
         id: user.id,
-        telegramUserId: user.telegram_user_id,
         firstName: user.first_name,
         settingsCompletedAt: user.settings_completed_at ?? nowIso,
         firstTextCompletedAt: user.first_text_completed_at,

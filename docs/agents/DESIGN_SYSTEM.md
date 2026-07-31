@@ -112,9 +112,7 @@ Use:
 
 ```tsx
 <div className="min-h-[100dvh] w-full bg-[var(--background)]">
-  <main className="flex min-h-[100dvh] w-full flex-col pb-20">
-    ...
-  </main>
+  <main className="flex min-h-[100dvh] w-full flex-col pb-20">...</main>
 </div>
 ```
 
@@ -192,6 +190,9 @@ Progress steps:
 - label: `16px`.
 - status text: `14px`, `leading-5`.
 - connector width: `80px`; на `390px+` используется `96px`.
+- Completed review with `reviewedTodayCount = 0` and no required words uses the
+  status text `Слов на повторение нет` while keeping the primary/cyan completed
+  icon state.
 
 Chips:
 
@@ -255,7 +256,9 @@ Cards:
 - Selected options use warm accent: `--accent-warm`, `--accent-warm-soft`, `shadow-warm-glow`.
 - Inactive options use neutral `glass-control` with `--text-secondary`.
 - Support report block is a compact `glass-card rounded-[18px] p-2.5` below the settings groups. It uses a warm `Bug` icon in a small soft container, title `Отчет об ошибке`, secondary copy `Приложи описание и последние события`, and a compact outlined warm action `Отправить` with `SendHorizontal`.
-- Support report dialog is a centered glass modal over `bg-black/60 backdrop-blur-sm`, max width `360px`, `rounded-[24px]`, with `Bug` icon left of the title, only an `X` close control, textarea, muted privacy copy and a full-width coral CTA `Отправить отчет`.
+- Support report dialog is a centered `glass-card glass-modal` over `bg-black/60 backdrop-blur-sm`, max width `360px`, `rounded-[24px]`, with `Bug` icon left of the title, only an `X` close control, textarea, muted privacy copy and a full-width coral CTA `Отправить отчет`. The opaque themed base of `glass-modal` prevents the backdrop from tinting the dialog.
+- Version block is a single semantic `glass-card rounded-[18px] p-2.5` button immediately after the support report. It uses a primary `Info` icon, title `Версия приложения`, compact version text, warm `Что нового` action and `ChevronRight`; it has no unread marker or nested button.
+- Release notes use a centered `glass-card glass-modal` over the same backdrop, max width `360px`, `rounded-[24px]`, with title `Что нового`, version/date, a scrollable bullet list and only an `X` close control. `glass-modal` composites the translucent glass layers over an opaque `--background` base so the dark backdrop does not tint the dialog itself. The modal respects top/bottom safe areas, locks background scroll and uses theme tokens for all surfaces and text.
 - Feedback action is a centered footer-style line: muted `Есть вопрос?`, warm-accent text link `Написать разработчику`, and `ExternalLink` icon; it should not use hover background, a full border, glow, primary CTA weight, or a full settings card.
 - Hide the feedback action when `VITE_FEEDBACK_TELEGRAM_USERNAME` is empty or invalid.
 
@@ -306,10 +309,16 @@ Generated text state:
   - `glass-card rounded-[20px] p-4`
   - title `18px`, `font-heading`, `font-semibold`
   - source badge is a glass pill with `AI · model` or `DB`
-  - body text uses `17px`, `leading-7`, controlled paragraph spacing `space-y-3`
+  - body text uses `19px`, `leading-8`, controlled paragraph spacing `space-y-3`
   - selectable words use primary hover/selected state
   - saved words use warm accent state
 - The finish CTA `Завершить текст` is a full-width shared `Button` below the text card.
+- После ухода ниже верхней части экрана появляется круглая кнопка наверх:
+  - fixed-контейнер выровнен по ширине reading content;
+  - кнопка использует `glass-control`, `size-12`, `ArrowUp` и focus-visible ring;
+  - нижний offset `calc(env(safe-area-inset-bottom) + 88px)` держит кнопку над bottom nav;
+  - действие возвращает к абсолютному верху страницы и сбрасывает server-side позицию, а не сохраняет первый абзац.
+- Ошибка сохранения позиции показывается как fixed `AppToast` с `warning` и действием `Повторить` над bottom nav; уведомление не меняет высоту текста и временно заменяет кнопку наверх.
 
 Status states:
 
@@ -348,6 +357,10 @@ Rules:
 - Vocabulary status reserves two lines:
   - `Добавить: N`
   - `В словаре: N`
+- Texts status uses `Прочитано: N текст/текста/текстов` from the server-side
+  all-time completion count.
+- If the completion count is temporarily unavailable, use the neutral fallback
+  `История чтения`; do not render a fabricated zero.
 - Do not let loading/ready/pending vocabulary status change tile height.
 
 ## Materials Screen
@@ -443,6 +456,10 @@ Progress card:
 - Progress bar and `reviewed / total` counter use warm accent.
 - Bottom summary has two equal columns: `Всего` with `Target` and `Осталось`
   with `Flame`.
+- When the server review status is `completed`, hide the required-count copy and
+  fill the large `Flame`; keep the progress bar, counter and bottom summary.
+- Optional cards available after completion do not change this completed
+  presentation state.
 
 Dictionary actions notice:
 
@@ -471,10 +488,18 @@ Expanded review card:
 - Verb forms use the blue/cyan `Box` icon shared with dictionary cards.
 - Target word/forms in examples use warm highlight; dictionary cards keep the
   primary highlight.
+- The expanded card uses the existing warm tokens for its border, subtle
+  background and glow in both themes.
 - No audio icon is shown until pronunciation playback exists.
 - Four interval actions form one stable `grid-cols-4` row.
 - Interval actions use primary blue in light theme and warm accent in dark theme;
   all four buttons share the same style, including `Не помню`.
+- After an interval is selected, a loader-only overlay covers the current card,
+  preserves its dimensions and blocks repeated actions until the next state is
+  loaded. If the review action fails, the overlay disappears and the expanded
+  card remains. If the action succeeds but the next snapshot fails to load, the
+  answered card is replaced with a compact recovery state and a retry button
+  that only reloads review state.
 
 Empty and completed states:
 
@@ -512,6 +537,9 @@ Nav item:
 - text must stay inside its button; use `truncate`.
 - active item uses `bg-[var(--primary-soft)] text-[var(--primary)] shadow-primary-glow`.
 - Items: `Главная` (`Home`), `Текст` (`BookOpen`), `Слова` (`BookText`), `Материалы` (`LibraryBig`).
+- Before initial settings are saved, learning sections stay disabled. After
+  settings are saved, all four items are available; first-text completion does
+  not lock `Слова`.
 
 ## Toast
 

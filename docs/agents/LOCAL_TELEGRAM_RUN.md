@@ -15,9 +15,9 @@
 
    Зачем: локальный Supabase работает через Docker-контейнеры.
 
-3. Создать Telegram-бота через `@BotFather` и получить `TELEGRAM_BOT_TOKEN`.
+3. Создать отдельного development-бота через `@BotFather` и получить его username и `TELEGRAM_BOT_TOKEN`.
 
-   Зачем: сервер проверяет подпись `initData` от Telegram, без токена auth не пройдет.
+   Зачем: сервер проверяет подпись `initData` от Telegram, без токена auth не пройдет. Production-бот остается постоянно привязан к Vercel и не используется для локальной разработки.
 
 4. Подготовить `cloudflared` в папке `tools/`.
 
@@ -29,19 +29,23 @@
 
    Зачем: Telegram открывает Mini App только по публичному HTTPS URL, tunnel дает такой URL для локалки.
 
-## 2. Проверить `.env.local`
+## 2. Подготовить `.env.telegram.local`
+
+Скопировать `.env.telegram.example` в gitignored `.env.telegram.local` и заполнить development credentials.
 
 Минимально должны быть переменные:
 
+- `TELEGRAM_DEV_MODE="true"`
+- `DEV_TELEGRAM_BOT_USERNAME` с username отдельного dev-бота
 - `TELEGRAM_BOT_TOKEN`
-- `VITE_SUPABASE_ANON_KEY`
-- `VITE_SUPABASE_URL` (будет автоматически обновляться скриптом `dev:telegram`)
 - `OPENROUTER_API_KEY`
 - `VITE_FEEDBACK_TELEGRAM_USERNAME`, если нужна ссылка обратной связи в настройках
 - `DEV_TOOLS_ENABLED`, если нужны dev tools действия для admin-пользователя
 - `SUBSCRIPTION_FLOW_ENABLED="false"`, пока пользовательский flow подписки выключен
 
-Важно: не коммитить `.env.local` в git.
+`VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY` заполняются скриптом значениями локального Supabase и tunnel. Команда не читает и не изменяет `.env.local` или secrets из Vercel/Supabase Cloud.
+
+Важно: не коммитить `.env.telegram.local` в git и не использовать в нем production bot token.
 
 ## 3. Ежедневный запуск
 
@@ -60,14 +64,15 @@
 3. Обновить URL у `@BotFather`:
 
 - команда в Telegram: `/setmenubutton`
-- выбрать бота: `@english_daily_loop_bot`
+- выбрать dev-бота из `DEV_TELEGRAM_BOT_USERNAME`
 - вставить URL из `FRONTEND TUNNEL URL`
 
 4. Открыть бота в Telegram на телефоне и нажать кнопку меню.
 
 5. Смотреть логи в этом же терминале:
 
-- `[frontend]` — Vite preview со свежей production-like сборкой
+- `[frontend]` — Vite preview со свежей production-like сборкой из `dist-telegram`
+- `[frontend-watch]` — автоматическая пересборка `dist-telegram` после изменений frontend-кода
 - `[edge]` — Supabase Edge Functions
 - `[api]` — Supabase API
 - `[db]` — Postgres
@@ -78,13 +83,31 @@
 Скрипт `scripts/dev-stack.mjs`:
 
 1. Поднимает локальный Supabase (`npx supabase start`).
-2. Запускает Edge Functions (`npx supabase functions serve ...`).
-3. Поднимает HTTPS tunnel для Supabase API (`127.0.0.1:54321`).
-4. Автоматически обновляет `VITE_SUPABASE_URL` в `.env.local` значением API tunnel URL.
-5. Собирает frontend (`pnpm build`).
-6. Запускает frontend через Vite preview (`pnpm preview:telegram`) на `localhost:3000`.
-7. Поднимает HTTPS tunnel для frontend (`localhost:3000`).
-8. Печатает `STARTUP SUMMARY` с короткой инструкцией.
+2. Получает локальный anon key из `npx supabase status -o env`.
+3. Запускает Edge Functions с `--env-file .env.telegram.local`.
+4. Поднимает HTTPS Quick Tunnel для Supabase API (`127.0.0.1:54321`) и ждёт появления URL в выводе `cloudflared`.
+5. После получения URL обновляет `VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY` только в `.env.telegram.local`.
+6. Собирает frontend (`pnpm build:telegram`) с env, переданным скриптом, в отдельную папку `dist-telegram`; Vite не загружает обычные env-файлы для mode `telegram-dev`.
+7. Запускает frontend через Vite preview (`pnpm preview:telegram`) в mode `telegram-dev` на `localhost:3000` и обслуживает `dist-telegram`.
+8. Запускает `pnpm watch:telegram` с тем же изолированным env; watcher автоматически пересобирает `dist-telegram` при изменении frontend-кода.
+9. Поднимает HTTPS Quick Tunnel для frontend (`localhost:3000`) и ждёт появления URL в выводе `cloudflared`.
+10. Печатает `STARTUP SUMMARY` с именем dev-бота и двумя созданными URL.
+11. Подключает live-логи DB/API только с момента запуска stream (`docker logs --tail 0 --follow`), чтобы старая история контейнеров не скрывала summary.
+
+Обычный `pnpm build` использует только `dist`, поэтому production-проверка не
+перезаписывает bundle уже запущенного Telegram dev-preview. После изменения
+frontend-кода дождись успешного сообщения `[frontend-watch]` и обнови либо
+повторно открой Mini App. Tunnel, BotFather URL и весь `dev:telegram`
+перезапускать не нужно.
+
+Watcher пересобирает production-like bundle, но не использует HMR: состояние
+открытой страницы не заменяется автоматически. Не запускай
+`pnpm build:telegram` вручную во время активного dev-stack — изолированный
+Telegram-env передает именно оркестратор. Полный перезапуск требуется после
+изменения `.env.telegram.local`, `vite.config.ts`, package dependencies или
+обязательного процесса инфраструктуры.
+
+Frontend preview, frontend watcher, Edge Functions и оба tunnel являются обязательными процессами. Если один из них неожиданно завершается, команда останавливает весь локальный стек с ошибкой. Потоки DB/API-логов вспомогательные: их завершение только фиксируется в терминале.
 
 Локально поднимаются Edge Functions:
 
@@ -103,6 +126,7 @@
 - `generate-reading-text`
 - `prepare-vocabulary-cards`
 - `review-vocabulary-word`
+- `save-reading-position`
 - `save-vocabulary-word`
 - `submit-support-report`
 
@@ -113,7 +137,9 @@
 
 `dev:telegram` специально использует `127.0.0.1` для tunnel origins вместо `localhost`: на Windows `localhost` может резолвиться в IPv6 `::1`, пока Supabase local слушает IPv4. Если в логах Cloudflared есть `dial tcp [::1]`, значит tunnel target снова указывает на `localhost`.
 
-Перед печатью tunnel URL скрипт проверяет, что локальные API и frontend origins отвечают. Это защищает от обновления `.env.local` и BotFather публичным URL, который не достает до локального сервиса.
+Перед созданием туннелей скрипт проверяет локальные origins. Каждый Quick Tunnel URL создается один раз и остается активным до остановки команды. Скрипт не использует Node DNS readiness-check: на Windows системный `getaddrinfo` может сохранять отрицательный DNS-результат после того, как публичная запись уже появилась. Если Telegram открыл новый URL раньше публикации DNS, нужно повторно открыть Mini App через несколько секунд, не перезапуская команду.
+
+После ответа BotFather `Success! Menu settings updated` Telegram Desktop может некоторое время показывать предыдущий текст menu button из клиентского кеша. Это не означает, что настройка не сохранилась. Нужно оставить текущий dev-stack запущенным и дождаться обновления кнопки; повторный запуск создаёт новые Quick Tunnel URL и повышает риск Cloudflare `429 Too Many Requests`.
 
 Frontend собирается после получения API tunnel URL, чтобы production-like bundle использовал актуальный публичный адрес Supabase API.
 
@@ -175,17 +201,17 @@ where telegram_user_id = YOUR_TELEGRAM_USER_ID;
 
    Что делать: проверить `supabase/functions/deno.json` и логи `[edge]`.
 
-3. `failed to parse environment file: .env.local`
+3. `failed to parse environment file: .env.telegram.local`
 
-   Причина: неправильная кодировка `.env.local` или мусорный символ в начале файла.
+   Причина: неправильная кодировка `.env.telegram.local` или мусорный символ в начале файла.
 
    Что делать: пересохранить файл как `UTF-8` без BOM и перезапустить.
 
 4. Tunnel URL не работает
 
-   Причина: quick tunnel временный и может умереть.
+   Причина: Quick Tunnel временный и может завершиться уже после публикации URL.
 
-   Что делать: перезапустить `npm run dev:telegram`, взять новые URL и снова обновить `/setmenubutton`.
+   Что делать: перезапустить `npm run dev:telegram`, взять новый frontend URL и снова обновить `/setmenubutton`. Если новый URL сразу не открылся, повторить открытие через несколько секунд, сохраняя текущий dev-stack запущенным.
 
 ## 7. Остановка
 
@@ -202,7 +228,8 @@ where telegram_user_id = YOUR_TELEGRAM_USER_ID;
   - `TELEGRAM_BOT_TOKEN`
   - `SUPABASE_SERVICE_ROLE_KEY`
   - `OPENROUTER_API_KEY`
-  - любые секреты из `.env.local`
+  - любые секреты из `.env.telegram.local` и других локальных env-файлов
+- Не менять menu button production-бота `@english_daily_loop_bot` на временный tunnel URL.
 - Все проверки `initData` делать только на сервере в Edge Functions, не в клиенте.
 - Локальная dev tools панель отображается только для `admin`, а действия с БД разрешает только server env `DEV_TOOLS_ENABLED` вместе с server-side проверкой `users.app_role = 'admin'`.
 - Отчеты об ошибках отправляются через `submit-support-report` и сохраняются в `public.support_reports`; для проверки этой функции после новой миграции нужен перезапуск `npm run dev:telegram`.

@@ -10,10 +10,10 @@ export type AppRole = "admin" | "tester" | "user";
 
 export type AppUser = {
   id: string;
-  telegramUserId: number;
   role: AppRole;
   firstName: string | null;
   streakDays: number;
+  completedReadingTextCount: number | null;
   settingsCompletedAt: string | null;
   firstTextCompletedAt: string | null;
   settings: UserSettings | null;

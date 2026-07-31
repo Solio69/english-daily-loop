@@ -1,5 +1,11 @@
-import { BookText, CheckCircle2, Sparkles } from "lucide-react";
-import React, { useCallback, useEffect, useState } from "react";
+import {
+  BookText,
+  CheckCircle2,
+  Loader2,
+  RefreshCw,
+  Sparkles,
+} from "lucide-react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "../components/Button";
 import { InlineStatusCard } from "../components/InlineStatusCard";
 import { LoadingState } from "../components/LoadingState";
@@ -16,7 +22,7 @@ import {
   VocabularyReviewState,
   VocabularyReviewStatus,
 } from "../types/vocabulary";
-import { getVocabularyReviewProgressCounts } from "../utils/vocabularyReviewProgress";
+import { getVocabularyReviewProgressPresentation } from "../utils/vocabularyReviewProgress";
 
 type VocabularyScreenProps = {
   onBack: () => void;
@@ -38,6 +44,8 @@ export const VocabularyScreen: React.FC<VocabularyScreenProps> = ({
   );
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
+  const [isReviewStateStale, setIsReviewStateStale] = useState(false);
   const [isCardRevealed, setIsCardRevealed] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
 
@@ -57,6 +65,7 @@ export const VocabularyScreen: React.FC<VocabularyScreenProps> = ({
     setErrorText(null);
     const state = await getVocabularyReviewState();
     applyReviewState(state);
+    setIsReviewStateStale(false);
   }, [applyReviewState]);
 
   useEffect(() => {
@@ -91,26 +100,62 @@ export const VocabularyScreen: React.FC<VocabularyScreenProps> = ({
 
   const handleReview = async (action: VocabularyReviewAction) => {
     const currentCard = reviewState?.currentCard;
-    if (!currentCard || isSubmitting) return;
+    if (!currentCard || isSubmittingRef.current) return;
 
+    let isReviewSaved = false;
+    isSubmittingRef.current = true;
     setIsSubmitting(true);
     setErrorText(null);
     try {
       await reviewVocabularyWord(currentCard.id, action);
-      setIsCardRevealed(false);
+      isReviewSaved = true;
       await loadReviewState();
+      setIsCardRevealed(false);
     } catch (error) {
-      setErrorText(
-        error instanceof Error ? error.message : "Не удалось сохранить ответ.",
-      );
+      if (isReviewSaved) {
+        setIsReviewStateStale(true);
+        setIsCardRevealed(false);
+        setErrorText(
+          "Ответ сохранён, но не удалось загрузить следующую карточку.",
+        );
+      } else {
+        setErrorText(
+          error instanceof Error ? error.message : "Не удалось сохранить ответ.",
+        );
+      }
     } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   };
 
-  const { totalCount, reviewedCount, remainingCount } = reviewState
-    ? getVocabularyReviewProgressCounts(reviewState)
-    : { totalCount: 0, reviewedCount: 0, remainingCount: 0 };
+  const handleReviewStateRefresh = async () => {
+    if (isSubmittingRef.current) return;
+
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
+    try {
+      await loadReviewState();
+    } catch (error) {
+      setErrorText(
+        error instanceof Error
+          ? error.message
+          : "Не удалось загрузить следующую карточку.",
+      );
+    } finally {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
+    }
+  };
+
+  const { totalCount, reviewedCount, remainingCount, isCompleted } = reviewState
+    ? getVocabularyReviewProgressPresentation(reviewState)
+    : {
+        totalCount: 0,
+        reviewedCount: 0,
+        remainingCount: 0,
+        isCompleted: false,
+      };
   const currentCard = reviewState?.currentCard ?? null;
   const dictionaryActions = reviewState?.dictionaryActions ?? {
     pendingCount: 0,
@@ -135,6 +180,7 @@ export const VocabularyScreen: React.FC<VocabularyScreenProps> = ({
             totalCount={totalCount}
             reviewedCount={reviewedCount}
             remainingCount={remainingCount}
+            isCompleted={isCompleted}
           />
 
           <VocabularyDictionaryActionsNotice
@@ -143,7 +189,7 @@ export const VocabularyScreen: React.FC<VocabularyScreenProps> = ({
             onOpen={onOpenVocabularyMaterials}
           />
 
-          {errorText && (
+          {errorText && !isReviewStateStale && (
             <InlineStatusCard
               variant="error"
               title="Не удалось сохранить ответ"
@@ -151,7 +197,35 @@ export const VocabularyScreen: React.FC<VocabularyScreenProps> = ({
             />
           )}
 
-          {currentCard ? (
+          {isReviewStateStale ? (
+            <section
+              aria-live="polite"
+              className="glass-card rounded-[20px] p-5 text-center"
+            >
+              <div className="glass-control mx-auto mb-3 grid size-14 place-items-center rounded-full text-[var(--primary)]">
+                <RefreshCw size={28} />
+              </div>
+              <h2 className="font-heading text-lg font-semibold text-[var(--text-primary)]">
+                Ответ сохранён
+              </h2>
+              <p className="mt-1 text-sm leading-5 text-[var(--text-secondary)]">
+                {errorText ?? "Не удалось загрузить следующую карточку."}
+              </p>
+              <Button
+                variant="secondary"
+                onClick={handleReviewStateRefresh}
+                disabled={isSubmitting}
+                className="mt-4 w-full"
+              >
+                {isSubmitting ? (
+                  <Loader2 className="size-[18px] animate-spin" />
+                ) : (
+                  <RefreshCw size={18} />
+                )}
+                Загрузить следующую карточку
+              </Button>
+            </section>
+          ) : currentCard ? (
             <VocabularyReviewWordCard
               card={currentCard}
               isRevealed={isCardRevealed}

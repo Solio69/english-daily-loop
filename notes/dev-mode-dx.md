@@ -17,16 +17,21 @@ npm run dev:telegram
 
 - запускает локальный Supabase;
 - запускает Supabase Edge Functions;
-- запускает Cloudflare tunnel для Supabase API;
-- обновляет `VITE_SUPABASE_URL` в `.env.local` на API tunnel URL;
-- собирает frontend через `pnpm build`;
-- запускает frontend через Vite preview на `localhost:3000`;
-- запускает Cloudflare tunnel для frontend;
-- печатает URL для BotFather и краткий startup summary.
+- запускает Cloudflare Quick Tunnel для Supabase API и ждёт появления URL в выводе `cloudflared`;
+- после получения URL обновляет `VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY` в `.env.telegram.local` значениями API tunnel и локального Supabase;
+- собирает frontend через `pnpm build:telegram` в изолированном Vite-режиме `telegram-dev`;
+- запускает frontend через Vite preview на `127.0.0.1:3000`;
+- запускает `pnpm watch:telegram` с тем же изолированным env для автоматической пересборки `dist-telegram`;
+- запускает Cloudflare Quick Tunnel для frontend и ждёт появления URL в выводе `cloudflared`;
+- печатает URL для BotFather и startup summary после получения обоих публичных адресов.
 
 Этот режим использует настоящий Telegram `initData` и реального Telegram-пользователя. Это ближе к production-поведению и не смешивает разработку с браузерными dev-пользователями.
 
-Frontend собирается после получения API tunnel URL. После изменений frontend-кода, Edge Functions или server env локальный Telegram-режим нужно перезапустить.
+Telegram Desktop может обновлять menu button с задержкой после успешного ответа BotFather. Текущий dev-stack нужно оставить запущенным и дождаться обновления кнопки: повторный запуск создаёт новые Quick Tunnel URL и может попасть под Cloudflare rate limit.
+
+Frontend preview, frontend watcher, Edge Functions и tunnels обязательны для рабочего Telegram-режима, поэтому завершение любого из этих процессов останавливает весь dev-stack. DB/API log-stream остаются вспомогательными.
+
+Frontend собирается после получения API tunnel URL. После изменений frontend-кода watcher автоматически пересобирает `dist-telegram`; нужно дождаться сообщения об успешной сборке и обновить Mini App без перезапуска tunnel. Полный перезапуск нужен после изменения server env, Vite config, dependencies или обязательных инфраструктурных процессов.
 
 ## 3) Данные и сценарии
 
@@ -39,7 +44,7 @@ Frontend собирается после получения API tunnel URL. По
 
 - сброс дневных попыток подготовки AI-карточек;
 - возврат ready-карточек в `not_started` с очисткой статистики;
-- назначение активных карточек на текущую московскую дату;
+- назначение активных карточек на текущую учебную дату;
 - перенос обязательной очереди повторения текущего дня на выбранный абсолютный шаг;
 - удаление completion-marker повторения за текущую дату.
 
@@ -65,7 +70,7 @@ npx supabase migration up
 ## 5) Правила безопасности
 
 - Telegram `initData` проверяется только на сервере в Edge Functions.
-- `TELEGRAM_BOT_TOKEN`, `OPENROUTER_API_KEY` и `SUPABASE_SERVICE_ROLE_KEY` остаются только в `.env.local` и не попадают во frontend-код или git.
+- development-секреты `TELEGRAM_BOT_TOKEN` и `OPENROUTER_API_KEY` хранятся только в gitignored `.env.telegram.local`, а локальный `SUPABASE_SERVICE_ROLE_KEY` берется из Supabase local; эти значения не попадают во frontend-код или git.
 - Локальный Telegram-режим не подменяет пользователя и не обходит серверную авторизацию.
 - Панель dev tools показывается только при роли `admin`.
 - Edge Function `dev-tools` выполняет reset-действия только при server env `DEV_TOOLS_ENABLED="true"` и server-side проверке `users.app_role = 'admin'`.

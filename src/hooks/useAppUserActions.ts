@@ -126,6 +126,7 @@ export const useAppUserActions = ({
           appUser.subscription,
           appUser.homeProgress,
           appUser.streakDays,
+          appUser.completedReadingTextCount,
         );
         setAppUser(updatedUser);
         navigateHome();
@@ -219,7 +220,12 @@ export const useAppUserActions = ({
         currentUser
           ? {
               ...currentUser,
-              streakDays: result.streakDays,
+              streakDays: result.streakDays ?? currentUser.streakDays,
+              completedReadingTextCount:
+                result.completedReadingTextCount ??
+                (currentUser.completedReadingTextCount === null
+                  ? null
+                  : currentUser.completedReadingTextCount + 1),
               firstTextCompletedAt:
                 result.firstTextCompletedAt ?? currentUser.firstTextCompletedAt,
               homeProgress: {
@@ -236,7 +242,7 @@ export const useAppUserActions = ({
       showToast(
         appUser.firstTextCompletedAt
           ? "Текст на сегодня завершен."
-          : "Отличный старт. Теперь все разделы доступны.",
+          : "Отличный старт. Первый текст завершен.",
         appUser.firstTextCompletedAt ? "success" : "onboarding",
       );
     } catch (error) {

@@ -1,7 +1,7 @@
 /// <reference path="../deno-globals.d.ts" />
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
-import { fail } from "./server.ts";
+import { fail, getSafeErrorDetails } from "./server.ts";
 import { parseEnglishLevel, type EnglishLevel } from "./vocabulary.ts";
 
 export type ServiceClient = ReturnType<typeof createClient>;
@@ -18,6 +18,7 @@ export const getAppUserByTelegramId = async (
   supabase: ServiceClient,
   telegramUserId: number,
   logPrefix: string,
+  requestId: string,
 ): Promise<{ id: string }> => {
   const { data: userRow, error: userError } = await supabase
     .from("users")
@@ -27,8 +28,9 @@ export const getAppUserByTelegramId = async (
 
   if (userError) {
     console.error(`${logPrefix} failed to load user`, {
-      telegramUserId,
-      error: userError.message,
+      requestId,
+      stage: "user_lookup",
+      ...getSafeErrorDetails(userError, [telegramUserId]),
     });
     fail(500, "USER_FIND_FAILED", "Failed to load user profile.");
   }

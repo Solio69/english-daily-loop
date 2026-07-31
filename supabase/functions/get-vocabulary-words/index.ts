@@ -6,6 +6,7 @@ import {
   errorResponse,
   fail,
   getRequiredEnv,
+  getRequestId,
   getTelegramUserFromBody,
   handleCorsPreflight,
   parseJsonBody,
@@ -75,6 +76,8 @@ Deno.serve(async (req: Request) => {
     return corsResponse;
   }
 
+  const requestId = getRequestId(req);
+
   try {
     assertPostRequest(req);
 
@@ -94,6 +97,7 @@ Deno.serve(async (req: Request) => {
       supabase,
       tgUser.id,
       "[get-vocabulary-words]",
+      requestId,
     );
     const selectColumns =
       "id, word, translation, part_of_speech, is_verb, is_regular_verb, verb_forms, examples, status, card_status, review_step, next_review_date, last_reviewed_at, created_at, updated_at";

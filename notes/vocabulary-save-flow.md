@@ -78,8 +78,8 @@ source переносится с pending-записи на существующ�
 - `public.user_active_reading_texts.reading_text_id`
 - `public.user_completed_reading_texts.reading_text_id`
 
-Active text также хранит `reading_date`; слово можно сохранить только из active text
-текущей московской даты.
+Active text также хранит `reading_date` генерации; слово можно сохранить из
+единственного актуального active text независимо от его даты генерации.
 
 Миграция:
 - `supabase/migrations/20260511120000_add_vocabulary_word_saving.sql`
@@ -91,6 +91,7 @@ Active text также хранит `reading_date`; слово можно сох
 - `supabase/migrations/20260626130000_add_vocabulary_review_display_counts.sql`
 - `supabase/migrations/20260701120000_scope_active_reading_text_by_date.sql`
 - `supabase/migrations/20260705130000_promote_vocabulary_needs_approval_cards.sql`
+- `supabase/migrations/20260723120000_add_moscow_study_day_and_carry_active_text.sql`
 
 ## 5) Transactional RPC
 Атомарное сохранение слова и источника выполняет RPC:
@@ -98,7 +99,7 @@ Active text также хранит `reading_date`; слово можно сох
 
 RPC:
 - берет advisory lock по пользователю;
-- проверяет, что `reading_text_id` принадлежит active text текущей даты;
+- проверяет, что `reading_text_id` принадлежит актуальному active text этого пользователя;
 - проверяет существующее слово;
 - проверяет лимит словаря только перед созданием новой строки;
 - реактивирует существующее `learned`-слово независимо от заполненности лимита;
@@ -120,7 +121,7 @@ RPC доступен только `service_role`.
 Функция:
 1. Валидирует Telegram `initData`.
 2. Находит пользователя по `telegram_user_id`.
-3. Проверяет active text текущей московской даты и совпадение `readingTextId`.
+3. Проверяет единственный active text пользователя и совпадение `readingTextId` без date-фильтра.
 4. Проверяет, что `wordIndex` указывает на это слово в активном тексте.
 5. Нормализует выбранную форму слова.
 6. Через RPC проверяет дубль, лимит словаря, сохраняет pending-слово и source.

@@ -15,7 +15,6 @@ const AUTH_DEBUG_ENABLED =
 
 type UserRow = {
   id: string;
-  telegram_user_id: number;
   role: AppRole;
   first_name: string | null;
   settings_completed_at: string | null;
@@ -24,6 +23,7 @@ type UserRow = {
 
 type AuthenticatedUserRow = UserRow & {
   streak_days: number;
+  completed_reading_text_count: number | null;
   subscription: SubscriptionSummary;
   homeProgress: HomeProgress;
   settings: UserSettings | null;
@@ -32,7 +32,6 @@ type AuthenticatedUserRow = UserRow & {
 type AuthTelegramFunctionData = {
   user: {
     id: string;
-    telegramUserId: number;
     role: AppRole;
     firstName: string | null;
     settingsCompletedAt: string | null;
@@ -40,6 +39,7 @@ type AuthTelegramFunctionData = {
   };
   settings: UserSettings | null;
   streakDays: number;
+  completedReadingTextCount?: number | null;
   subscription: SubscriptionSummary;
   homeProgress: HomeProgress;
 };
@@ -47,7 +47,6 @@ type AuthTelegramFunctionData = {
 type SaveUserSettingsFunctionData = {
   user: {
     id: string;
-    telegramUserId: number;
     role: AppRole;
     firstName: string | null;
     settingsCompletedAt: string | null;
@@ -88,6 +87,7 @@ const mapUser = (
   subscription: SubscriptionSummary = DEFAULT_FREE_SUBSCRIPTION_SUMMARY,
   homeProgress: HomeProgress = DEFAULT_HOME_PROGRESS,
   streakDays = 0,
+  completedReadingTextCount: number | null = null,
 ): AppUser => {
   const normalizedHomeProgress: HomeProgress = {
     ...DEFAULT_HOME_PROGRESS,
@@ -99,10 +99,10 @@ const mapUser = (
 
   return {
     id: user.id,
-    telegramUserId: user.telegram_user_id,
     role: user.role,
     firstName: user.first_name,
     streakDays,
+    completedReadingTextCount,
     settingsCompletedAt: user.settings_completed_at,
     firstTextCompletedAt: user.first_text_completed_at,
     settings,
@@ -135,16 +135,15 @@ const getAuthenticatedUser = async (
   );
 
   authLog("auth-telegram success", {
-    telegramUserId: payload.user.telegramUserId,
     appUserId: payload.user.id,
   });
 
   return {
     id: payload.user.id,
-    telegram_user_id: payload.user.telegramUserId,
     role: payload.user.role ?? "user",
     first_name: payload.user.firstName,
     streak_days: payload.streakDays,
+    completed_reading_text_count: payload.completedReadingTextCount ?? null,
     settings_completed_at: payload.user.settingsCompletedAt,
     first_text_completed_at: payload.user.firstTextCompletedAt,
     settings: payload.settings,
@@ -173,14 +172,21 @@ export const getCurrentAppUser = async (): Promise<AppUser> => {
   const streakDays = (user as Partial<AuthenticatedUserRow>).streak_days ?? 0;
   authLog("Bootstrapped app user", {
     appUserId: user.id,
-    telegramUserId: user.telegram_user_id,
     hasSettings: Boolean(settings),
     subscriptionTier: subscription.tier,
     readingStatus: homeProgress.reading.status,
     reviewStatus: homeProgress.review.status,
     streakDays,
+    completedReadingTextCount: user.completed_reading_text_count,
   });
-  return mapUser(user, settings, subscription, homeProgress, streakDays);
+  return mapUser(
+    user,
+    settings,
+    subscription,
+    homeProgress,
+    streakDays,
+    user.completed_reading_text_count,
+  );
 };
 
 export const saveCurrentUserSettings = async (
@@ -189,6 +195,7 @@ export const saveCurrentUserSettings = async (
   subscription: SubscriptionSummary,
   homeProgress: HomeProgress,
   streakDays: number,
+  completedReadingTextCount: number | null,
 ): Promise<AppUser> => {
   authLog("Saving user settings", { userId, input });
   const initData = getTelegramInitData();
@@ -206,7 +213,6 @@ export const saveCurrentUserSettings = async (
 
   const userRow: UserRow = {
     id: payload.user.id,
-    telegram_user_id: payload.user.telegramUserId,
     role: payload.user.role ?? "user",
     first_name: payload.user.firstName,
     settings_completed_at: payload.user.settingsCompletedAt,
@@ -220,5 +226,6 @@ export const saveCurrentUserSettings = async (
     payload.subscription ?? subscription,
     payload.homeProgress ?? homeProgress,
     streakDays,
+    completedReadingTextCount,
   );
 };

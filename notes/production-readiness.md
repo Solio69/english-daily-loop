@@ -41,10 +41,10 @@
   - добавить более явные user-facing сообщения для `429`
 
 ## 5) Generated text persistence
-- Последний успешный непрочитанный AI-текст сохраняется в `user_active_reading_texts` с `reading_date` текущей московской даты.
-- Экран чтения и главный прогресс используют только active text текущей московской даты; незавершенный текст прошлой даты не отображается как текущий дневной план и не попадает в историю.
-- Прочитанные тексты сохраняются в `user_completed_reading_texts`: при завершении active text текущей даты копируется в историю отдельной записью, затем active text этой даты удаляется, а факт первого завершения дня пишется в `user_daily_reading_completions`.
-- Само завершение чтения выполняется транзакционно через RPC `complete_daily_reading_text` с проверкой даты active text.
+- Последний успешный непрочитанный AI-текст сохраняется в `user_active_reading_texts` с `reading_date` учебной даты генерации.
+- Экран чтения и главный прогресс используют единственный active text пользователя независимо от даты генерации; незавершенный текст переносится бессрочно.
+- Прочитанные тексты сохраняются в `user_completed_reading_texts`: при завершении единственный active text копируется в историю отдельной записью с текущей учебной датой, затем удаляется, а факт первого завершения учебного дня пишется в `user_daily_reading_completions`.
+- Само завершение чтения выполняется транзакционно через RPC `complete_daily_reading_text` с проверкой владельца и row lock, но без date-фильтра active text.
 - Перед production стоит добавить retention/экспорт/удаление пользовательских материалов, если появятся требования по приватности данных.
 
 ## 6) OpenRouter/free model reliability
@@ -66,10 +66,20 @@
 ## 7.1) Deployment platform
 - Для первого production-релиза выбран путь `Supabase Cloud + Vercel`.
 - Frontend хостится на Vercel как Vite static build.
-- Backend/data слой остается в Supabase Cloud: Postgres, RLS/grants, Edge Functions, secrets, logs и backups.
+- Backend/data слой остается в Supabase Cloud: Postgres, RLS/grants, Edge Functions, secrets и logs.
 - Решение, fallback-варианты и открытые вопросы зафиксированы в `notes/deployment-platform-decision.md`.
 - Ручной runbook первого production-деплоя зафиксирован в `notes/production-deploy-flow.md`.
+- Ручной smoke checklist production-деплоя зафиксирован в `notes/production-smoke-checklist.md`.
 - `DEV_TOOLS_ENABLED` включен на первый production testing period только для admin-доступа; после стабильного запуска нужно выключить его или сократить production actions до безопасного subset.
+
+## 7.2) Backup and recovery
+
+- Supabase Free не хранит platform backups этого проекта.
+- Production БД ежедневно выгружается в локальный logical snapshot на компьютере владельца.
+- Цели MVP: RPO `24` часа и RTO `4` часа; snapshot старше `72` часов считается critical.
+- Restore выполняется только в изолированную non-production БД; quarterly drill проверяет данные, схему и серверные объекты.
+- Незашифрованное локальное хранение временно принято с ограничением доступа к папке; шифрование и offsite copy остаются отдельными backlog-задачами.
+- Полный runbook: `notes/backup-and-restore.md`.
 
 ## 8) Database API hardening
 - Защищенные таблицы доступны через Edge Functions с `SUPABASE_SERVICE_ROLE_KEY`.
@@ -95,3 +105,13 @@
 - `public.support_reports` закрыта для `anon` и `authenticated`; запись идет через Edge Function с `SUPABASE_SERVICE_ROLE_KEY`.
 - Отчеты хранятся `30` дней и очищаются через `pg_cron` job `cleanup_support_reports`.
 - Перед production стоит добавить удобный admin-view или SQL-шаблон для просмотра свежих отчетов без ручного поиска по таблице.
+
+## 11) Минимизация пользовательских данных
+- `users.telegram_user_id` хранится только как server-side идентификатор для Telegram auth и будущих сообщений бота.
+- `users.first_name` используется для персонального приветствия.
+- Приложение не собирает `username`, `last_name` и `language_code`; совместимые nullable-столбцы остаются в схеме до отдельного contract cleanup.
+- Frontend user contract, новые support reports и прикладные логи не содержат прямой Telegram ID.
+- Новые support reports связаны с пользователем только через внутренний `user_id`; совместимый nullable-столбец `support_reports.telegram_user_id` остается до contract cleanup.
+- Contract cleanup допускается только после успешного production rollout текущего runtime-контракта, свежего completed snapshot и успешного recovery drill.
+- Self-service удаление аккаунта и экспорт пользовательских данных остаются отдельными product/privacy задачами.
+- Полная карта хранения и сроков зафиксирована в `notes/user-data-storage.md`.

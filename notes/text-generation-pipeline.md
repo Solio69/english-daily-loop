@@ -18,11 +18,11 @@ Supabase Edge Function, базой и внешней AI-моделью.
 - количество использованных/оставшихся попыток
 - флаг `isReadingCompletedToday`
 5. Если дневные попытки остались, пользователь может вызвать `generate-reading-text`.
-6. Если генерация успешна, новый текст сохраняется как активный с `reading_date` текущей московской даты и заменяет предыдущий активный текст.
+6. Если генерация успешна, новый текст сохраняется как активный с `reading_date` текущей учебной даты и заменяет предыдущий активный текст.
 7. Если пользователь не нажал `Завершить текст` перед новой успешной генерацией, предыдущий активный текст теряется и не попадает в историю.
-8. Если пользователь не завершил текст до смены московской даты, этот active text не участвует в новом дневном плане и не попадает в историю.
-9. Если генерация неуспешна, попытка остается списанной, новый текст не сохраняется, ранее активный текст текущей даты остается доступен.
-10. После нажатия `Завершить текст` фронт вызывает `complete-reading-text`; active text текущей даты сохраняется в историю, удаляется из активного состояния, а генерация в этот же день остается доступна, пока не исчерпан дневной лимит.
+8. Если пользователь не завершил текст до смены учебной даты, этот active text бессрочно остается в дневном плане до завершения или успешной замены.
+9. Если генерация неуспешна, попытка остается списанной, новый текст не сохраняется, ранее активный текст остается доступен.
+10. После нажатия `Завершить текст` фронт вызывает `complete-reading-text`; единственный active text сохраняется в историю с текущей учебной датой, удаляется из активного состояния, а генерация в этот учебный день остается доступна, пока не исчерпан дневной лимит.
 
 ## 3) Серверная функция
 Файлы:
@@ -39,7 +39,7 @@ Supabase Edge Function, базой и внешней AI-моделью.
 5. Читает из `public.user_settings`:
 - `english_level`
 - `daily_reading_minutes`
-6. Считает текущую дату по `Europe/Moscow`.
+6. Считает учебную дату с границей `05:00 Europe/Moscow`.
 7. Атомарно проверяет дневной лимит и записывает попытку со статусом `started` через RPC `claim_reading_generation_attempt`.
 8. Если лимит не исчерпан, продолжает генерацию; если исчерпан, возвращает `429`.
 9. Проверяет OpenRouter model chain через allowlist.
@@ -49,22 +49,24 @@ Supabase Edge Function, базой и внешней AI-моделью.
 13. Если router-level fallback не помог или ответ пришел с невалидным JSON/длиной/content pattern, приложение исключает использованную модель и пробует следующую.
 14. Валидирует JSON-ответ модели как недоверенный output.
 15. Записывает безопасные observability metadata в `public.reading_generation_attempts`.
-16. При успехе сохраняет/перезаписывает `public.user_active_reading_texts` с `reading_date`.
+16. При успехе сохраняет/перезаписывает `public.user_active_reading_texts` с `reading_date` и явно сбрасывает `last_read_paragraph_index` в `null`.
 17. Помечает попытку как `succeeded`; при ошибке после списания помечает как `failed`.
 18. Возвращает единый контракт:
 - успех: `{ ok: true, data: { text, generation, dailyLimit, usedAttempts, remainingAttempts } }`
 - ошибка: `{ ok: false, error: { code, message } }`
 
 Дополнительные Edge Functions:
-- `supabase/functions/get-reading-state/index.ts` — возвращает состояние экрана чтения и active text текущей московской даты.
-- `supabase/functions/complete-reading-text/index.ts` — транзакционно завершает active text текущей московской даты через RPC `complete_daily_reading_text`, сохраняет snapshot текста в историю, удаляет active text, заполняет `users.first_text_completed_at` для онбординга, если это первый прочитанный текст, и возвращает актуальный `streakDays`.
+- `supabase/functions/get-reading-state/index.ts` — возвращает состояние экрана чтения и единственный active text пользователя независимо от даты генерации.
+- `supabase/functions/complete-reading-text/index.ts` — транзакционно завершает единственный active text независимо от даты генерации через RPC `complete_daily_reading_text`, сохраняет snapshot с текущей учебной датой в историю, удаляет active text, заполняет `users.first_text_completed_at` для онбординга, если это первый прочитанный текст, и best-effort возвращает `streakDays` и `completedReadingTextCount`.
 - `supabase/functions/get-reading-history/index.ts` — возвращает историю прочитанных текстов текущего пользователя с cursor-пагинацией.
-- `supabase/functions/auth-telegram/index.ts` — в bootstrap пользователя отдает `homeProgress.lesson`, `homeProgress.reading.status` и `streakDays` для главного экрана.
-- `supabase/functions/_shared/reading-streak.ts` — server helper для streak чтения: считает непрерывную серию от текущей московской даты по `user_daily_reading_completions`; если completion-marker за сегодня отсутствует, возвращает `0`.
+- `supabase/functions/auth-telegram/index.ts` — в bootstrap пользователя отдает `homeProgress.lesson`, `homeProgress.reading.status`, `streakDays` и nullable `completedReadingTextCount` для главного экрана; ошибка подсчета истории не блокирует авторизацию.
+- `supabase/functions/_shared/reading-streak.ts` — server helper для streak чтения: считает непрерывную серию от текущей учебной даты по `user_daily_reading_completions`; если completion-marker за учебный день отсутствует, возвращает `0`.
+- `supabase/functions/_shared/reading-history.ts` — server helper общего счетчика истории; при ошибке агрегатного запроса возвращает `null`.
+- `supabase/functions/_shared/reading-completion-metrics.ts` — изолирует post-completion расчет серии и счетчика от результата уже выполненной транзакции завершения.
 
 ## 4) OpenRouter
 Server env:
-- `OPENROUTER_API_KEY` — обязательный, только в `.env.local`
+- `OPENROUTER_API_KEY` — обязательный; локально хранится в gitignored `.env.telegram.local`, в production — в Supabase Cloud Edge Function secrets
 - `OPENROUTER_MODEL_CHAIN` — опциональный comma-separated список моделей для генерации текста
 - `OPENROUTER_MODEL_PRIMARY` / `OPENROUTER_MODEL_FALLBACK` /
   `OPENROUTER_MODEL_TERTIARY` — опциональные добавления к дефолтной цепочке,
@@ -98,7 +100,7 @@ Server env:
 Важно:
 - ключ OpenRouter нельзя добавлять во frontend env (`VITE_*`)
 - ключ нельзя коммитить
-- `.env.example` содержит только названия переменных и безопасные placeholder/example значения
+- `.env.production.example` и `.env.telegram.example` содержат только названия переменных и безопасные placeholder/example значения
 
 ## 5) Размер текста
 Время чтения управляет и промптом, и `max_tokens`.
@@ -131,7 +133,7 @@ Server env:
 - `generation.provider`
 - `generation.model`
 - `generation.fallbackUsed`
-6. Если AI-ветка упала, frontend не вызывает RPC fallback; он показывает ошибку, сохраняет последний active text текущей даты на экране после завершения загрузки и повторно запрашивает `get-reading-state`, чтобы синхронизировать оставшиеся попытки с сервером.
+6. Если AI-ветка упала, frontend не вызывает RPC fallback; он показывает ошибку, сохраняет последний active text на экране после завершения загрузки и повторно запрашивает `get-reading-state`, чтобы синхронизировать оставшиеся попытки с сервером.
 
 ## 7) Dev-индикатор источника
 Файл:
@@ -145,25 +147,26 @@ Server env:
 ## 8) Дневные попытки и активный текст
 Таблицы:
 - `public.reading_generation_attempts` — история списанных попыток генерации.
-- `public.user_active_reading_texts` — последний успешный непрочитанный текст пользователя с `reading_date`.
+- `public.user_active_reading_texts` — последний успешный непрочитанный текст пользователя с `reading_date` и nullable-позицией абзаца; `null` означает абсолютный верх страницы.
 - `public.user_daily_reading_completions` — дневной marker: пользователь завершил хотя бы один текст за дату.
 - `public.user_completed_reading_texts` — snapshot каждого завершенного текста для раздела `Мои материалы`.
 
 Правила MVP:
-- timezone дневного цикла: `Europe/Moscow`
+- учебный день начинается в `05:00 Europe/Moscow`
 - дневной лимит зависит от подписки:
   - free: `3`
   - paid: `10`
 - попытка списывается до запроса к OpenRouter
 - попытка списывается независимо от успеха генерации
-- при новой успешной генерации active text перезаписывается и получает `reading_date` текущей московской даты
-- при ошибке генерации active text текущей даты не меняется
-- active text прошлой даты не отображается как текущий дневной план и не попадает в историю без завершения
+- при новой успешной генерации active text перезаписывается и получает `reading_date` текущей учебной даты
+- при ошибке генерации существующий active text не меняется
+- active text отображается и переносится бессрочно независимо от `reading_date`, пока пользователь не завершит или успешно не заменит его
 - attempt metadata не хранит полный prompt, raw provider response, полный сгенерированный текст, Telegram `initData`, server env secrets или stack trace
-- после завершения чтения active text текущей даты сохраняется в историю и удаляется из active-состояния; генерация в этот же день остается доступна, пока не исчерпан дневной лимит
+- после завершения чтения active text сохраняется в историю с текущей учебной датой и удаляется из active-состояния; генерация в этот же учебный день остается доступна, пока не исчерпан дневной лимит
 - `users.first_text_completed_at` используется только для онбординга
 - статус карточки урока на главной определяется сервером через `homeProgress.lesson`
 - статус блока `Текст` в карточке дневного прогресса определяется сервером через `homeProgress.reading.status`
+- плитка `Тексты` на главной показывает server-side количество строк истории через `completedReadingTextCount`; для `null` используется подпись `История чтения`
 
 ## 9) Ограничения и будущие улучшения
 Текущие ограничения:

@@ -25,12 +25,14 @@ function toSpawnArgs(args) {
   return args;
 }
 
-export function runOnce(command, args, label) {
+export function runOnce(command, args, label, options = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(toSpawnCommand(command, args), toSpawnArgs(args), {
       stdio: "inherit",
       shell: isWindows,
-      env: process.env,
+      env: options.replaceEnv
+        ? options.env
+        : { ...process.env, ...(options.env ?? {}) },
     });
 
     child.on("error", (error) => reject(error));
@@ -44,12 +46,14 @@ export function runOnce(command, args, label) {
   });
 }
 
-export function runCapture(command, args) {
+export function runCapture(command, args, options = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(toSpawnCommand(command, args), toSpawnArgs(args), {
       stdio: ["ignore", "pipe", "pipe"],
       shell: isWindows,
-      env: process.env,
+      env: options.replaceEnv
+        ? options.env
+        : { ...process.env, ...(options.env ?? {}) },
     });
 
     let stdout = "";
@@ -82,7 +86,9 @@ export function spawnLabeled(command, args, label, options = {}) {
   const child = spawn(toSpawnCommand(command, args), toSpawnArgs(args), {
     stdio: ["ignore", "pipe", "pipe"],
     shell: isWindows,
-    env: { ...process.env, ...(options.env ?? {}) },
+    env: options.replaceEnv
+      ? options.env
+      : { ...process.env, ...(options.env ?? {}) },
   });
 
   const prefix = withColor(

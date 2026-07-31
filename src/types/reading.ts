@@ -6,6 +6,7 @@ export type ReadingText = {
   level: string;
   body: string;
   estimatedMinutes: number;
+  lastReadParagraphIndex: number | null;
   savedWordIndexes?: number[];
   source?: ReadingSource;
   generation?: {
@@ -36,5 +37,11 @@ export type CompleteReadingTextResult = {
   completedDate: string;
   firstTextCompletedAt: string | null;
   isReadingCompletedToday: boolean;
-  streakDays: number;
+  streakDays?: number | null;
+  completedReadingTextCount?: number | null;
+};
+
+export type SaveReadingPositionResult = {
+  readingTextId: string;
+  paragraphIndex: number | null;
 };

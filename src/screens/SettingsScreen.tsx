@@ -1,9 +1,18 @@
-import React, { Suspense, lazy, useState } from "react";
+import React, {
+  Suspense,
+  lazy,
+  useCallback,
+  useRef,
+  useState,
+} from "react";
 import { ExternalLink } from "lucide-react";
 import { Button } from "../components/Button";
 import { LoadingState } from "../components/LoadingState";
 import { ScreenHeader } from "../components/ScreenHeader";
+import { AppVersionCard } from "../components/settings/AppVersionCard";
+import { ReleaseNotesModal } from "../components/settings/ReleaseNotesModal";
 import { SupportReportCard } from "../components/settings/SupportReportCard";
+import { currentRelease } from "../constants/currentRelease";
 import type {
   DevToolAction,
   DevToolActionOptions,
@@ -68,9 +77,16 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [readingTime, setReadingTime] = useState(
     initialSettings?.dailyReadingMinutes ?? 3,
   );
+  const [isReleaseNotesOpen, setIsReleaseNotesOpen] = useState(false);
+  const appVersionCardRef = useRef<HTMLButtonElement>(null);
   const feedbackTelegramUrl = getTelegramProfileUrl(
     import.meta.env.VITE_FEEDBACK_TELEGRAM_USERNAME,
   );
+
+  const closeReleaseNotes = useCallback(() => {
+    setIsReleaseNotesOpen(false);
+    window.requestAnimationFrame(() => appVersionCardRef.current?.focus());
+  }, []);
 
   const handleSave = async () => {
     await onSave({
@@ -168,6 +184,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           currentScreen={currentScreen}
         />
 
+        <AppVersionCard
+          ref={appVersionCardRef}
+          disabled={isSaving}
+          onOpen={() => setIsReleaseNotesOpen(true)}
+        />
+
         {feedbackTelegramUrl ? (
           <section className="flex items-center justify-center gap-2 pt-1 text-sm">
             <span className="font-medium text-[var(--text-muted)]">
@@ -195,6 +217,13 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           {isSaving ? "Сохраняем..." : "Сохранить"}
         </Button>
       </div>
+
+      {isReleaseNotesOpen ? (
+        <ReleaseNotesModal
+          release={currentRelease}
+          onClose={closeReleaseNotes}
+        />
+      ) : null}
     </div>
   );
 };

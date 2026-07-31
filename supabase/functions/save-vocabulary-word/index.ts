@@ -6,6 +6,7 @@ import {
   errorResponse,
   fail,
   getRequiredEnv,
+  getRequestId,
   getTelegramUserFromBody,
   handleCorsPreflight,
   parseJsonBody,
@@ -17,7 +18,7 @@ import {
   getUserEnglishLevel,
   type ServiceClient,
 } from "../_shared/app.ts";
-import { getMoscowDate } from "../_shared/moscow-date.ts";
+import { getMoscowStudyDate } from "../_shared/moscow-study-date.ts";
 import {
   normalizeVocabularyWord,
   type VocabularyCardStatus,
@@ -126,6 +127,8 @@ Deno.serve(async (req: Request) => {
     return corsResponse;
   }
 
+  const requestId = getRequestId(req);
+
   try {
     assertPostRequest(req);
 
@@ -166,14 +169,14 @@ Deno.serve(async (req: Request) => {
       supabase,
       tgUser.id,
       "[save-vocabulary-word]",
+      requestId,
     );
-    const today = getMoscowDate();
+    const studyDate = getMoscowStudyDate();
 
     const { data: activeTextRow, error: activeTextError } = await supabase
       .from("user_active_reading_texts")
       .select("reading_text_id, body")
       .eq("user_id", appUser.id)
-      .eq("reading_date", today)
       .maybeSingle();
 
     if (activeTextError) {
@@ -223,7 +226,7 @@ Deno.serve(async (req: Request) => {
       userId: appUser.id,
       word: selectedWord,
       readingTextId,
-      readingDate: today,
+      readingDate: studyDate,
       wordIndex,
       originalWord: selectedWord,
       vocabularyLimit,

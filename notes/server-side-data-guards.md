@@ -62,7 +62,10 @@ subscription таблицам, а также к server-only RPC. Доступ и
 `auth-telegram`:
 - валидирует Telegram `initData`
 - создает или находит пользователя по `telegram_user_id`
-- возвращает `role`, `settings`, `subscription`, `homeProgress` и `streakDays`
+- сохраняет для нового пользователя только `telegram_user_id`, `first_name` и технические поля с defaults
+- возвращает frontend внутренний профиль без Telegram ID
+- возвращает `role`, `settings`, `subscription`, `homeProgress`, `streakDays` и nullable `completedReadingTextCount`
+- не блокирует bootstrap при временной ошибке подсчета истории: ошибка логируется, а счетчик возвращается как `null`
 - разделяет ошибки Telegram validation и внутренние DB/server ошибки
 - возвращает клиенту безопасное сообщение для неожиданных внутренних ошибок
 
@@ -72,6 +75,7 @@ subscription таблицам, а также к server-only RPC. Доступ и
 - сохраняет `english_level`, `daily_reading_minutes`
 - заполняет `users.settings_completed_at`, если настройки сохраняются впервые
 - возвращает актуальное состояние пользователя для frontend
+- не возвращает Telegram ID
 - возвращает клиенту безопасное сообщение для неожиданных внутренних ошибок
 
 `generate-reading-text`:
@@ -83,15 +87,16 @@ subscription таблицам, а также к server-only RPC. Доступ и
 
 `get-reading-state`:
 - валидирует Telegram `initData`
-- возвращает active text текущей московской даты, дневной лимит, использованные/оставшиеся попытки и флаг завершения чтения за день
-- считает дневной цикл по timezone `Europe/Moscow`
+- возвращает единственный active text пользователя независимо от даты генерации, дневной лимит, использованные/оставшиеся попытки и флаг завершения чтения за учебный день
+- считает учебный цикл с границей `05:00 Europe/Moscow`
 - возвращает клиенту безопасное сообщение для неожиданных внутренних ошибок
 
 `complete-reading-text`:
 - валидирует Telegram `initData`
-- завершает active text текущей московской даты через RPC `complete_daily_reading_text`
+- завершает единственный active text пользователя независимо от даты генерации через RPC `complete_daily_reading_text`
 - сохраняет snapshot прочитанного текста в `user_completed_reading_texts`
-- возвращает актуальный `streakDays`
+- после успешного RPC best-effort возвращает `streakDays` и `completedReadingTextCount`
+- не возвращает ошибку завершения из-за сбоя производных метрик после уже выполненной транзакции
 - возвращает клиенту безопасное сообщение для неожиданных внутренних ошибок
 
 `get-reading-history`:
@@ -140,8 +145,10 @@ subscription таблицам, а также к server-only RPC. Доступ и
 - определяет текущего пользователя по `telegram_user_id`;
 - применяет rate limit отчетов;
 - санитизирует diagnostic snapshot server-side;
-- сохраняет отчет в `public.support_reports` через `SUPABASE_SERVICE_ROLE_KEY`;
+- сохраняет отчет в `public.support_reports` только со связью по внутреннему `user_id` через `SUPABASE_SERVICE_ROLE_KEY`;
 - не доверяет `user_id` и роли из body.
+
+Прикладные frontend/server logs не содержат прямой Telegram ID. До определения пользователя для диагностики используются request id, стадия и безопасное сообщение, после определения — внутренний `appUserId`.
 
 ## 5) Transactional RPC
 `public.claim_reading_generation_attempt(...)`:
@@ -151,11 +158,11 @@ subscription таблицам, а также к server-only RPC. Доступ и
 - возвращает `attemptId`, `usedAttempts`, `remainingAttempts`
 
 `public.complete_daily_reading_text(...)`:
-- берет transaction-level advisory lock на пользователя и дату завершения
-- проверяет наличие active text для даты завершения
+- фиксирует один DB timestamp, вычисляет из него учебную дату через server-only SQL-helper и берет transaction-level advisory lock на пользователя и эту дату
+- блокирует единственный active text пользователя независимо от даты генерации
 - пишет дневной completion-marker для progress/streak
 - копирует active text в историю завершенных текстов отдельной записью
-- удаляет active text
+- удаляет тот же active text по `reading_text_id`
 - заполняет `users.first_text_completed_at` для онбординга
 
 `public.activate_mvp_subscription(...)`:
@@ -175,7 +182,9 @@ subscription таблицам, а также к server-only RPC. Доступ и
 - атомарно проверяет дневной лимит и создает metadata попытки.
 
 `public.review_vocabulary_word(...)`:
-- берет advisory lock по пользователю и дате и row lock выбранной карточки;
+- фиксирует один DB timestamp, вычисляет из него учебную дату и берет advisory lock по пользователю и этой дате;
+- использует тот же timestamp для `last_reviewed_at`, поэтому действие не может разделиться между двумя учебными днями на границе `05:00`;
+- берет row lock выбранной карточки;
 - применяет только allowlist-действия алгоритма;
 - обновляет шаг, следующую дату и счетчики;
 - фиксирует completion-marker после последней обязательной карточки.

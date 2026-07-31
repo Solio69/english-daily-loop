@@ -1,6 +1,9 @@
 import type { AppUser } from "../types/user";
 import { clientLogger, type ClientLogEvent } from "./clientLogger";
 import { invokeFunction } from "./functionClient";
+import { buildSupportAppContext } from "./supportAppContext";
+
+export { buildSupportAppContext } from "./supportAppContext";
 
 export type SubmitSupportReportInput = {
   comment: string;
@@ -39,30 +42,6 @@ const collectAiDiagnostics = (
     )
     .slice(-20);
 
-const buildAppContext = (
-  appUser: AppUser | null,
-): Record<string, unknown> => ({
-  appUserId: appUser?.id ?? null,
-  telegramUserId: appUser?.telegramUserId ?? null,
-  role: appUser?.role ?? null,
-  settings: appUser?.settings ?? null,
-  subscription: appUser
-    ? {
-        tier: appUser.subscription.tier,
-        accessType: appUser.subscription.accessType,
-        limits: appUser.subscription.limits,
-      }
-    : null,
-  homeProgress: appUser?.homeProgress ?? null,
-  streakDays: appUser?.streakDays ?? null,
-  userAgent: navigator.userAgent,
-  viewport: {
-    width: window.innerWidth,
-    height: window.innerHeight,
-  },
-  telegramColorScheme: window.Telegram?.WebApp?.colorScheme ?? null,
-});
-
 export const submitSupportReport = async ({
   comment,
   currentScreen,
@@ -75,7 +54,7 @@ export const submitSupportReport = async ({
     {
       comment,
       currentScreen,
-      appContext: buildAppContext(appUser),
+      appContext: buildSupportAppContext(appUser),
       events,
       requestIds: collectRequestIds(events),
       aiDiagnostics: collectAiDiagnostics(events),

@@ -15,10 +15,13 @@ export const normalizeSelectableWord = (value: string): string =>
     .replace(/^[^a-z]+/i, "")
     .replace(/[^a-z]+$/i, "");
 
-const splitReadingParagraphs = (value: string): string[] =>
+export const splitReadingParagraphs = (value: string): string[] =>
   value
-    .split(/\n{2,}/)
-    .map((paragraph) => paragraph.replace(/\s*\n\s*/g, " ").trim())
+    .replace(/\r\n?/g, "\n")
+    .split(/\n[ \t]*\n+/)
+    .map((paragraph) =>
+      paragraph.replace(/[ \t]*\n[ \t]*/g, " ").trim(),
+    )
     .filter(Boolean);
 
 export const parseReadingText = (value: string): ReadingTextParagraph[] => {

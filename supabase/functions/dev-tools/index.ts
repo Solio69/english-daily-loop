@@ -8,13 +8,15 @@ import {
   fail,
   getOptionalEnv,
   getRequiredEnv,
+  getRequestId,
   getTelegramUserFromBody,
   handleCorsPreflight,
   parseJsonBody,
   successResponse,
 } from "../_shared/server.ts";
-import { getMoscowDate } from "../_shared/moscow-date.ts";
+import { getMoscowStudyDate } from "../_shared/moscow-study-date.ts";
 import { assertAdminRole } from "../_shared/access.ts";
+import { getAppUserByTelegramId } from "../_shared/app.ts";
 
 type DevToolAction =
   | "reset_generation_attempts"
@@ -37,11 +39,6 @@ type VocabularyReviewStep =
   | "4_months"
   | "5_months"
   | "6_months";
-
-type UserRow = {
-  id: string;
-  telegram_user_id: number;
-};
 
 // TODO: Keep DB-changing dev actions behind both the server env gate and admin role.
 const parseAction = (value: unknown): DevToolAction => {
@@ -78,35 +75,6 @@ const parseReviewStep = (value: unknown): VocabularyReviewStep => {
   }
 
   fail(400, "INVALID_REVIEW_STEP", "Review step is invalid.");
-};
-
-const getAppUser = async (
-  supabase: ReturnType<typeof createClient>,
-  telegramUserId: number,
-): Promise<UserRow> => {
-  const { data, error } = await supabase
-    .from("users")
-    .select("id, telegram_user_id")
-    .eq("telegram_user_id", telegramUserId)
-    .maybeSingle();
-
-  if (error) {
-    console.error("[dev-tools] failed to load user", {
-      telegramUserId,
-      error: error.message,
-    });
-    fail(500, "USER_FIND_FAILED", "Failed to load user profile.");
-  }
-
-  if (!data) {
-    fail(
-      404,
-      "USER_NOT_FOUND",
-      "User profile was not found. Complete Telegram auth first.",
-    );
-  }
-
-  return data as UserRow;
 };
 
 const resetGenerationAttempts = async (
@@ -386,6 +354,8 @@ Deno.serve(async (req: Request) => {
     return corsResponse;
   }
 
+  const requestId = getRequestId(req);
+
   try {
     assertPostRequest(req);
 
@@ -423,39 +393,52 @@ Deno.serve(async (req: Request) => {
         auth: { persistSession: false },
       },
     );
-    const appUser = await getAppUser(supabase, tgUser.id);
+    const appUser = await getAppUserByTelegramId(
+      supabase,
+      tgUser.id,
+      "[dev-tools]",
+      requestId,
+    );
     await assertAdminRole(supabase, appUser.id, "[dev-tools]");
-    const today = getMoscowDate();
+    const studyDate = getMoscowStudyDate();
 
     const changes =
       action === "reset_generation_attempts"
-        ? await resetGenerationAttempts(supabase, appUser.id, today)
+        ? await resetGenerationAttempts(supabase, appUser.id, studyDate)
         : action === "reset_vocabulary_card_attempts"
-          ? await resetVocabularyCardAttempts(supabase, appUser.id, today)
+          ? await resetVocabularyCardAttempts(supabase, appUser.id, studyDate)
         : action === "reset_vocabulary_review_progress"
           ? await resetVocabularyReviewProgress(supabase, appUser.id)
         : action === "make_vocabulary_reviews_due_today"
-          ? await makeVocabularyReviewsDueToday(supabase, appUser.id, today)
+          ? await makeVocabularyReviewsDueToday(
+              supabase,
+              appUser.id,
+              studyDate,
+            )
         : action === "complete_today_vocabulary_reviews_at_step"
           ? await completeTodayVocabularyReviewsAtStep(
               supabase,
               appUser.id,
-              today,
+              studyDate,
               reviewStep,
             )
         : action === "clear_today_vocabulary_review_completion"
           ? await clearTodayVocabularyReviewCompletion(
               supabase,
               appUser.id,
-              today,
+              studyDate,
             )
         : action === "delete_today_reading_completion"
-          ? await deleteTodayReadingCompletions(supabase, appUser.id, today)
+          ? await deleteTodayReadingCompletions(
+              supabase,
+              appUser.id,
+              studyDate,
+            )
           : await resetSubscriptions(supabase, appUser.id);
 
     return successResponse(200, {
       action,
-      today,
+      today: studyDate,
       changes,
     });
   } catch (error) {

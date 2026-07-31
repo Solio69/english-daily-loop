@@ -7,15 +7,21 @@ import {
   edgeFunctionNames,
   localApiTunnelTarget,
   localFrontendTunnelTarget,
+  envFilePath,
 } from "./dev/config.mjs";
-import { syncEnvValues } from "./dev/env.mjs";
+import {
+  createTelegramDevProcessEnv,
+  loadTelegramDevEnv,
+  syncEnvValues,
+} from "./dev/env.mjs";
 import { color, useColor, withColor } from "./dev/logging.mjs";
 import { runOnce, spawnLabeled, stopChildProcess } from "./dev/process.mjs";
 import {
+  getLocalSupabaseAnonKey,
   getSupabaseContainers,
   startSupabase,
 } from "./dev/supabase-local.mjs";
-import { attachTunnelUrlExtractor } from "./dev/tunnels.mjs";
+import { waitForTunnelUrl } from "./dev/tunnels.mjs";
 
 let shuttingDown = false;
 const children = [];
@@ -23,29 +29,20 @@ const tunnelUrls = {
   frontend: null,
   api: null,
 };
-const tunnelUrlWaiters = {
-  frontend: [],
-  api: [],
-};
 let startupSummaryPrinted = false;
-let frontendRestartRequired = false;
-let frontendBundleBuilt = false;
 let frontendStarted = false;
+let telegramDevEnvValues = null;
+let telegramDevBotUsername = null;
 
-// TODO: Local Telegram infra helper; keep API tunnel sync limited to local .env.local updates.
+// TODO: Local Telegram infra helper; keep API tunnel sync limited to the isolated dev env file.
 function syncApiUrlToEnv(apiUrl) {
-  const changed = syncEnvValues({
+  syncEnvValues({
     VITE_SUPABASE_URL: apiUrl,
   });
-
-  if (changed) {
-    if (frontendBundleBuilt) {
-      frontendRestartRequired = true;
-      process.stdout.write("[env] frontend restart required for new API URL.\n");
-    } else {
-      process.stdout.write("[env] VITE_SUPABASE_URL updated before frontend build.\n");
-    }
-  }
+  telegramDevEnvValues.VITE_SUPABASE_URL = apiUrl;
+  process.stdout.write(
+    "[env] VITE_SUPABASE_URL synced before frontend build.\n",
+  );
 }
 
 function maybePrintStartupSummary() {
@@ -66,7 +63,7 @@ function maybePrintStartupSummary() {
       : "1) Update BotFather menu button:\n",
   );
   process.stdout.write("   /setmenubutton\n");
-  process.stdout.write("   Select bot: @english_daily_loop_bot\n");
+  process.stdout.write(`   Select dev bot: ${telegramDevBotUsername}\n`);
   process.stdout.write(
     useColor
       ? `   URL: ${color.green}${tunnelUrls.frontend}${color.reset}\n`
@@ -74,27 +71,22 @@ function maybePrintStartupSummary() {
   );
   process.stdout.write(
     useColor
-      ? `${color.bold}${color.yellow}2) .env.local should contain:${color.reset}\n`
-      : "2) .env.local should contain:\n",
+      ? `${color.bold}${color.yellow}2) ${envFilePath} contains:${color.reset}\n`
+      : `2) ${envFilePath} contains:\n`,
   );
   process.stdout.write(
     useColor
       ? `   VITE_SUPABASE_URL=${color.green}${tunnelUrls.api}${color.reset}\n`
       : `   VITE_SUPABASE_URL=${tunnelUrls.api}\n`,
   );
-  const restartStatus = frontendRestartRequired ? "YES" : "NO";
   process.stdout.write(
     useColor
-      ? `${color.bold}${color.yellow}3) Frontend restart required:${color.reset} ${color.bold}${frontendRestartRequired ? color.yellow : color.green}${restartStatus}${color.reset}\n`
-      : `3) Frontend restart required: ${restartStatus}\n`,
+      ? `${color.bold}${color.yellow}3) Tunnel status:${color.reset} URLs created\n`
+      : "3) Tunnel status: URLs created\n",
   );
-  if (frontendRestartRequired) {
-    process.stdout.write(
-      "   Action: stop this run (Ctrl+C) and start `npm run dev:telegram` again.\n\n",
-    );
-  } else {
-    process.stdout.write("   Action: continue, no restart needed.\n\n");
-  }
+  process.stdout.write(
+    "   Action: keep this terminal running while using the Mini App.\n\n",
+  );
 }
 
 function highlightTunnelUrl(kind, url) {
@@ -122,37 +114,17 @@ function highlightTunnelUrl(kind, url) {
   maybePrintStartupSummary();
 }
 
-function handleTunnelUrl(kind, url) {
-  if (kind === "frontend" && !tunnelUrls.frontend) {
-    tunnelUrls.frontend = url;
-    highlightTunnelUrl("frontend", url);
-    for (const resolve of tunnelUrlWaiters.frontend) {
-      resolve(url);
-    }
-    tunnelUrlWaiters.frontend = [];
-  }
-  if (kind === "api" && !tunnelUrls.api) {
-    tunnelUrls.api = url;
-    highlightTunnelUrl("api", url);
-    for (const resolve of tunnelUrlWaiters.api) {
-      resolve(url);
-    }
-    tunnelUrlWaiters.api = [];
-  }
-}
-
-function waitForTunnelUrl(kind) {
-  if (tunnelUrls[kind]) {
-    return Promise.resolve(tunnelUrls[kind]);
-  }
-
-  return new Promise((resolve) => {
-    tunnelUrlWaiters[kind].push(resolve);
-  });
-}
-
 function prepareEnv() {
-  process.stdout.write("Preparing Telegram dev mode...\n");
+  const config = loadTelegramDevEnv();
+  telegramDevEnvValues = config.values;
+  telegramDevBotUsername = config.botUsername;
+  process.stdout.write(
+    `Preparing isolated Telegram dev mode for ${telegramDevBotUsername}...\n`,
+  );
+}
+
+function getTelegramDevChildEnv() {
+  return createTelegramDevProcessEnv(process.env, telegramDevEnvValues);
 }
 
 // TODO: Local infra guard; fail before publishing tunnel URLs if Docker/Supabase origins are unavailable.
@@ -179,11 +151,36 @@ async function assertLocalOriginReady(label, url) {
   );
 }
 
-// TODO: Local Telegram WebView is served from a production-like bundle to avoid Vite dev client stalls through quick tunnels.
+// TODO: Local Telegram WebView uses a production-like bundle because Vite dev client/HMR can stall through quick tunnels.
 async function buildFrontend() {
   process.stdout.write("[frontend-build] building frontend bundle for Telegram...\n");
-  await runOnce(commands.pnpm, ["build"], "frontend build");
-  frontendBundleBuilt = true;
+  await runOnce(
+    commands.pnpm,
+    ["build:telegram"],
+    "frontend build",
+    { env: getTelegramDevChildEnv(), replaceEnv: true },
+  );
+}
+
+function startFrontendWatcher() {
+  const watcher = spawnLabeled(
+    commands.pnpm,
+    ["watch:telegram"],
+    "frontend-watch",
+    { env: getTelegramDevChildEnv(), replaceEnv: true },
+  );
+  children.push(watcher);
+  watcher.on("exit", (code) => {
+    if (shuttingDown) {
+      return;
+    }
+
+    process.stderr.write(
+      `\n[frontend-watch] exited with code ${code ?? "unknown"}; ` +
+        "stopping local stack because frontend changes are no longer tracked.\n",
+    );
+    shutdown(1);
+  });
 }
 
 // TODO: Local frontend stays on port 3000 because the Telegram tunnel targets that port.
@@ -202,7 +199,7 @@ function startFrontend() {
         `\n[frontend] exited with code ${code ?? "unknown"}.\n`,
       );
     }
-    shutdown();
+    shutdown(1);
   });
 }
 
@@ -215,16 +212,18 @@ function startEdgeFunctions() {
       "serve",
       ...edgeFunctionNames,
       "--env-file",
-      ".env.local",
+      envFilePath,
     ],
     "edge",
+    { env: getTelegramDevChildEnv(), replaceEnv: true },
   );
   children.push(edgeFunctions);
   edgeFunctions.on("exit", (code) => {
     if (!shuttingDown) {
       process.stderr.write(
-        `[edge] function runner exited with code ${code ?? "unknown"}, continuing...\n`,
+        `[edge] function runner exited with code ${code ?? "unknown"}; stopping local stack.\n`,
       );
+      shutdown(1);
     }
   });
 }
@@ -242,53 +241,70 @@ function startTunnel(kind, target, label) {
     label,
     { env: cloudflaredEnv },
   );
-  attachTunnelUrlExtractor(tunnel, kind, handleTunnelUrl);
   children.push(tunnel);
   tunnel.on("exit", (code) => {
     if (!shuttingDown) {
       process.stderr.write(
-        `[${label}] exited with code ${code ?? "unknown"}, continuing...\n`,
+        `[${label}] exited with code ${code ?? "unknown"}; stopping local stack.\n`,
       );
+      shutdown(1);
     }
   });
+  return tunnel;
+}
+
+async function startPublicTunnel(kind, target, label) {
+  process.stdout.write(`[${label}] starting public tunnel...\n`);
+  const tunnel = startTunnel(kind, target, label);
+  return waitForTunnelUrl(tunnel, kind);
 }
 
 // TODO: Local Telegram-only tunnel orchestration; keep non-Telegram auth bypass out of this stack.
-function startApiTunnel() {
-  if (existsSync(cloudflaredExecutable)) {
-    process.stdout.write(
-      "[tunnel] starting api tunnel (127.0.0.1:54321)...\n",
+async function startApiTunnel() {
+  if (!existsSync(cloudflaredExecutable)) {
+    throw new Error(
+      `${cloudflaredExecutable} not found; API tunnel is required for isolated Telegram dev mode.`,
     );
-    startTunnel("api", localApiTunnelTarget, "tunnel-api");
-    return true;
   }
 
   process.stdout.write(
-    `[tunnel] ${cloudflaredExecutable} not found, skipping api tunnel auto-start\n`,
+    "[tunnel] starting api tunnel (127.0.0.1:54321)...\n",
   );
-  return false;
+  return startPublicTunnel(
+    "api",
+    localApiTunnelTarget,
+    "tunnel-api",
+  );
 }
 
-function startFrontendTunnel() {
-  if (existsSync(cloudflaredExecutable)) {
-    process.stdout.write(
-      "[tunnel] starting frontend tunnel (127.0.0.1:3000)...\n",
+async function startFrontendTunnel() {
+  if (!existsSync(cloudflaredExecutable)) {
+    throw new Error(
+      `${cloudflaredExecutable} not found; frontend tunnel is required for Telegram dev mode.`,
     );
-    startTunnel("frontend", localFrontendTunnelTarget, "tunnel-frontend");
-    return true;
   }
 
   process.stdout.write(
-    `[tunnel] ${cloudflaredExecutable} not found, skipping frontend tunnel auto-start\n`,
+    "[tunnel] starting frontend tunnel (127.0.0.1:3000)...\n",
   );
-  return false;
+  return startPublicTunnel(
+    "frontend",
+    localFrontendTunnelTarget,
+    "tunnel-frontend",
+  );
 }
 
 async function startContainerLogs() {
   const containers = await getSupabaseContainers();
+  // TODO: Local log streams must not dump container history and hide the startup summary.
+  const followNewLogsArgs = ["logs", "--tail", "0", "--follow"];
 
   if (containers.db) {
-    const dbLogs = spawnLabeled(commands.docker, ["logs", "-f", containers.db], "db");
+    const dbLogs = spawnLabeled(
+      commands.docker,
+      [...followNewLogsArgs, containers.db],
+      "db",
+    );
     children.push(dbLogs);
     dbLogs.on("exit", (code) => {
       if (!shuttingDown) {
@@ -304,7 +320,7 @@ async function startContainerLogs() {
   if (containers.api) {
     const apiLogs = spawnLabeled(
       commands.docker,
-      ["logs", "-f", containers.api],
+      [...followNewLogsArgs, containers.api],
       "api",
     );
     children.push(apiLogs);
@@ -329,32 +345,36 @@ function terminateChildren() {
   }
 }
 
-function shutdown() {
+function shutdown(exitCode = 0) {
   if (shuttingDown) {
     return;
   }
   shuttingDown = true;
   process.stdout.write("\nStopping foreground processes...\n");
   terminateChildren();
-  setTimeout(() => process.exit(0), 300);
+  setTimeout(() => process.exit(exitCode), 300);
 }
 
 async function main() {
   prepareEnv();
-  await startSupabase();
+  const initialDevChildEnv = getTelegramDevChildEnv();
+  await startSupabase(initialDevChildEnv);
+  const localAnonKey = await getLocalSupabaseAnonKey(initialDevChildEnv);
+  syncEnvValues({ VITE_SUPABASE_ANON_KEY: localAnonKey });
+  telegramDevEnvValues.VITE_SUPABASE_ANON_KEY = localAnonKey;
   startEdgeFunctions();
   await assertLocalOriginReady(
     "Supabase API",
     `${localApiTunnelTarget}/rest/v1/`,
   );
-  const apiTunnelStarted = startApiTunnel();
-  if (apiTunnelStarted) {
-    await waitForTunnelUrl("api");
-  }
+  tunnelUrls.api = await startApiTunnel();
+  highlightTunnelUrl("api", tunnelUrls.api);
   await buildFrontend();
   startFrontend();
+  startFrontendWatcher();
   await assertLocalOriginReady("Frontend preview", localFrontendTunnelTarget);
-  startFrontendTunnel();
+  tunnelUrls.frontend = await startFrontendTunnel();
+  highlightTunnelUrl("frontend", tunnelUrls.frontend);
   await startContainerLogs();
 
   process.on("SIGINT", shutdown);
@@ -363,5 +383,10 @@ async function main() {
 
 main().catch((error) => {
   process.stderr.write(`\nFailed to start local stack: ${error.message}\n`);
-  process.exit(1);
+  if (!shuttingDown) {
+    shuttingDown = true;
+    process.stderr.write("Stopping processes from the failed startup...\n");
+    terminateChildren();
+  }
+  setTimeout(() => process.exit(1), 300);
 });

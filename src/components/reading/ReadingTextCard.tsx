@@ -22,6 +22,10 @@ type ReadingTextCardProps = {
   onWordClick: (word: string, index: number) => void;
   onAddWord: () => void;
   onCancelWord: () => void;
+  onParagraphRef?: (
+    paragraphIndex: number,
+    element: HTMLParagraphElement | null,
+  ) => void;
 };
 
 const getModelLabel = (model?: string): string | null => {
@@ -39,6 +43,7 @@ export const ReadingTextCard: React.FC<ReadingTextCardProps> = ({
   onWordClick,
   onAddWord,
   onCancelWord,
+  onParagraphRef,
 }) => {
   const paragraphs = useMemo(() => parseReadingText(text.body), [text.body]);
 
@@ -70,25 +75,34 @@ export const ReadingTextCard: React.FC<ReadingTextCardProps> = ({
         )}
       </div>
 
-      <div className="space-y-3 text-[17px] leading-7 text-[var(--text-primary)]">
+      <div className="space-y-3 text-[19px] leading-8 text-[var(--text-primary)]">
         {paragraphs.map((paragraph, paragraphIndex) => (
-          <p key={paragraphIndex}>
+          <p
+            key={paragraphIndex}
+            ref={(element) => {
+              onParagraphRef?.(paragraphIndex, element);
+            }}
+            data-reading-paragraph-index={paragraphIndex}
+          >
             {paragraph.parts.map((part, partIndex) => {
-              if (part.wordIndex === null) {
+              const wordIndex = part.wordIndex;
+              const normalizedWord = part.normalizedWord;
+
+              if (wordIndex === null) {
                 return <React.Fragment key={partIndex}>{part.value}</React.Fragment>;
               }
 
-              const isSelectable = Boolean(part.normalizedWord);
-              const isSelected = selectedWord?.index === part.wordIndex;
-              const isSaved = savedWords.has(part.wordIndex);
-              const isSaving = savingWordIndex === part.wordIndex;
+              const isSelectable = Boolean(normalizedWord);
+              const isSelected = selectedWord?.index === wordIndex;
+              const isSaved = savedWords.has(wordIndex);
+              const isSaving = savingWordIndex === wordIndex;
 
               return (
                 <React.Fragment key={partIndex}>
                   <span
                     onClick={() =>
                       isSelectable &&
-                      onWordClick(part.normalizedWord, part.wordIndex)
+                      onWordClick(normalizedWord, wordIndex)
                     }
                     className={`rounded px-0.5 transition-colors ${
                       isSelectable ? "cursor-pointer" : ""
@@ -128,7 +142,7 @@ export const ReadingTextCard: React.FC<ReadingTextCardProps> = ({
                           disabled={savingWordIndex !== null}
                           className="w-full min-w-0 whitespace-nowrap px-2 py-2 text-[13px]"
                         >
-                          {savingWordIndex === part.wordIndex
+                          {savingWordIndex === wordIndex
                             ? "Сохраняем..."
                             : "Добавить"}
                         </Button>

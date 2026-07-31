@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
-import { getMoscowDate } from "../_shared/moscow-date.ts";
-import { getReadingCompletionStreak } from "../_shared/reading-streak.ts";
+import { getMoscowStudyDate } from "../_shared/moscow-study-date.ts";
+import { getPostReadingCompletionMetrics } from "../_shared/reading-completion-metrics.ts";
 import {
   AppError,
   DEFAULT_INTERNAL_ERROR_MESSAGE,
@@ -9,15 +9,13 @@ import {
   errorResponse,
   fail,
   getRequiredEnv,
+  getRequestId,
   getTelegramUserFromBody,
   handleCorsPreflight,
   parseJsonBody,
   successResponse,
 } from "../_shared/server.ts";
-
-type UserRow = {
-  id: string;
-};
+import { getAppUserByTelegramId } from "../_shared/app.ts";
 
 type CompleteDailyReadingTextResult =
   | {
@@ -72,6 +70,8 @@ Deno.serve(async (req: Request) => {
     return corsResponse;
   }
 
+  const requestId = getRequestId(req);
+
   try {
     assertPostRequest(req);
 
@@ -95,44 +95,33 @@ Deno.serve(async (req: Request) => {
       },
     );
 
-    const { data: userRow, error: userError } = await supabase
-      .from("users")
-      .select("id")
-      .eq("telegram_user_id", tgUser.id)
-      .maybeSingle();
-
-    if (userError) {
-      console.error("[complete-reading-text] failed to load user", {
-        telegramUserId: tgUser.id,
-        error: userError.message,
-      });
-      fail(500, "USER_FIND_FAILED", "Failed to load user profile.");
-    }
-
-    if (!userRow) {
-      fail(
-        404,
-        "USER_NOT_FOUND",
-        "User profile was not found. Complete Telegram auth first.",
-      );
-    }
-
-    const appUser = userRow as UserRow;
-    const today = getMoscowDate();
-    const completion = await completeDailyReadingText(supabase, appUser.id, today);
-
-    const streakDays = await getReadingCompletionStreak(
+    const appUser = await getAppUserByTelegramId(
+      supabase,
+      tgUser.id,
+      "[complete-reading-text]",
+      requestId,
+    );
+    const studyDate = getMoscowStudyDate();
+    const completion = await completeDailyReadingText(
       supabase,
       appUser.id,
-      today,
-      "[complete-reading-text]",
+      studyDate,
     );
+
+    const { streakDays, completedReadingTextCount } =
+      await getPostReadingCompletionMetrics(
+        supabase,
+        appUser.id,
+        completion.completedDate,
+        "[complete-reading-text]",
+      );
 
     return successResponse(200, {
       completedDate: completion.completedDate,
       firstTextCompletedAt: completion.firstTextCompletedAt,
       isReadingCompletedToday: true,
       streakDays,
+      completedReadingTextCount,
     });
   } catch (error) {
     if (error instanceof AppError) {

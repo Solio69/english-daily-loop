@@ -7,18 +7,15 @@ import {
   errorResponse,
   fail,
   getRequiredEnv,
+  getRequestId,
   getTelegramUserFromBody,
   handleCorsPreflight,
   parseJsonBody,
   successResponse,
 } from "../_shared/server.ts";
-import { getMoscowDate } from "../_shared/moscow-date.ts";
+import { getMoscowStudyDate } from "../_shared/moscow-study-date.ts";
 import { getDailyReadingGenerationLimit } from "../_shared/access.ts";
-
-type UserRow = {
-  id: string;
-  telegram_user_id: number;
-};
+import { getAppUserByTelegramId } from "../_shared/app.ts";
 
 type ActiveReadingTextRow = {
   user_id: string;
@@ -31,6 +28,7 @@ type ActiveReadingTextRow = {
   model: string;
   fallback_used: boolean;
   generated_at: string;
+  last_read_paragraph_index: number | null;
 };
 
 type VocabularyWordSourceRow = {
@@ -42,6 +40,8 @@ Deno.serve(async (req: Request) => {
   if (corsResponse) {
     return corsResponse;
   }
+
+  const requestId = getRequestId(req);
 
   try {
     assertPostRequest(req);
@@ -66,30 +66,13 @@ Deno.serve(async (req: Request) => {
       },
     );
 
-    const { data: userRow, error: userError } = await supabase
-      .from("users")
-      .select("id, telegram_user_id")
-      .eq("telegram_user_id", tgUser.id)
-      .maybeSingle();
-
-    if (userError) {
-      console.error("[get-reading-state] failed to load user", {
-        telegramUserId: tgUser.id,
-        error: userError.message,
-      });
-      fail(500, "USER_FIND_FAILED", "Failed to load user profile.");
-    }
-
-    if (!userRow) {
-      fail(
-        404,
-        "USER_NOT_FOUND",
-        "User profile was not found. Complete Telegram auth first.",
-      );
-    }
-
-    const appUser = userRow as UserRow;
-    const today = getMoscowDate();
+    const appUser = await getAppUserByTelegramId(
+      supabase,
+      tgUser.id,
+      "[get-reading-state]",
+      requestId,
+    );
+    const studyDate = getMoscowStudyDate();
     const dailyLimit = await getDailyReadingGenerationLimit(
       supabase,
       appUser.id,
@@ -105,20 +88,19 @@ Deno.serve(async (req: Request) => {
         .from("reading_generation_attempts")
         .select("id", { count: "exact", head: true })
         .eq("user_id", appUser.id)
-        .eq("attempt_date", today),
+        .eq("attempt_date", studyDate),
       supabase
         .from("user_daily_reading_completions")
         .select("id")
         .eq("user_id", appUser.id)
-        .eq("completed_date", today)
+        .eq("completed_date", studyDate)
         .maybeSingle(),
       supabase
         .from("user_active_reading_texts")
         .select(
-          "user_id, reading_text_id, title, body, level, estimated_minutes, provider, model, fallback_used, generated_at",
+          "user_id, reading_text_id, title, body, level, estimated_minutes, provider, model, fallback_used, generated_at, last_read_paragraph_index",
         )
         .eq("user_id", appUser.id)
-        .eq("reading_date", today)
         .maybeSingle(),
     ]);
 
@@ -185,6 +167,8 @@ Deno.serve(async (req: Request) => {
           level: (activeTextRow as ActiveReadingTextRow).level,
           estimatedMinutes: (activeTextRow as ActiveReadingTextRow)
             .estimated_minutes,
+          lastReadParagraphIndex: (activeTextRow as ActiveReadingTextRow)
+            .last_read_paragraph_index,
           savedWordIndexes,
           source: "ai",
           generation: {
@@ -196,7 +180,7 @@ Deno.serve(async (req: Request) => {
       : null;
 
     return successResponse(200, {
-      today,
+      today: studyDate,
       dailyLimit,
       usedAttempts,
       remainingAttempts: Math.max(dailyLimit - usedAttempts, 0),
