@@ -454,7 +454,7 @@ Validation выполняет только `SELECT` и проверяет:
     migration `20260724120000`;
   - nullable `support_reports.telegram_user_id` начиная с migration
     `20260727120000`;
-- RLS на 12 protected tables;
+- RLS на 13 protected tables, включая server-only таблицу `reading_texts`;
 - отсутствие table access у `anon` и `authenticated`;
 - полный table access `service_role`;
 - required server-only functions, уже существующие на migration version

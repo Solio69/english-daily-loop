@@ -4,6 +4,7 @@ with
 protected_tables(table_name) as (
   values
     ('users'),
+    ('reading_texts'),
     ('user_settings'),
     ('reading_generation_attempts'),
     ('user_active_reading_texts'),

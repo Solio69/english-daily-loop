@@ -40,6 +40,7 @@ export const EXPECTED_PUBLIC_TABLES = [
 
 export const PROTECTED_PUBLIC_TABLES = [
   "users",
+  "reading_texts",
   "user_settings",
   "reading_generation_attempts",
   "user_active_reading_texts",
