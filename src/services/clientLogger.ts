@@ -15,6 +15,11 @@ const MAX_ARRAY_LENGTH = 20;
 const MAX_DEPTH = 4;
 const SENSITIVE_KEY_PATTERN =
   /(authorization|bearer|body|content|hash|initdata|key|password|prompt|raw|secret|stack|text|token)/i;
+const SAFE_DIAGNOSTIC_KEYS = new Set(["promptversion"]);
+
+const isSensitiveDiagnosticKey = (key: string): boolean =>
+  !SAFE_DIAGNOSTIC_KEYS.has(key.toLowerCase()) &&
+  SENSITIVE_KEY_PATTERN.test(key);
 
 const canUseSessionStorage = (): boolean => {
   try {
@@ -50,7 +55,7 @@ const sanitizeValue = (value: unknown, depth = 0): unknown => {
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>).map(([key, item]) => [
         key,
-        SENSITIVE_KEY_PATTERN.test(key)
+        isSensitiveDiagnosticKey(key)
           ? "[redacted]"
           : sanitizeValue(item, depth + 1),
       ]),
@@ -60,7 +65,7 @@ const sanitizeValue = (value: unknown, depth = 0): unknown => {
   return String(value);
 };
 
-const sanitizeDetails = (
+export const sanitizeClientLogDetails = (
   details?: Record<string, unknown>,
 ): Record<string, unknown> | undefined => {
   if (!details) return undefined;
@@ -104,7 +109,7 @@ const addEvent = (
     createdAt: new Date().toISOString(),
     level,
     event,
-    details: sanitizeDetails(details),
+    details: sanitizeClientLogDetails(details),
   };
 
   writeEvents([...readEvents(), nextEvent]);

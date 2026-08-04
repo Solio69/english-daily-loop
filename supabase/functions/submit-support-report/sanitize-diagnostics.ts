@@ -15,7 +15,12 @@ const MAX_CURRENT_SCREEN_LENGTH = 80;
 
 const SENSITIVE_KEY_PATTERN =
   /(authorization|bearer|body|content|hash|initdata|key|password|prompt|raw|secret|stack|text|token)/i;
+const SAFE_DIAGNOSTIC_KEYS = new Set(["promptversion"]);
 const TELEGRAM_USER_ID_KEY_PATTERN = /^(telegramUserId|telegram_user_id)$/i;
+
+const isSensitiveDiagnosticKey = (key: string): boolean =>
+  !SAFE_DIAGNOSTIC_KEYS.has(key.toLowerCase()) &&
+  SENSITIVE_KEY_PATTERN.test(key);
 
 const APP_CONTEXT_KEYS = [
   "appVersion",
@@ -119,7 +124,7 @@ const sanitizeValue = (
 
       sanitizedEntries.push([
         sanitizedKey,
-        SENSITIVE_KEY_PATTERN.test(key)
+        isSensitiveDiagnosticKey(key)
           ? "[redacted]"
           : sanitizeValue(item, telegramUserId, depth + 1),
       ]);
