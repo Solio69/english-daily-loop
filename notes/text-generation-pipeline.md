@@ -60,7 +60,7 @@ Supabase Edge Function, базой и внешней AI-моделью.
 - `supabase/functions/complete-reading-text/index.ts` — транзакционно завершает единственный active text независимо от даты генерации через RPC `complete_daily_reading_text`, сохраняет snapshot с текущей учебной датой в историю, удаляет active text, заполняет `users.first_text_completed_at` для онбординга, если это первый прочитанный текст, и best-effort возвращает `streakDays` и `completedReadingTextCount`.
 - `supabase/functions/get-reading-history/index.ts` — возвращает историю прочитанных текстов текущего пользователя с cursor-пагинацией.
 - `supabase/functions/auth-telegram/index.ts` — в bootstrap пользователя отдает `homeProgress.lesson`, `homeProgress.reading.status`, `streakDays` и nullable `completedReadingTextCount` для главного экрана; ошибка подсчета истории не блокирует авторизацию.
-- `supabase/functions/_shared/reading-streak.ts` — server helper для streak чтения: считает непрерывную серию от текущей учебной даты по `user_daily_reading_completions`; если completion-marker за учебный день отсутствует, возвращает `0`.
+- `supabase/functions/_shared/reading-streak.ts` — server helper для streak чтения: при наличии completion текущей учебной даты считает непрерывную серию от нее, а до сегодняшнего чтения сохраняет серию, завершенную вчера; возвращает `0`, если предыдущий учебный день полностью пропущен.
 - `supabase/functions/_shared/reading-history.ts` — server helper общего счетчика истории; при ошибке агрегатного запроса возвращает `null`.
 - `supabase/functions/_shared/reading-completion-metrics.ts` — изолирует post-completion расчет серии и счетчика от результата уже выполненной транзакции завершения.
 

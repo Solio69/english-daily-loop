@@ -28,7 +28,7 @@ export const calculateReadingCompletionStreak = (
     .filter((date) => date <= today)
     .sort((a, b) => b.localeCompare(a));
   let streakDays = 0;
-  let expectedDate = today;
+  let expectedDate = dates.includes(today) ? today : getPreviousDate(today);
 
   for (const completedDate of dates) {
     if (completedDate !== expectedDate) {
