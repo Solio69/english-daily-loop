@@ -40,4 +40,5 @@ export const edgeFunctionNames = [
   "save-reading-position",
   "save-vocabulary-word",
   "submit-support-report",
+  "telegram-bot-webhook",
 ];

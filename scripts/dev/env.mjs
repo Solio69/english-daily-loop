@@ -12,6 +12,7 @@ const requiredTelegramDevKeys = [
   "TELEGRAM_DEV_MODE",
   "DEV_TELEGRAM_BOT_USERNAME",
   "TELEGRAM_BOT_TOKEN",
+  "TELEGRAM_BOT_WEBHOOK_SECRET",
   "OPENROUTER_API_KEY",
 ];
 
@@ -19,6 +20,7 @@ const managedAppEnvKeys = new Set([
   "TELEGRAM_DEV_MODE",
   "DEV_TELEGRAM_BOT_USERNAME",
   "TELEGRAM_BOT_TOKEN",
+  "TELEGRAM_BOT_WEBHOOK_SECRET",
   "OPENROUTER_API_KEY",
   "OPENROUTER_MODEL_CHAIN",
   "OPENROUTER_MODEL_PRIMARY",
@@ -77,6 +79,16 @@ export function validateTelegramDevEnv(values) {
   if (!/^\d+:[A-Za-z0-9_-]{20,}$/.test(values.TELEGRAM_BOT_TOKEN.trim())) {
     throw new Error(
       "TELEGRAM_BOT_TOKEN does not look like a BotFather development token.",
+    );
+  }
+
+  if (
+    !/^[A-Za-z0-9_-]{32,256}$/.test(
+      values.TELEGRAM_BOT_WEBHOOK_SECRET.trim(),
+    )
+  ) {
+    throw new Error(
+      "TELEGRAM_BOT_WEBHOOK_SECRET must contain 32-256 characters: A-Z, a-z, 0-9, _ or -.",
     );
   }
 

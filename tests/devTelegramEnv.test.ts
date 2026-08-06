@@ -13,6 +13,7 @@ const validEnv = {
     "123456789",
     "fake-development-token-value",
   ].join(":"),
+  TELEGRAM_BOT_WEBHOOK_SECRET: "valid_dev_webhook_secret_value_1234567890",
   OPENROUTER_API_KEY: "fake-development-openrouter-key",
   VITE_SUPABASE_URL: "https://local-api.trycloudflare.com",
   VITE_SUPABASE_ANON_KEY: "local-anon-key",
@@ -50,12 +51,24 @@ test("requires the explicit Telegram development marker", () => {
   );
 });
 
+test("requires a strong Telegram webhook secret", () => {
+  assert.throws(
+    () =>
+      validateTelegramDevEnv({
+        ...validEnv,
+        TELEGRAM_BOT_WEBHOOK_SECRET: "short",
+      }),
+    /32-256 characters/,
+  );
+});
+
 test("removes inherited app variables before adding dev values", () => {
   const result = createTelegramDevProcessEnv(
     {
       PATH: "system-path",
       VITE_SUPABASE_URL: "https://production.supabase.co",
       TELEGRAM_BOT_TOKEN: "production-token",
+      TELEGRAM_BOT_WEBHOOK_SECRET: "production-webhook-secret",
       OPENROUTER_API_KEY: "production-key",
     },
     validEnv,
@@ -64,6 +77,10 @@ test("removes inherited app variables before adding dev values", () => {
   assert.equal(result.PATH, "system-path");
   assert.equal(result.VITE_SUPABASE_URL, validEnv.VITE_SUPABASE_URL);
   assert.equal(result.TELEGRAM_BOT_TOKEN, validEnv.TELEGRAM_BOT_TOKEN);
+  assert.equal(
+    result.TELEGRAM_BOT_WEBHOOK_SECRET,
+    validEnv.TELEGRAM_BOT_WEBHOOK_SECRET,
+  );
   assert.equal(result.OPENROUTER_API_KEY, validEnv.OPENROUTER_API_KEY);
 });
 

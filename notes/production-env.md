@@ -43,7 +43,8 @@ dist
 | Name | Required | Visibility | Purpose |
 | --- | --- | --- | --- |
 | `OPENROUTER_API_KEY` | yes | secret | Server-side OpenRouter API key for reading text and vocabulary card generation. |
-| `TELEGRAM_BOT_TOKEN` | yes | secret | Server-side Telegram bot token for validating Telegram Mini App `initData`. |
+| `TELEGRAM_BOT_TOKEN` | yes | secret | Server-side Telegram bot token for validating Mini App `initData` and sending/configuring bot replies through trusted server/owner tooling. |
+| `TELEGRAM_BOT_WEBHOOK_SECRET` | yes | secret | Random 32–256 character secret used to authenticate Telegram webhook requests through `X-Telegram-Bot-Api-Secret-Token`. |
 | `DEV_TOOLS_ENABLED` | yes | secret/config | Server-side gate for `dev-tools` actions. Keep `"false"` unless admin dev tools are intentionally allowed in production. |
 | `SUBSCRIPTION_FLOW_ENABLED` | yes | secret/config | Server-side gate for hidden subscription activation flow. Keep `"false"` while payments are disabled. |
 | `OPENROUTER_MODEL_CHAIN` | no | secret/config | Full allowlisted model chain for reading text generation. |
@@ -74,7 +75,8 @@ or reduce production dev tools to a safer subset.
 
 - Do not commit `.env.telegram.local` or any other file containing real environment values.
 - Do not paste real secrets into notes, README, AGENTS, issue text or chat.
-- Do not put `OPENROUTER_API_KEY`, `TELEGRAM_BOT_TOKEN` or `SUPABASE_SERVICE_ROLE_KEY` into Vercel `VITE_*` env.
+- Do not put `OPENROUTER_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_WEBHOOK_SECRET` or `SUPABASE_SERVICE_ROLE_KEY` into Vercel `VITE_*` env.
+- Production bot token and webhook secret are entered into `scripts/telegram/configure-production-bot.ps1` only through hidden prompts; never pass them as command arguments.
 - Rotate secrets if they appear in git history, logs, screenshots or support reports.
 - Use separate local and production values where possible.
 
@@ -89,6 +91,7 @@ or reduce production dev tools to a safer subset.
 4. Add Supabase Edge Function secrets:
    - `OPENROUTER_API_KEY`
    - `TELEGRAM_BOT_TOKEN`
+   - `TELEGRAM_BOT_WEBHOOK_SECRET`
    - `DEV_TOOLS_ENABLED`
    - `SUBSCRIPTION_FLOW_ENABLED`
    - optional OpenRouter model variables

@@ -87,7 +87,7 @@ Telegram Mini App для ежедневной практики английск�
 - `dev-tools` — технические действия для admin-пользователя; управляет попытками генерации, чтением, повторением слов, batch-переносом дневной очереди на выбранный шаг и подписками; работает только при `DEV_TOOLS_ENABLED="true"` и `users.app_role = 'admin'`.
 - `submit-support-report` — принимает пользовательский отчет об ошибке, валидирует Telegram `initData`, применяет rate limit и сохраняет sanitized diagnostic snapshot в `public.support_reports`.
 
-Все чувствительные операции выполняются на сервере. `TELEGRAM_BOT_TOKEN`, `SUPABASE_SERVICE_ROLE_KEY` и `OPENROUTER_API_KEY` нельзя использовать в клиентском коде. Неожиданные внутренние ошибки Edge Functions логируются на сервере, а клиент получает безопасный код и сообщение без SQL/provider details.
+Все чувствительные операции выполняются на сервере либо доверенным owner-run configuration helper. `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_WEBHOOK_SECRET`, `SUPABASE_SERVICE_ROLE_KEY` и `OPENROUTER_API_KEY` нельзя использовать в клиентском коде. Неожиданные внутренние ошибки Edge Functions логируются на сервере, а клиент получает безопасный код и сообщение без SQL/provider details.
 
 `users.telegram_user_id` используется только server-side для Telegram auth и будущего Bot API flow. Frontend user contract, новые support reports и прикладные логи не содержат прямой Telegram ID. Новый профиль сохраняет только Telegram ID, `first_name` и технические поля; `username`, `last_name` и `language_code` не собираются.
 
@@ -165,12 +165,13 @@ Production-переменные frontend хранятся в Vercel, а server s
 TELEGRAM_DEV_MODE="true"
 DEV_TELEGRAM_BOT_USERNAME="@english_daily_loop_dev_bot"
 TELEGRAM_BOT_TOKEN="YOUR_DEV_TELEGRAM_BOT_TOKEN"
+TELEGRAM_BOT_WEBHOOK_SECRET="YOUR_RANDOM_DEV_WEBHOOK_SECRET"
 OPENROUTER_API_KEY="YOUR_OPENROUTER_API_KEY"
 DEV_TOOLS_ENABLED="true"
 SUBSCRIPTION_FLOW_ENABLED="false"
 ```
 
-`DEV_TELEGRAM_BOT_USERNAME` и `TELEGRAM_BOT_TOKEN` должны принадлежать отдельному development-боту. Скрипт откажется запускаться для production-бота `@english_daily_loop_bot`.
+`DEV_TELEGRAM_BOT_USERNAME` и `TELEGRAM_BOT_TOKEN` должны принадлежать отдельному development-боту. `TELEGRAM_BOT_WEBHOOK_SECRET` — отдельное случайное значение длиной 32–256 символов из `A-Z`, `a-z`, `0-9`, `_`, `-`. Скрипт откажется запускаться для production-бота `@english_daily_loop_bot`.
 
 `VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY` в `.env.telegram.local` обновляются автоматически значениями локального Supabase и текущего API tunnel. Frontend Telegram dev-сборки получает env напрямую от скрипта и не загружает обычные Vite env-файлы.
 
@@ -225,14 +226,15 @@ npm run dev:telegram
 - запускает frontend через Vite preview в mode `telegram-dev` на `localhost:3000`;
 - автоматически пересобирает `dist-telegram` после изменений frontend-кода;
 - поднимает Quick Tunnel для frontend и ждёт появления URL в выводе `cloudflared`;
+- проверяет dev-бота через Telegram `getMe`, затем автоматически настраивает его profile, `/start`/`/help`, menu button `Открыть приложение` и webhook на текущие tunnel URL;
 - показывает логи frontend, Edge Functions, DB и API;
-- печатает `STARTUP SUMMARY` с URL для BotFather после получения обоих публичных адресов.
+- печатает `STARTUP SUMMARY` только после успешной настройки dev-бота.
 
 Frontend собирается после получения API tunnel URL, поэтому Telegram открывает production-like bundle с актуальным `VITE_SUPABASE_URL`.
 
 Quick Tunnel URL создаются один раз и остаются активными, пока работает команда. Скрипт не пересоздает домены и не блокирует запуск проверкой DNS: Windows `getaddrinfo` может временно возвращать закешированный `ENOTFOUND`, даже когда публичная DNS-запись уже существует. Если Telegram открыл новый URL слишком рано, Mini App нужно повторно открыть через несколько секунд, не перезапуская dev-stack.
 
-После ответа BotFather `Success! Menu settings updated` Telegram Desktop может обновить текст menu button с задержкой. В этом случае текущую команду нужно оставить запущенной и дождаться обновления кнопки; перезапуск создаст новые Quick Tunnel URL и может привести к Cloudflare `429 Too Many Requests`.
+Telegram Desktop может обновить текст menu button с задержкой после успешной автоматической настройки. В этом случае текущую команду нужно оставить запущенной и дождаться обновления кнопки; перезапуск создаст новые Quick Tunnel URL и может привести к Cloudflare `429 Too Many Requests`.
 
 Неожиданное завершение frontend, Edge Functions или tunnel останавливает dev-stack с ошибкой. Потоки DB/API-логов вспомогательные и не останавливают приложение.
 
@@ -258,18 +260,23 @@ npx supabase db reset
 npm run dev:stop
 ```
 
+Удалить только webhook отдельного dev-бота для rollback-проверки:
+
+```bash
+pnpm telegram:dev:webhook:delete
+```
+
+Menu button при этом сохраняется; следующий `npm run dev:telegram` зарегистрирует webhook заново.
+
 ## Запуск внутри Telegram
 
 После `npm run dev:telegram` дождись `STARTUP SUMMARY`.
 
-В BotFather:
+Summary должен подтвердить dev username, menu button, Mini App URL и webhook URL. Token и webhook secret в выводе отсутствуют.
 
-1. Выполни `/setmenubutton`.
-2. Выбери отдельного dev-бота, указанного в `DEV_TELEGRAM_BOT_USERNAME`.
-3. Вставь `BotFather /setmenubutton URL` из startup summary.
-4. Открой бота в Telegram и нажми кнопку меню.
+Открой dev-бота в Telegram, отправь `/start` и нажми inline button либо нижнюю menu button `Открыть приложение`. После перезапуска stack отправь новый `/start`: старое сообщение сохраняет уже выключенный Quick Tunnel URL.
 
-Не устанавливай временный tunnel URL production-боту `@english_daily_loop_bot`.
+`dev:telegram` проверяет username через `getMe` и не допускает настройку production-бота `@english_daily_loop_bot`.
 
 Приложение должно открываться внутри Telegram и проходить авторизацию через настоящий `initData`.
 

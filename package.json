@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0 --strictPort",
     "dev:telegram": "node scripts/dev-stack.mjs",
+    "telegram:dev:webhook:delete": "node scripts/telegram/delete-dev-webhook.mjs",
     "dev:stop": "npx supabase stop",
     "build": "vite build",
     "build:telegram": "vite build --mode telegram-dev",

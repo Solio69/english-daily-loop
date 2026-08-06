@@ -23,11 +23,12 @@ npm run dev:telegram
 - запускает frontend через Vite preview на `127.0.0.1:3000`;
 - запускает `pnpm watch:telegram` с тем же изолированным env для автоматической пересборки `dist-telegram`;
 - запускает Cloudflare Quick Tunnel для frontend и ждёт появления URL в выводе `cloudflared`;
-- печатает URL для BotFather и startup summary после получения обоих публичных адресов.
+- проверяет отдельного dev-бота через Telegram `getMe` и автоматически настраивает profile, private commands, menu button и webhook на текущие tunnel URL;
+- печатает startup summary только после успешной настройки dev-бота.
 
 Этот режим использует настоящий Telegram `initData` и реального Telegram-пользователя. Это ближе к production-поведению и не смешивает разработку с браузерными dev-пользователями.
 
-Telegram Desktop может обновлять menu button с задержкой после успешного ответа BotFather. Текущий dev-stack нужно оставить запущенным и дождаться обновления кнопки: повторный запуск создаёт новые Quick Tunnel URL и может попасть под Cloudflare rate limit.
+Telegram Desktop может обновлять menu button с задержкой после успешной автоматической настройки. Текущий dev-stack нужно оставить запущенным и дождаться обновления кнопки: повторный запуск создаёт новые Quick Tunnel URL и может попасть под Cloudflare rate limit. Старые inline buttons не обновляются и после перезапуска ожидаемо ведут на предыдущий tunnel; для новой кнопки нужно повторить `/start`.
 
 Frontend preview, frontend watcher, Edge Functions и tunnels обязательны для рабочего Telegram-режима, поэтому завершение любого из этих процессов останавливает весь dev-stack. DB/API log-stream остаются вспомогательными.
 
@@ -70,7 +71,8 @@ npx supabase migration up
 ## 5) Правила безопасности
 
 - Telegram `initData` проверяется только на сервере в Edge Functions.
-- development-секреты `TELEGRAM_BOT_TOKEN` и `OPENROUTER_API_KEY` хранятся только в gitignored `.env.telegram.local`, а локальный `SUPABASE_SERVICE_ROLE_KEY` берется из Supabase local; эти значения не попадают во frontend-код или git.
+- development-секреты `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_WEBHOOK_SECRET` и `OPENROUTER_API_KEY` хранятся только в gitignored `.env.telegram.local`, а локальный `SUPABASE_SERVICE_ROLE_KEY` берется из Supabase local; эти значения не попадают во frontend-код, startup summary или git.
+- `telegram-bot-webhook` — единственная local Edge Function с `verify_jwt = false`; она принимает только Telegram secret header, не использует `initData`, БД или service role.
 - Локальный Telegram-режим не подменяет пользователя и не обходит серверную авторизацию.
 - Панель dev tools показывается только при роли `admin`.
 - Edge Function `dev-tools` выполняет reset-действия только при server env `DEV_TOOLS_ENABLED="true"` и server-side проверке `users.app_role = 'admin'`.
