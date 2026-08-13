@@ -21,6 +21,7 @@ import { useScreenNavigation } from "./hooks/useScreenNavigation";
 import { useToast } from "./hooks/useToast";
 import { clientLogger } from "./services/clientLogger";
 import { MaterialsTab } from "./types/materials";
+import { resolveHomeGreetingSession } from "./utils/homeGreeting";
 import { getDisabledNavItems } from "./utils/navigationAccess";
 
 type ScreenId =
@@ -49,6 +50,8 @@ export default function App() {
     useState<MaterialsTab>("vocabulary");
   const [continueLessonAfterReading, setContinueLessonAfterReading] =
     useState(false);
+  const [didSessionStartWithoutSettings, setDidSessionStartWithoutSettings] =
+    useState<boolean | null>(null);
   const {
     isSavingSettings,
     activatingPlan,
@@ -76,6 +79,14 @@ export default function App() {
   const reviewStatus = appUser?.homeProgress.review.status ?? "completed";
   const shouldForceSettings = !isSettingsCompleted;
   const showDevTools = appUser?.role === "admin";
+
+  useEffect(() => {
+    if (isBootstrapping || !appUser) return;
+
+    setDidSessionStartWithoutSettings((currentValue) =>
+      resolveHomeGreetingSession(currentValue, appUser.settingsCompletedAt),
+    );
+  }, [appUser, isBootstrapping]);
 
   useEffect(() => {
     clientLogger.info("screen_opened", {
@@ -144,7 +155,10 @@ export default function App() {
     showToast("Открой настройки, чтобы продолжить.", "onboarding");
   };
 
-  if (isBootstrapping) {
+  if (
+    isBootstrapping ||
+    (appUser !== null && didSessionStartWithoutSettings === null)
+  ) {
     return <LoadingState message="Загружаем профиль..." fullScreen />;
   }
 
@@ -169,6 +183,9 @@ export default function App() {
       }
       completedReadingTextCount={appUser?.completedReadingTextCount ?? null}
       isFirstSetup={shouldForceSettings}
+      didSessionStartWithoutSettings={
+        didSessionStartWithoutSettings ?? shouldForceSettings
+      }
       subscription={appUser?.subscription}
       readingMinutes={appUser?.settings?.dailyReadingMinutes ?? null}
     />

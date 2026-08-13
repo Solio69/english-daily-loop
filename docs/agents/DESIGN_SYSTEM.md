@@ -95,7 +95,7 @@ Fonts:
 
 Актуальные размеры главной:
 
-- Greeting text `С возвращением,`: `16px`; на `390-479px` используется `17px`.
+- Greeting text `Добро пожаловать,` / `С возвращением,`: `16px`; на `390-479px` используется `17px`.
 - User name:
   - normal: max `28px`.
   - long name `> 12` chars: `24px`; на `390px+` используется `26px`.
@@ -139,7 +139,7 @@ Responsive breakpoints used in this app:
 Structure:
 
 - Top row:
-  - left: `С возвращением,`
+  - left: session-based greeting
   - right: three-segment theme control, settings icon button
 - Second row:
   - user name on the left
@@ -148,6 +148,9 @@ Structure:
 Rules:
 
 - Header controls must be the same height.
+- A session started before primary settings are saved uses `Добро пожаловать,` until the Mini App is closed, including after settings are saved in that session.
+- A new session started with saved primary settings uses `С возвращением,`.
+- Greeting presentation does not replace the current onboarding lock state: learning sections unlock immediately after successful settings save.
 - Current header controls height: `h-9`; settings control is `size-9`.
 - Theme control is a compact segmented `radiogroup` with three icon-only options:
   - `Как в Telegram`: paper-plane icon, follows Telegram/system theme
