@@ -61,6 +61,8 @@ export const REQUIRED_SERVER_FUNCTIONS = [
   "activate_mvp_subscription",
   "save_vocabulary_word_with_source",
   "save_pending_vocabulary_word_with_source",
+  "delete_pending_vocabulary_word_with_sources",
+  "persist_generated_vocabulary_card",
   "claim_vocabulary_card_generation_attempt",
   "get_moscow_study_date",
   "get_or_create_vocabulary_review_state",

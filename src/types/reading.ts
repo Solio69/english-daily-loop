@@ -8,6 +8,7 @@ export type ReadingText = {
   estimatedMinutes: number;
   lastReadParagraphIndex: number | null;
   savedWordIndexes?: number[];
+  pendingSavedWordIndexes?: number[];
   source?: ReadingSource;
   generation?: {
     provider: string;

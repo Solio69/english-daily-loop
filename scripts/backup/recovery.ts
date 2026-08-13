@@ -42,6 +42,10 @@ const MOSCOW_STUDY_DATE_MIGRATION = "20260723120000";
 const ACTIVE_READING_POSITION_MIGRATION = "20260724120000";
 const SUPPORT_REPORT_TELEGRAM_ID_NULLABLE_MIGRATION =
   "20260727120000";
+const PENDING_VOCABULARY_WORD_DELETION_MIGRATION =
+  "20260813120000";
+const ATOMIC_VOCABULARY_CARD_PERSISTENCE_MIGRATION =
+  "20260813150000";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -76,11 +80,21 @@ const requiredServerFunctionsForMigration = (
 ): readonly string[] =>
   REQUIRED_SERVER_FUNCTIONS.filter(
     (functionName) =>
-      functionName !== "get_moscow_study_date" ||
-      isMigrationAtLeast(
-        migrationVersion,
-        MOSCOW_STUDY_DATE_MIGRATION,
-      ),
+      (functionName !== "get_moscow_study_date" ||
+        isMigrationAtLeast(
+          migrationVersion,
+          MOSCOW_STUDY_DATE_MIGRATION,
+        )) &&
+      (functionName !== "delete_pending_vocabulary_word_with_sources" ||
+        isMigrationAtLeast(
+          migrationVersion,
+          PENDING_VOCABULARY_WORD_DELETION_MIGRATION,
+        )) &&
+      (functionName !== "persist_generated_vocabulary_card" ||
+        isMigrationAtLeast(
+          migrationVersion,
+          ATOMIC_VOCABULARY_CARD_PERSISTENCE_MIGRATION,
+        )),
   );
 
 export const parseRecoveryDatabaseReport = (

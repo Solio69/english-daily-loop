@@ -149,6 +149,7 @@ npx supabase functions deploy complete-reading-text
 npx supabase functions deploy get-reading-history
 npx supabase functions deploy save-reading-position
 npx supabase functions deploy save-vocabulary-word
+npx supabase functions deploy delete-pending-vocabulary-word
 npx supabase functions deploy get-vocabulary-state
 npx supabase functions deploy get-vocabulary-words
 npx supabase functions deploy prepare-vocabulary-cards

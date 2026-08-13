@@ -669,6 +669,51 @@ test(
       moscowReport,
     ).join("\n");
     assert.match(errors, /get_moscow_study_date/);
+
+    const deletionManifest = {
+      ...currentManifest,
+      latestMigrationVersion: "20260813120000",
+    };
+    const deletionReport = createRecoveryReport(deletionManifest);
+    deletionReport.serverFunctions =
+      deletionReport.serverFunctions.filter(
+        (name) =>
+          name !== "delete_pending_vocabulary_word_with_sources",
+      );
+    deletionReport.serviceRoleFunctions =
+      deletionReport.serviceRoleFunctions.filter(
+        (name) =>
+          name !== "delete_pending_vocabulary_word_with_sources",
+      );
+
+    const deletionErrors = validateRecoveryDatabaseReport(
+      deletionManifest,
+      deletionReport,
+    ).join("\n");
+    assert.match(
+      deletionErrors,
+      /delete_pending_vocabulary_word_with_sources/,
+    );
+
+    const persistenceManifest = {
+      ...currentManifest,
+      latestMigrationVersion: "20260813150000",
+    };
+    const persistenceReport = createRecoveryReport(persistenceManifest);
+    persistenceReport.serverFunctions =
+      persistenceReport.serverFunctions.filter(
+        (name) => name !== "persist_generated_vocabulary_card",
+      );
+    persistenceReport.serviceRoleFunctions =
+      persistenceReport.serviceRoleFunctions.filter(
+        (name) => name !== "persist_generated_vocabulary_card",
+      );
+
+    const persistenceErrors = validateRecoveryDatabaseReport(
+      persistenceManifest,
+      persistenceReport,
+    ).join("\n");
+    assert.match(persistenceErrors, /persist_generated_vocabulary_card/);
   },
 );
 

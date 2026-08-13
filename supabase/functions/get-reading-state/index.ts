@@ -32,7 +32,12 @@ type ActiveReadingTextRow = {
 };
 
 type VocabularyWordSourceRow = {
+  word_id: string;
   word_index: number;
+};
+
+type PendingVocabularyWordRow = {
+  id: string;
 };
 
 Deno.serve(async (req: Request) => {
@@ -130,11 +135,12 @@ Deno.serve(async (req: Request) => {
 
     const usedAttempts = attemptsCount ?? 0;
     let savedWordIndexes: number[] = [];
+    let pendingSavedWordIndexes: number[] = [];
 
     if (activeTextRow) {
       const { data: sourceRows, error: sourceError } = await supabase
         .from("user_vocabulary_word_sources")
-        .select("word_index")
+        .select("word_id, word_index")
         .eq("user_id", appUser.id)
         .eq(
           "reading_text_id",
@@ -150,13 +156,54 @@ Deno.serve(async (req: Request) => {
         fail(500, "SAVED_WORDS_LOAD_FAILED", "Failed to load saved words.");
       }
 
+      const vocabularySources = (sourceRows ?? []) as VocabularyWordSourceRow[];
       savedWordIndexes = Array.from(
         new Set(
-          ((sourceRows ?? []) as VocabularyWordSourceRow[])
+          vocabularySources
             .map((row) => row.word_index)
             .filter((index) => Number.isInteger(index) && index >= 0),
         ),
+      ).sort((left, right) => left - right);
+
+      const wordIds = Array.from(
+        new Set(
+          vocabularySources
+            .map((row) => row.word_id)
+            .filter((id) => typeof id === "string" && id.length > 0),
+        ),
       );
+
+      if (wordIds.length > 0) {
+        const { data: pendingWordRows, error: pendingWordsError } = await supabase
+          .from("user_vocabulary_words")
+          .select("id")
+          .eq("user_id", appUser.id)
+          .eq("card_status", "pending")
+          .in("id", wordIds);
+
+        if (pendingWordsError) {
+          console.error("[get-reading-state] failed to load pending saved words", {
+            appUserId: appUser.id,
+            readingTextId: (activeTextRow as ActiveReadingTextRow).reading_text_id,
+            error: pendingWordsError.message,
+          });
+          fail(500, "SAVED_WORDS_LOAD_FAILED", "Failed to load saved words.");
+        }
+
+        const pendingWordIds = new Set(
+          ((pendingWordRows ?? []) as PendingVocabularyWordRow[]).map(
+            (row) => row.id,
+          ),
+        );
+        pendingSavedWordIndexes = Array.from(
+          new Set(
+            vocabularySources
+              .filter((row) => pendingWordIds.has(row.word_id))
+              .map((row) => row.word_index)
+              .filter((index) => Number.isInteger(index) && index >= 0),
+          ),
+        ).sort((left, right) => left - right);
+      }
     }
 
     const activeText = activeTextRow
@@ -170,6 +217,7 @@ Deno.serve(async (req: Request) => {
           lastReadParagraphIndex: (activeTextRow as ActiveReadingTextRow)
             .last_read_paragraph_index,
           savedWordIndexes,
+          pendingSavedWordIndexes,
           source: "ai",
           generation: {
             provider: (activeTextRow as ActiveReadingTextRow).provider,

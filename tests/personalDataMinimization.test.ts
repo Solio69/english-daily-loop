@@ -40,6 +40,7 @@ const edgeLogSources = [
   "supabase/functions/auth-telegram/index.ts",
   "supabase/functions/complete-reading-text/index.ts",
   "supabase/functions/dev-tools/index.ts",
+  "supabase/functions/delete-pending-vocabulary-word/index.ts",
   "supabase/functions/generate-reading-text/index.ts",
   "supabase/functions/get-reading-history/index.ts",
   "supabase/functions/get-reading-state/index.ts",

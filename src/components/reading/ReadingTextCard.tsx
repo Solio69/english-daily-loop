@@ -1,12 +1,8 @@
 import React, { useMemo } from "react";
 import { ReadingText } from "../../types/reading";
+import type { ReadingWordAction } from "../../utils/readingWordAction";
 import { parseReadingText } from "../../utils/readingText";
 import { Button } from "../Button";
-
-type SelectedWord = {
-  word: string;
-  index: number;
-} | null;
 
 type WordFeedback = {
   tone: "success" | "error";
@@ -15,12 +11,13 @@ type WordFeedback = {
 
 type ReadingTextCardProps = {
   text: ReadingText;
-  selectedWord: SelectedWord;
+  selectedWord: ReadingWordAction | null;
   savedWords: Set<number>;
-  savingWordIndex: number | null;
+  mutatingWordIndex: number | null;
   wordFeedback: WordFeedback;
   onWordClick: (word: string, index: number) => void;
   onAddWord: () => void;
+  onDeleteWord: () => void;
   onCancelWord: () => void;
   onParagraphRef?: (
     paragraphIndex: number,
@@ -38,10 +35,11 @@ export const ReadingTextCard: React.FC<ReadingTextCardProps> = ({
   text,
   selectedWord,
   savedWords,
-  savingWordIndex,
+  mutatingWordIndex,
   wordFeedback,
   onWordClick,
   onAddWord,
+  onDeleteWord,
   onCancelWord,
   onParagraphRef,
 }) => {
@@ -95,7 +93,9 @@ export const ReadingTextCard: React.FC<ReadingTextCardProps> = ({
               const isSelectable = Boolean(normalizedWord);
               const isSelected = selectedWord?.index === wordIndex;
               const isSaved = savedWords.has(wordIndex);
-              const isSaving = savingWordIndex === wordIndex;
+              const isMutating = mutatingWordIndex === wordIndex;
+              const isRemoveAction =
+                isSelected && selectedWord?.mode === "remove";
 
               return (
                 <React.Fragment key={partIndex}>
@@ -111,7 +111,7 @@ export const ReadingTextCard: React.FC<ReadingTextCardProps> = ({
                         ? "bg-[var(--primary-soft)] text-[var(--primary)]"
                         : isSaved
                           ? "bg-[var(--accent-warm-soft)] text-[var(--accent-warm)]"
-                          : isSaving
+                          : isMutating
                             ? "bg-[var(--accent-warm-soft)]"
                             : isSelectable
                               ? "hover:bg-[var(--primary-soft)]"
@@ -123,7 +123,9 @@ export const ReadingTextCard: React.FC<ReadingTextCardProps> = ({
                   {isSelected && (
                     <span className="glass-card my-3 block rounded-[18px] p-3 text-base leading-normal">
                       <span className="block text-center text-sm font-semibold text-[var(--text-primary)]">
-                        Добавить в словарь?
+                        {isRemoveAction
+                          ? "Удалить слово из очереди на генерацию карточки?"
+                          : "Добавить в словарь?"}
                       </span>
                       {wordFeedback && (
                         <span
@@ -138,17 +140,24 @@ export const ReadingTextCard: React.FC<ReadingTextCardProps> = ({
                       )}
                       <span className="mt-3 grid grid-cols-2 gap-2">
                         <Button
-                          onClick={onAddWord}
-                          disabled={savingWordIndex !== null}
+                          onClick={
+                            isRemoveAction ? onDeleteWord : onAddWord
+                          }
+                          disabled={mutatingWordIndex !== null}
                           className="w-full min-w-0 whitespace-nowrap px-2 py-2 text-[13px]"
                         >
-                          {savingWordIndex === wordIndex
-                            ? "Сохраняем..."
-                            : "Добавить"}
+                          {isMutating
+                            ? isRemoveAction
+                              ? "Удаляем..."
+                              : "Сохраняем..."
+                            : isRemoveAction
+                              ? "Удалить"
+                              : "Добавить"}
                         </Button>
                         <Button
                           onClick={onCancelWord}
                           variant="outline"
+                          disabled={mutatingWordIndex !== null}
                           className="w-full min-w-0 whitespace-nowrap px-2 py-2 text-[13px]"
                         >
                           Отмена

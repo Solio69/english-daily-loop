@@ -459,6 +459,10 @@ Validation выполняет только `SELECT` и проверяет:
 - полный table access `service_role`;
 - required server-only functions, уже существующие на migration version
   snapshot;
+- `delete_pending_vocabulary_word_with_sources` требуется начиная с migration
+  `20260813120000`; более ранние snapshots валидируются без этой RPC;
+- `persist_generated_vocabulary_card` требуется начиная с migration
+  `20260813150000`; более ранние snapshots валидируются без этой RPC;
 - отсутствие client execute на обычных functions в `public`; PostgreSQL
   event-trigger functions не считаются клиентскими RPC;
 - отсутствие execute у `anon` и `authenticated`;

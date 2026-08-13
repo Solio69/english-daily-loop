@@ -105,6 +105,26 @@ Telegram-env передает именно оркестратор. Полный 
 изменения `.env.telegram.local`, `vite.config.ts`, package dependencies или
 обязательного процесса инфраструктуры.
 
+### Локальные migrations и перезапуск
+
+Новые migrations без пересоздания локальной БД применяются владельцем проекта:
+
+```powershell
+pnpm exec supabase migration up
+```
+
+Команда применяет только еще не примененные migrations и не удаляет локальные
+данные. После изменения только SQL migration работающий `dev:telegram`
+перезапускать не нужно: обновленный DB/RPC contract становится доступен текущему
+локальному стеку.
+
+Если scope добавляет новую Edge Function, ее обязательно нужно одновременно
+добавить в `edgeFunctionNames` файла `scripts/dev/config.mjs`. Уже запущенный
+function runner получил список функций в аргументах процесса и новую функцию не
+подхватит, поэтому после такого изменения требуется один полный перезапуск
+`npm run dev:telegram`. Изменения кода уже включенной Edge Function function
+runner подхватывает без полного перезапуска.
+
 Frontend preview, frontend watcher, Edge Functions и оба tunnel являются обязательными процессами. Если один из них неожиданно завершается, команда останавливает весь локальный стек с ошибкой. Потоки DB/API-логов вспомогательные: их завершение только фиксируется в терминале.
 
 Локально поднимаются Edge Functions:
@@ -115,6 +135,7 @@ Frontend preview, frontend watcher, Edge Functions и оба tunnel являют
 - `save-user-settings`
 - `activate-subscription`
 - `complete-reading-text`
+- `delete-pending-vocabulary-word`
 - `dev-tools`
 - `get-reading-state`
 - `get-reading-history`
@@ -241,4 +262,4 @@ pnpm telegram:dev:webhook:delete
 - Все проверки `initData` делать только на сервере в Edge Functions, не в клиенте.
 - Публичный `telegram-bot-webhook` не использует `initData`: Telegram аутентифицирует его отдельным secret header; функция не обращается к БД.
 - Локальная dev tools панель отображается только для `admin`, а действия с БД разрешает только server env `DEV_TOOLS_ENABLED` вместе с server-side проверкой `users.app_role = 'admin'`.
-- Отчеты об ошибках отправляются через `submit-support-report` и сохраняются в `public.support_reports`; для проверки этой функции после новой миграции нужен перезапуск `npm run dev:telegram`.
+- Отчеты об ошибках отправляются через `submit-support-report` и сохраняются в `public.support_reports`; применение только связанной SQL migration не требует перезапуска `dev:telegram`.
