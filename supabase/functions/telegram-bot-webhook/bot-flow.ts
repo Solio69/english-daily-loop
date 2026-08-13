@@ -6,7 +6,7 @@ export const BOT_DESCRIPTION =
 export const OPEN_APP_BUTTON_TEXT = "Открыть приложение";
 export const START_COMMAND_DESCRIPTION =
   "Открыть приветствие и приложение";
-export const HELP_COMMAND_DESCRIPTION = "Как открыть приложение";
+export const HELP_COMMAND_DESCRIPTION = "Как работает приложение";
 
 export const START_MESSAGE = `Привет! 👋
 
@@ -14,11 +14,25 @@ English Daily Loop — короткая практика английского 
 
 Читай тексты под свой уровень, сохраняй новые слова и повторяй их по дневному плану.
 
+Хочешь узнать, как устроено занятие? Отправь /help.
+
 Нажми «Открыть приложение», чтобы начать.`;
 
-export const HELP_MESSAGE = `Все занятия проходят внутри приложения.
+export const HELP_MESSAGE = `Как работает English Daily Loop 👇
 
-Нажми «Открыть приложение», чтобы продолжить.`;
+📖 AI создаёт короткий текст по твоему уровню и времени чтения. Читай его в приложении, нажимай на незнакомые слова, чтобы сохранить их, и заверши текст.
+
+✨ Открой «Материалы» и нажми «Готовить»: AI создаст для сохранённых слов карточки с переводом, частью речи, примерами и формами глаголов. Там же можно вернуться к прочитанным текстам и своему словарю.
+
+🧠 Готовые карточки появляются в разделе «Слова». Открой перевод и выбери следующий интервал: если слово не вспомнилось, оно вернётся через день; если вспомнилось — выбери, через сколько показать его снова.
+
+Так складывается ежедневное занятие: чтение → новые слова → повторение.
+
+Нажми «Открыть приложение», чтобы начать или продолжить.`;
+
+export const FALLBACK_MESSAGE = `Я понимаю только команды /start и /help.
+
+Выбери нужную команду в меню или нажми «Открыть приложение».`;
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -106,12 +120,19 @@ export const resolveBotFlow = (update: unknown): BotFlowResult => {
   }
 
   const commandCategory = getCommandCategory(message.text);
+  const responseText =
+    commandCategory === "start"
+      ? START_MESSAGE
+      : commandCategory === "help"
+        ? HELP_MESSAGE
+        : FALLBACK_MESSAGE;
+
   return {
     type: "reply",
     commandCategory,
     updateCategory: "message",
     chatId: message.chat.id,
-    text: commandCategory === "start" ? START_MESSAGE : HELP_MESSAGE,
+    text: responseText,
   };
 };
 
@@ -159,4 +180,3 @@ export const buildSendMessagePayload = (
     ],
   },
 });
-

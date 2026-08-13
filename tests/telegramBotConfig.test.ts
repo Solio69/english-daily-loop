@@ -5,7 +5,9 @@ import {
   BOT_DESCRIPTION,
   BOT_DISPLAY_NAME,
   BOT_SHORT_DESCRIPTION,
+  HELP_COMMAND_DESCRIPTION,
   OPEN_APP_BUTTON_TEXT,
+  START_COMMAND_DESCRIPTION,
 } from "../supabase/functions/telegram-bot-webhook/bot-flow.ts";
 import {
   DEV_TELEGRAM_BOT_DISPLAY_NAME,
@@ -27,6 +29,10 @@ test("keeps configuration copy aligned with webhook replies", () => {
   assert.equal(TELEGRAM_BOT_PROFILE.shortDescription, BOT_SHORT_DESCRIPTION);
   assert.equal(TELEGRAM_BOT_PROFILE.description, BOT_DESCRIPTION);
   assert.equal(TELEGRAM_BOT_PROFILE.openAppButtonText, OPEN_APP_BUTTON_TEXT);
+  assert.deepEqual(TELEGRAM_BOT_PROFILE.commands, [
+    { command: "start", description: START_COMMAND_DESCRIPTION },
+    { command: "help", description: HELP_COMMAND_DESCRIPTION },
+  ]);
 
   const productionProfile = JSON.parse(
     readFileSync(

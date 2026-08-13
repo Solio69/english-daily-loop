@@ -10,7 +10,7 @@ export const TELEGRAM_BOT_PROFILE = Object.freeze({
       command: "start",
       description: "Открыть приветствие и приложение",
     }),
-    Object.freeze({ command: "help", description: "Как открыть приложение" }),
+    Object.freeze({ command: "help", description: "Как работает приложение" }),
   ]),
 });
 

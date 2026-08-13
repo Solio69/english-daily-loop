@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  FALLBACK_MESSAGE,
   HELP_MESSAGE,
   OPEN_APP_BUTTON_TEXT,
   START_MESSAGE,
@@ -116,11 +117,12 @@ test("rejects oversized and invalid JSON requests", async () => {
   assert.equal(sent.length, 0);
 });
 
-test("sends exact start and fallback replies with the current menu URL", async () => {
+test("sends exact start, help, and fallback replies with the current menu URL", async () => {
   for (const [text, expectedText] of [
     ["/start", START_MESSAGE],
     ["/help", HELP_MESSAGE],
-    ["Как начать?", HELP_MESSAGE],
+    ["Как начать?", FALLBACK_MESSAGE],
+    [undefined, FALLBACK_MESSAGE],
   ]) {
     const { botApi, sent } = createBotApi();
     const response = await handleTelegramWebhook(
@@ -203,4 +205,3 @@ test("logs only safe categories and operational metadata", async () => {
   );
   assert.match(serializedLogs, /fallback|reply sent/);
 });
-
