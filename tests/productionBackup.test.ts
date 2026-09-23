@@ -33,6 +33,8 @@ import {
   parseBackupSuccessStatus,
   parseExpectedPublicTableRowCounts,
   parseLatestMigrationVersion,
+  parseRecordFailureArgs,
+  resolveBackupStatusState,
   sanitizeOperationalMessage,
   selectSnapshotRetention,
   validateSnapshotDirectory,
@@ -41,6 +43,7 @@ import {
 } from "../scripts/backup/policy";
 import {
   DUMP_ARTIFACTS,
+  recordBackupFailure,
   runBackup,
   type BackupRunnerOptions,
 } from "../scripts/backup/runner";
@@ -809,6 +812,8 @@ test("backup and recovery source contracts do not contain production writes", ()
   );
   assert.match(wrapperSource, /SUPABASE_DB_PASSWORD/);
   assert.doesNotMatch(wrapperSource, /--password/);
+  assert.match(wrapperSource, /record-failure\.ts/);
+  assert.match(wrapperSource, /WRAPPER_PREFLIGHT_FAILED/);
   assert.match(
     productionSource,
     /delete nonDatabaseEnvironment\.SUPABASE_DB_PASSWORD/,
@@ -826,6 +831,7 @@ test("scheduled task contract catches missed runs and retries", () => {
   assert.match(taskSource, /New-TimeSpan -Minutes 30/);
   assert.match(taskSource, /LogonType Interactive/);
   assert.match(taskSource, /RunLevel Limited/);
+  assert.match(taskSource, /-WindowStyle Hidden/);
 });
 
 test("isolated restore follows the Supabase safe restore sequence", () => {
@@ -966,4 +972,70 @@ test("completed snapshot name contract rejects partial folders", () => {
     "2026-07-29T170000Z_a1b2c3d4.partial",
     COMPLETED_SNAPSHOT_NAME_PATTERN,
   );
+});
+
+test("recordBackupFailure writes a sanitized preflight failure status", (context) => {
+  const backupRoot = createTempBackupRoot();
+  context.after(() => removeTempBackupRoot(backupRoot));
+
+  recordBackupFailure({
+    backupRoot,
+    stage: "preflight",
+    code: "WRAPPER_PREFLIGHT_FAILED",
+    error: new Error(`docker info failed, password=${TEST_PASSWORD}`),
+    sensitiveValues: [TEST_PASSWORD],
+  });
+
+  const failure = parseBackupFailureStatus(
+    JSON.parse(
+      readFileSync(
+        path.join(backupRoot, "status", "last-failure.json"),
+        "utf8",
+      ),
+    ),
+  );
+  assert.equal(failure.stage, "preflight");
+  assert.equal(failure.code, "WRAPPER_PREFLIGHT_FAILED");
+  assert.doesNotMatch(failure.message, new RegExp(TEST_PASSWORD));
+  assert.match(failure.message, /\[REDACTED\]/);
+});
+
+test("record-failure args parser validates code and message", () => {
+  assert.deepEqual(
+    parseRecordFailureArgs([
+      "--code",
+      "WRAPPER_PREFLIGHT_FAILED",
+      "--message",
+      "Docker Desktop is not ready.",
+    ]),
+    {
+      code: "WRAPPER_PREFLIGHT_FAILED",
+      message: "Docker Desktop is not ready.",
+    },
+  );
+  assert.throws(
+    () => parseRecordFailureArgs(["--code", "lowercase", "--message", "x"]),
+    /--code/,
+  );
+  assert.throws(
+    () =>
+      parseRecordFailureArgs(["--code", "PREFLIGHT_FAILED", "--message", ""]),
+    /--message/,
+  );
+});
+
+test("status state degrades on a failure after the last success", () => {
+  const failure = parseBackupFailureStatus({
+    schemaVersion: 1,
+    failedAt: "2026-07-29T18:00:00.000Z",
+    stage: "preflight",
+    code: "PREFLIGHT_FAILED",
+    message: "safe failure",
+  });
+
+  assert.equal(resolveBackupStatusState("healthy", failure), "degraded");
+  assert.equal(resolveBackupStatusState("healthy", null), "healthy");
+  assert.equal(resolveBackupStatusState("degraded", failure), "degraded");
+  assert.equal(resolveBackupStatusState("violated", failure), "violated");
+  assert.equal(resolveBackupStatusState("violated", null), "violated");
 });

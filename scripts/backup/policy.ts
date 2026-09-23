@@ -268,6 +268,39 @@ export const getFailureAfterSuccess = (
     ? failure
     : null;
 
+export const resolveBackupStatusState = (
+  ageState: BackupPolicyState,
+  failureAfterSuccess: BackupFailureStatus | null,
+): BackupPolicyState =>
+  failureAfterSuccess && ageState === "healthy" ? "degraded" : ageState;
+
+export const FAILURE_CODE_PATTERN = /^[A-Z0-9_]{3,100}$/;
+
+export const parseRecordFailureArgs = (
+  argv: string[],
+): { code: string; message: string } => {
+  let code = "";
+  let message = "";
+  for (let index = 0; index < argv.length; index += 1) {
+    if (argv[index] === "--code") {
+      code = argv[index + 1] ?? "";
+      index += 1;
+    } else if (argv[index] === "--message") {
+      message = argv[index + 1] ?? "";
+      index += 1;
+    }
+  }
+  if (!FAILURE_CODE_PATTERN.test(code)) {
+    throw new Error(
+      "record-failure: --code должен соответствовать /^[A-Z0-9_]{3,100}$/.",
+    );
+  }
+  if (message.trim().length === 0) {
+    throw new Error("record-failure: --message не может быть пустым.");
+  }
+  return { code, message };
+};
+
 const parseQualifiedCopyIdentifier = (
   value: string,
 ): { schema: string; table: string } | null => {

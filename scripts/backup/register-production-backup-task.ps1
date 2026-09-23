@@ -46,7 +46,8 @@ if ($null -ne $existingTask -and -not $Force) {
 
 $wrapperPath = Join-Path $PSScriptRoot "run-production-backup.ps1"
 $actionArguments = (
-  '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' +
+  '-NoProfile -NonInteractive -WindowStyle Hidden ' +
+  '-ExecutionPolicy Bypass -File "' +
   $wrapperPath +
   '"'
 )

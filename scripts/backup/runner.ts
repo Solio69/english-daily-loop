@@ -281,6 +281,31 @@ const writeFailureStatus = ({
   );
 };
 
+export const recordBackupFailure = ({
+  backupRoot,
+  stage,
+  code,
+  error,
+  sensitiveValues = [],
+  failedAt = new Date(),
+}: {
+  backupRoot: string;
+  stage: BackupStage;
+  code: string;
+  error: unknown;
+  sensitiveValues?: string[];
+  failedAt?: Date;
+}): void => {
+  writeFailureStatus({
+    statusDirectory: path.join(backupRoot, "status"),
+    failedAt,
+    stage,
+    code,
+    error,
+    sensitiveValues,
+  });
+};
+
 const loadRetentionCandidates = (
   snapshotsDirectory: string,
 ): { name: string; completedAt: string }[] => {

@@ -198,6 +198,7 @@ Task:
 - использует `StartWhenAvailable`;
 - повторяется до трёх раз с интервалом 30 минут;
 - не создаёт параллельные backup instances;
+- выполняется без видимого окна PowerShell;
 - разрешён при питании от батареи;
 - ожидает доступную сеть.
 
@@ -243,7 +244,9 @@ Status:
 - не подключается к БД;
 - показывает последний completed snapshot;
 - возвращает `0` в штатном режиме;
-- возвращает `2` при возрасте больше 24, но не больше 72 часов;
+- возвращает `2` в деградированном режиме: возраст snapshot больше 24, но не
+  больше 72 часов, либо после последнего успешного snapshot была неуспешная
+  попытка; деградация снимается следующим успешным backup;
 - возвращает `1` при возрасте больше 72 часов, отсутствии или повреждении
   snapshot.
 
@@ -265,7 +268,11 @@ Windows Task Scheduler
 Если компьютер выключен, Task Scheduler запускает пропущенную задачу при
 следующей доступной пользовательской сессии. Если Docker или интернет
 недоступны, completed snapshot не публикуется, старые snapshots не удаляются,
-а безопасная ошибка записывается в `last-failure.json`.
+а безопасная ошибка записывается в `last-failure.json`. Запись создаётся для
+любой неуспешной попытки, включая ранние сбои PowerShell-wrapper (config,
+credential, Windows identity, executables) и preflight worker до DB dump.
+Если dependencies проекта недоступны и wrapper не может вызвать
+`record-failure`, попытка видна только по `LastTaskResult` задачи.
 
 Владелец запускает `pnpm backup:status`:
 
@@ -294,6 +301,7 @@ snapshot и recovery drill.
 | Один dump завершился ошибкой | Остаётся `.partial`, retention не запускается | Проверить безопасное terminal message и повторить |
 | Checksum/manifest невалиден | Completed snapshot не публикуется | Сохранить `.partial` для диагностики |
 | Другой backup выполняется | Второй process останавливается | Дождаться текущего task |
+| Неуспешная попытка после последнего успеха | `backup:status` показывает деградированный режим до следующего успешного backup | Проверить `last-failure.json`, устранить причину и повторить backup |
 | Backup старше 72 часов | Policy violation | Запустить manual backup и проверить status |
 
 `last-failure.json` не содержит command arguments, connection string, database
@@ -579,6 +587,9 @@ pnpm release:check
 - migration history parser;
 - manifest и SHA-256;
 - atomic publish и partial failure;
+- запись ранней preflight-ошибки в `last-failure.json`;
+- record-failure CLI для ошибок PowerShell-wrapper;
+- деградацию status после неуспешной попытки;
 - retention;
 - age thresholds;
 - secret redaction;

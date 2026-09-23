@@ -6,6 +6,7 @@ $configPath = Join-Path $backupRoot "config\backup-config.json"
 $credentialPath = Join-Path $backupRoot "config\database-password.dpapi"
 $bstr = [IntPtr]::Zero
 $plainPassword = $null
+$config = $null
 
 try {
   if (-not (Test-Path -LiteralPath $configPath -PathType Leaf)) {
@@ -83,6 +84,30 @@ try {
 }
 catch {
   Write-Error $_.Exception.Message
+  try {
+    $failureRepositoryRoot = [System.IO.Path]::GetFullPath(
+      (Join-Path $PSScriptRoot "..\..")
+    )
+    $failureTsxCli = Join-Path $failureRepositoryRoot "node_modules\tsx\dist\cli.mjs"
+    $recordFailureScript = Join-Path $PSScriptRoot "record-failure.ts"
+    $failureNodeExecutable = $null
+    if ($null -ne $config) {
+      $failureNodeExecutable = $config.nodeExecutable
+    }
+    if (
+      $failureNodeExecutable -and
+      (Test-Path -LiteralPath $failureNodeExecutable -PathType Leaf) -and
+      (Test-Path -LiteralPath $failureTsxCli -PathType Leaf) -and
+      (Test-Path -LiteralPath $recordFailureScript -PathType Leaf)
+    ) {
+      & $failureNodeExecutable $failureTsxCli $recordFailureScript `
+        --code WRAPPER_PREFLIGHT_FAILED `
+        --message $_.Exception.Message | Out-Null
+    }
+  }
+  catch {
+    # Failure status recording is best-effort: the original error is already reported.
+  }
   exit 1
 }
 finally {
