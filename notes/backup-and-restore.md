@@ -198,7 +198,7 @@ Task:
 - использует `StartWhenAvailable`;
 - повторяется до трёх раз с интервалом 30 минут;
 - не создаёт параллельные backup instances;
-- выполняется без видимого окна PowerShell;
+- при запуске в интерактивной сессии может кратко показывать окно PowerShell;
 - разрешён при питании от батареи;
 - ожидает доступную сеть.
 
@@ -269,8 +269,8 @@ Windows Task Scheduler
 следующей доступной пользовательской сессии. Если Docker или интернет
 недоступны, completed snapshot не публикуется, старые snapshots не удаляются,
 а безопасная ошибка записывается в `last-failure.json`. Запись создаётся для
-любой неуспешной попытки, включая ранние сбои PowerShell-wrapper (config,
-credential, Windows identity, executables) и preflight worker до DB dump.
+сбоев preflight worker до DB dump и для сбоев PowerShell-wrapper, когда доступны
+config, Node и `tsx`.
 Если dependencies проекта недоступны и wrapper не может вызвать
 `record-failure`, попытка видна только по `LastTaskResult` задачи.
 

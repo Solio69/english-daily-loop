@@ -831,7 +831,6 @@ test("scheduled task contract catches missed runs and retries", () => {
   assert.match(taskSource, /New-TimeSpan -Minutes 30/);
   assert.match(taskSource, /LogonType Interactive/);
   assert.match(taskSource, /RunLevel Limited/);
-  assert.match(taskSource, /-WindowStyle Hidden/);
 });
 
 test("isolated restore follows the Supabase safe restore sequence", () => {
