@@ -4,6 +4,8 @@
 
 Этот runbook описывает ручной production-релиз схемы `Supabase Cloud + Vercel`.
 
+Состав и порядок выпуска `1.0.0` зафиксированы в `notes/releases/1.0.0.md`.
+
 Главная идея: frontend деплоится как Vite static build на Vercel, а backend/data слой живет в Supabase Cloud: Postgres, RLS/grants, RPC, Edge Functions, secrets и logs. На Supabase Free production БД защищается отдельным локальным logical backup по `notes/backup-and-restore.md`.
 
 ## Official References

@@ -487,25 +487,35 @@ Safe JSON result сохраняется в `drills`. Он содержит count
 
 После DB validation:
 
-1. подтвердить production Git commit по Vercel deployment и GitHub Release;
-2. deploy все Edge Functions, существующие в этом commit, в recovery project с
-   явным recovery project ref;
+1. Зафиксировать Git SHA текущего production frontend по Vercel deployment и
+   сверить с последним проверенным GitHub Release. Для регулярного drill
+   проверяемый runtime использует этот production commit. Для pre-release drill
+   после изменения recovery contract заранее фиксируется отдельный release
+   candidate commit с согласованными миграциями, Edge Functions и frontend.
+   SHA локального backup tooling из manifest не подменяет ни один из них.
+2. Deploy все Edge Functions проверяемого commit в recovery project с явным
+   recovery project ref;
 3. задать token отдельного development bot, feature gates и доступный владельцу
    OpenRouter key;
 4. не задавать production bot token; общий OpenRouter key допускается только
    как принятое для текущего solo-MVP исключение с общими quota и расходами;
-5. подключить Vercel preview или локальную recovery-сборку;
+5. подключить Vercel preview или локальную recovery-сборку из того же
+   проверяемого commit;
 6. открыть приложение через development bot;
 7. проверить auth, reading, history, vocabulary, review и support report;
 8. подтвердить, что новые тестовые записи появились только в recovery DB;
-9. зафиксировать start/end time, фактические RPO/RTO, snapshot id и Git SHA;
+9. зафиксировать start/end time, фактические RPO/RTO, snapshot id, SHA
+   текущего production deployment и SHA проверенного runtime;
 10. удалить recovery project после сохранения evidence.
 
 Production Vercel env и production BotFather URL во время drill не меняются.
 
 ### Последний подтверждённый drill
 
-Текущий recovery contract подтверждён полным isolated drill от `2026-07-30`:
+Последний подтверждённый полный isolated drill выполнен `2026-07-30` для
+snapshot с migration version `20260707120000`. Для release candidate с
+server-only RPC из migrations `20260813120000` и `20260813150000` требуется
+новый snapshot и drill перед публикацией нового runtime:
 
 - snapshot: `2026-07-30T124541Z_d4771c56`;
 - production Git commit: `3e414616906b1d7cf03a59927d785a159dc9eb2a`;
