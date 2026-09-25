@@ -13,7 +13,7 @@
 - Целевой продукт: Telegram Mini App.
 - Вектор по данным: Supabase (Postgres).
 - Локальная инфраструктура уже настроена: Docker + WSL + Supabase local.
-- Локальный Telegram-запуск: `npm run dev:telegram` (отдельный dev-бот + изолированный `.env.telegram.local` + Supabase local + Edge Functions + API/frontend Quick Tunnels с ожиданием публикации URL + автообновление локальных `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` + frontend build/watch в `dist-telegram` + Vite preview + live-логи DB/API + startup summary). Команда не читает и не изменяет `.env.local` или production secrets; обычный production build использует отдельную папку `dist`.
+- Локальный Telegram-запуск: `npm run dev:telegram` (отдельный dev-бот + изолированный `.env.telegram.local` + Supabase local + Edge Functions + API/frontend Quick Tunnels с ожиданием публикации URL + автообновление локальных `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` + frontend build/watch в `dist-telegram` + Vite preview + автоматическая проверка/configuration dev-бота через Telegram Bot API + live-логи DB/API + startup summary). Команда не читает и не изменяет `.env.local` или production secrets; обычный production build использует отдельную папку `dist`.
 - Локальные Supabase-порты: API `54321`, DB `54322`, Studio `54323`, Mailpit `54324`, Analytics `54327`, Pooler `54329`; tunnels используют `127.0.0.1`, чтобы не зависеть от IPv6-резолва `localhost` на Windows.
 - Отдельного backend-сервера (Express) сейчас нет; backend-слой представлен Supabase API + Edge Functions.
 - Папка `tools/` используется для локальных утилит запуска (например, `cloudflared.exe`) и не коммитится.
@@ -48,6 +48,10 @@
 - После шага ждать вывод/скриншот пользователя и только потом двигаться дальше.
 - Тон: поддерживающий, без оценочности и давления.
 - Предпочитать короткие и практичные инструкции вместо длинной теории.
+- После завершения изменений не давать владельцу инструкции или команды для
+  подготовки и создания Git-коммита: владелец выполняет их самостоятельно.
+  Передавать только одно подходящее английское название коммита в отдельном
+  Markdown code block, чтобы его можно было сразу скопировать.
 
 ## Правила принятия решений
 
@@ -75,7 +79,8 @@
 - Общие локальные секреты хранить в gitignored env-файлах, а требования документировать в соответствующих `*.example`; `dev:telegram` использует только `.env.telegram.local`, создаваемый из `.env.telegram.example`.
 - `SUPABASE_SERVICE_ROLE_KEY` использовать только на сервере.
 - `OPENROUTER_API_KEY` использовать только на сервере, через Supabase Edge Functions.
-- `TELEGRAM_BOT_TOKEN` использовать только на сервере, через Supabase Edge Functions.
+- `TELEGRAM_BOT_TOKEN` использовать только в Supabase Edge Functions и доверенных owner-run Telegram configuration helpers; никогда не передавать во frontend, command arguments или логи.
+- `TELEGRAM_BOT_WEBHOOK_SECRET` хранить только в gitignored `.env.telegram.local`, Supabase Cloud secrets и password manager; никогда не передавать во frontend, command arguments или логи.
 - Не ослаблять контроль доступа ради скорости разработки.
 - Агенту запрещено применять миграции и самостоятельно выполнять команды, изменяющие данные даже в локальной БД; необходимые локальные команды передаются владельцу с объяснением ожидаемого результата.
 - Агенту запрещено самостоятельно выполнять команды, которые могут изменить production БД, включая production-миграции, DDL, DML, reset, seed и административные операции.
@@ -119,6 +124,8 @@
 - Миграция `supabase/migrations/20260727120000_prepare_personal_data_minimization.sql` делает совместимый столбец `support_reports.telegram_user_id` nullable; новые отчеты связываются только через внутренний `user_id`, а физическое удаление лишних столбцов отложено до отдельного contract cleanup после production rollout и backup gate.
 - Миграция `supabase/migrations/20260723120000_add_moscow_study_day_and_carry_active_text.sql` добавляет server-only SQL-helper учебной даты с границей `05:00 Europe/Moscow`, снимает date-scope с единственного active text и обновляет reading/review RPC без переписывания исторических данных; timestamp-чувствительные mutation RPC получают дату из того же DB timestamp, который сохраняют.
 - Миграция `supabase/migrations/20260724120000_add_active_reading_position.sql` добавляет nullable-позицию абзаца `last_read_paragraph_index` в единственный active text; `null` означает абсолютный верх страницы.
+- Миграция `supabase/migrations/20260813120000_add_pending_vocabulary_word_deletion.sql` добавляет server-only RPC `delete_pending_vocabulary_word_with_sources(...)`: она под advisory/row lock удаляет только pending-слово из актуального active text и каскадно удаляет все его source-связи, не затрагивая готовые карточки и reading texts.
+- Миграция `supabase/migrations/20260813150000_add_atomic_vocabulary_card_persistence.sql` добавляет server-only RPC `persist_generated_vocabulary_card(...)`: она под тем же пользовательским advisory lock атомарно выбирает между отменой удаленного target, сохранением готовой карточки и merge канонического дубликата вместе с переносом sources.
 - В проекте есть базовые миграции и сиды для локальной разработки (dev user + моковые тексты).
 - Миграция `supabase/migrations/20260424113000_drop_daily_review_words_from_user_settings.sql` удаляет устаревшее поле `daily_review_words` из `public.user_settings`.
 - Миграция `supabase/migrations/20260513120000_drop_daily_exercise_minutes_from_user_settings.sql` удаляет поле `daily_exercise_minutes` из `public.user_settings`.
@@ -129,6 +136,8 @@
   - `public.complete_daily_reading_text(...)` — завершение единственного active text независимо от даты генерации, атомарная фиксация DB timestamp и соответствующей учебной даты, удаление active text и онбординг-флаг
   - `public.activate_mvp_subscription(...)` — активация MVP-подписки с advisory lock по пользователю.
   - `public.save_pending_vocabulary_word_with_source(...)` — атомарное сохранение pending-слова и source из актуального active text независимо от даты генерации с advisory lock по пользователю.
+  - `public.delete_pending_vocabulary_word_with_sources(...)` — атомарное удаление только pending-слова из актуального active text с возвратом всех удаленных индексов текущего текста; доступно только `service_role`.
+  - `public.persist_generated_vocabulary_card(...)` — атомарный claim и persistence AI-карточки с безопасным merge канонической формы; удаление pending-слова и AI persistence сериализуются одним advisory lock.
   - `public.claim_vocabulary_card_generation_attempt(...)` — атомарная проверка лимита и списание попытки подготовки словарных карточек.
   - `public.review_vocabulary_word(...)` — атомарный переход по шкале повторения и создание дневного completion-marker на учебную дату того же DB timestamp, который сохраняется в `last_reviewed_at`.
   - `public.get_or_create_vocabulary_review_state(...)` — точный snapshot очереди и фиксация завершения пустого плана с advisory lock по пользователю и дате.
@@ -137,7 +146,9 @@
 - Общая server-инфраструктура Edge Functions находится в `supabase/functions/_shared/server.ts`: CORS, POST guard, JSON parsing, env helpers, Telegram `initData` validation, request id, безопасные JSON-ответы и `AppError`; общий helper safe AI diagnostics находится в `supabase/functions/_shared/ai-diagnostics.ts`.
 - Общая server-логика ролей, effective subscription summary и лимитов доступа находится в `supabase/functions/_shared/access.ts`; лимит, подсчет и обновление metadata попыток подготовки словарных карточек находятся в `supabase/functions/_shared/vocabulary-card-generation.ts`.
 - Общий helper московской учебной даты с границей `05:00` находится в `supabase/functions/_shared/moscow-study-date.ts`; правила server-side разбиения текста на абзацы — в `supabase/functions/_shared/reading-text.ts`; server helper'ы повторения, home progress, streak и счетчика истории находятся в `supabase/functions/_shared/vocabulary-review.ts`, `supabase/functions/_shared/vocabulary-review-state.ts`, `supabase/functions/_shared/home-progress.ts`, `supabase/functions/_shared/reading-streak.ts` и `supabase/functions/_shared/reading-history.ts`; best-effort расчет производных метрик после завершения чтения оркестрирует `supabase/functions/_shared/reading-completion-metrics.ts`.
-- Edge Functions `auth-telegram`, `save-user-settings`, `activate-subscription`, `complete-reading-text`, `dev-tools`, `get-reading-state`, `get-reading-history`, `generate-reading-text`, `save-reading-position`, `save-vocabulary-word`, `get-vocabulary-state`, `get-vocabulary-words`, `get-vocabulary-review-state`, `review-vocabulary-word`, `prepare-vocabulary-cards`, `approve-vocabulary-card`, `approve-vocabulary-cards` и `submit-support-report` используют общий helper для Telegram auth/error/env/http слоя; бизнес-валидация остается внутри конкретных функций.
+- Edge Functions `auth-telegram`, `save-user-settings`, `activate-subscription`, `complete-reading-text`, `dev-tools`, `get-reading-state`, `get-reading-history`, `generate-reading-text`, `save-reading-position`, `save-vocabulary-word`, `delete-pending-vocabulary-word`, `get-vocabulary-state`, `get-vocabulary-words`, `get-vocabulary-review-state`, `review-vocabulary-word`, `prepare-vocabulary-cards`, `approve-vocabulary-card`, `approve-vocabulary-cards` и `submit-support-report` используют общий helper для Telegram auth/error/env/http слоя; бизнес-валидация остается внутри конкретных функций.
+- Edge Function `telegram-bot-webhook` является единственным публичным Telegram callback с `verify_jwt = false`: она проверяет отдельный `X-Telegram-Bot-Api-Secret-Token`, обрабатывает только private `message` updates, не использует Mini App `initData`, БД или `SUPABASE_SERVICE_ROLE_KEY` и не логирует raw update/chat/user identifiers.
+- `scripts/telegram/bot-config.mjs` применяет канонические profile/commands/menu/webhook settings к проверенному dev-боту; `scripts/telegram/configure-production-bot.ps1` проверяет точный production username и получает token/secret только через hidden prompts.
 - Telegram auth реализована через Edge Function `supabase/functions/auth-telegram/index.ts`:
   - серверная валидация `initData` (подпись + `auth_date`)
   - идемпотентный `find-or-create/upsert` пользователя по `telegram_user_id`
@@ -312,17 +323,15 @@
 - App-level toast-сообщения вынесены в `src/components/Toast.tsx`: `AppToast` поддерживает variant-состояния `success`, `warning`, `error`, а совместимый wrapper `Toast` мапит текущие тоны `default`, `onboarding`, `success`, `error`; toast показывается сверху как floating glass card с кнопкой закрытия.
 - Inline status-сообщения внутри экранов должны использовать `src/components/InlineStatusCard.tsx`; app-level floating сообщения остаются в `src/components/Toast.tsx`.
 - `vite.config.ts` разрешает внешние tunnel host'ы (`.trycloudflare.com`, `.loca.lt`) для запуска Mini App через Telegram.
-- `npm run dev:telegram` автоматически поднимает frontend/API туннели и печатает `STARTUP SUMMARY` с двумя URL:
-  - `BotFather /setmenubutton URL` = FRONTEND TUNNEL URL
-  - `.env.telegram.local VITE_SUPABASE_URL` = SUPABASE API TUNNEL URL.
-- Каждый Quick Tunnel создается один раз; команда ждёт публикацию URL в выводе `cloudflared`, но не блокирует запуск публичной DNS/HTTP-проверкой. `STARTUP SUMMARY` печатается после получения обоих URL.
+- `npm run dev:telegram` автоматически поднимает frontend/API туннели, проверяет отдельного dev-бота через `getMe`, применяет profile/commands/menu button `Открыть приложение` и webhook, затем печатает `STARTUP SUMMARY` с публичными Mini App/API webhook URL без secrets.
+- Каждый Quick Tunnel создается один раз; команда ждёт публикацию URL в выводе `cloudflared`, но не блокирует запуск публичной DNS/HTTP-проверкой. `STARTUP SUMMARY` печатается после получения обоих URL и успешной Telegram configuration.
 - `npm run dev:telegram` запускает production-like локальный режим для Telegram: Supabase + Edge Functions + API tunnel + frontend build и watcher в `dist-telegram` + Vite preview в mode `telegram-dev` + frontend tunnel. Обычный `pnpm build` пишет только в `dist` и не перезаписывает активный Telegram dev bundle.
-- Новые миграции без пересоздания БД применяются через `npx supabase migration up`; полный `npx supabase db reset` пересоздает локальную БД и удаляет текущие локальные данные.
-- `npm run dev:telegram` поднимает Edge Functions `approve-vocabulary-card`, `approve-vocabulary-cards`, `auth-telegram`, `save-user-settings`, `activate-subscription`, `complete-reading-text`, `dev-tools`, `get-reading-state`, `get-reading-history`, `get-vocabulary-review-state`, `review-vocabulary-word`, `get-vocabulary-state`, `get-vocabulary-words`, `generate-reading-text`, `prepare-vocabulary-cards`, `save-reading-position`, `save-vocabulary-word` и `submit-support-report`.
+- Новые миграции без пересоздания БД владелец применяет через `pnpm exec supabase migration up`; полный `pnpm exec supabase db reset` пересоздает локальную БД и удаляет текущие локальные данные. Если реализация добавила migration, агент при handoff обязан дать команду применения, описать ожидаемый результат и явно сообщить, нужен ли перезапуск `dev:telegram`.
+- `npm run dev:telegram` поднимает Edge Functions `approve-vocabulary-card`, `approve-vocabulary-cards`, `auth-telegram`, `save-user-settings`, `activate-subscription`, `complete-reading-text`, `delete-pending-vocabulary-word`, `dev-tools`, `get-reading-state`, `get-reading-history`, `get-vocabulary-review-state`, `review-vocabulary-word`, `get-vocabulary-state`, `get-vocabulary-words`, `generate-reading-text`, `prepare-vocabulary-cards`, `save-reading-position`, `save-vocabulary-word`, `submit-support-report` и `telegram-bot-webhook`.
 - Логи в dev-режимах цветные по источнику (`[frontend]`, `[edge]`, `[db]`, `[api]`, `[tunnel-*]`), HTTP-методы и статус-коды дополнительно подсвечиваются.
-- После изменения frontend-кода дождаться успешной пересборки `[frontend-watch]` и обновить Mini App без перезапуска tunnel. Полный dev-режим перезапускать после изменения server env для OpenRouter (`OPENROUTER_MODEL_*`, `OPENROUTER_API_KEY`), `.env.telegram.local`, Vite config, dependencies или завершения обязательного процесса.
+- После изменения frontend-кода дождаться успешной пересборки `[frontend-watch]` и обновить Mini App без перезапуска tunnel. Применение только SQL migration и изменение кода уже включенной Edge Function не требуют полного restart. Полный dev-режим перезапускать после добавления новой Edge Function в явный список `scripts/dev/config.mjs`, изменения server env для OpenRouter (`OPENROUTER_MODEL_*`, `OPENROUTER_API_KEY`), `.env.telegram.local`, Vite config, dependencies или завершения обязательного процесса.
 - Quick Tunnel URL создаются один раз и не блокируют запуск Node DNS readiness-check: Windows `getaddrinfo` может временно сохранять отрицательный DNS-результат после публикации публичной записи. Если новый URL сразу не открылся в Telegram, нужно повторить открытие через несколько секунд, не перезапуская dev-stack.
-- После ответа BotFather `Success! Menu settings updated` Telegram Desktop может показать прежний текст menu button ещё некоторое время из-за клиентского кеша. Текущий dev-stack и Quick Tunnel нужно оставить запущенными; перезапуск требуется только при фактическом завершении обязательного процесса или недоступности URL после ожидания.
+- После автоматической Telegram configuration Desktop может показать прежний текст menu button ещё некоторое время из-за клиентского кеша. Текущий dev-stack и Quick Tunnel нужно оставить запущенными; перезапуск требуется только при фактическом завершении обязательного процесса или недоступности URL после ожидания.
 - Неожиданное завершение frontend preview, frontend watcher, Edge Functions или любого tunnel останавливает dev-stack с ошибкой; завершение необязательного DB/API log-stream только фиксируется в логах.
 - Live-потоки DB/API используют `docker logs --tail 0 --follow`, чтобы накопленная история контейнеров не скрывала `STARTUP SUMMARY`.
 - Для локального Telegram-старта использовать `npm run dev:telegram`, для остановки Supabase: `npm run dev:stop`.

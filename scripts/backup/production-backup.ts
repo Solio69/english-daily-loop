@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { loadLocalBackupConfig, readLinkedProjectRef } from "./local-config";
 import {
   BackupRunError,
+  recordBackupFailure,
   runBackup,
   type DumpArtifactDefinition,
 } from "./runner";
@@ -209,16 +210,39 @@ const runSupabaseDump = ({
   }
 };
 
-const main = (): void => {
-  let sensitiveValues: string[] = [];
+const resolveFailureBackupRoot = (): string => {
   try {
+    return loadLocalBackupConfig(DEFAULT_BACKUP_ROOT).backupRoot;
+  } catch {
+    return DEFAULT_BACKUP_ROOT;
+  }
+};
+
+const main = (): void => {
+  const sensitiveValues = process.env.SUPABASE_DB_PASSWORD
+    ? [process.env.SUPABASE_DB_PASSWORD]
+    : [];
+  try {
+    let prepared: ReturnType<typeof preflight>;
+    try {
+      prepared = preflight();
+    } catch (error) {
+      recordBackupFailure({
+        backupRoot: resolveFailureBackupRoot(),
+        stage: error instanceof BackupRunError ? error.stage : "preflight",
+        code:
+          error instanceof BackupRunError ? error.code : "PREFLIGHT_FAILED",
+        error,
+        sensitiveValues,
+      });
+      throw error;
+    }
     const {
       config,
       databasePassword,
       supabaseExecutable,
       tooling,
-    } = preflight();
-    sensitiveValues = [databasePassword];
+    } = prepared;
 
     const manifest = runBackup({
       backupRoot: config.backupRoot,

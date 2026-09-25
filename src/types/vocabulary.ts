@@ -37,6 +37,11 @@ export type SaveVocabularyWordResult = {
   wordIndex: number;
 };
 
+export type DeletePendingVocabularyWordResult = {
+  removedWordIndexes: number[];
+  removedSourceCount: number;
+};
+
 export type VocabularyCardGenerationState = {
   dailyLimit: number;
   usedAttempts: number;

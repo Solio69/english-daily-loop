@@ -71,15 +71,16 @@ Telegram Mini App для ежедневной практики английск�
 - `auth-telegram` — валидирует Telegram `initData`, создает или находит пользователя, возвращает роль, настройки, effective subscription summary, прогресс главного экрана и streak.
 - `save-user-settings` — валидирует пользователя на сервере и сохраняет настройки в `user_settings`.
 - `activate-subscription` — скрытая server-side заготовка для будущего платного flow; работает только при `SUBSCRIPTION_FLOW_ENABLED="true"` и транзакционно активирует MVP-подписку за 0 рублей.
-- `get-reading-state` — возвращает состояние экрана чтения: единственный активный текст пользователя независимо от даты генерации, лимиты текущей учебной даты и факт завершения чтения за учебный день.
+- `get-reading-state` — возвращает состояние экрана чтения: единственный активный текст пользователя независимо от даты генерации, общие и pending-индексы сохраненных слов, лимиты текущей учебной даты и факт завершения чтения за учебный день.
 - `generate-reading-text` — атомарно списывает попытку текущей учебной даты, вызывает OpenRouter, валидирует ответ модели и сохраняет активный текст с `reading_date` генерации.
 - `complete-reading-text` — транзакционно завершает единственный активный текст, сохраняет snapshot с текущей учебной датой в историю, удаляет active text и best-effort обновляет производные метрики streak/count, не меняя результат уже выполненного завершения.
 - `get-reading-history` — возвращает историю прочитанных текстов текущего пользователя с cursor-пагинацией.
 - `save-reading-position` — сохраняет существующий индекс абзаца текущего active text либо `null` для абсолютного верха; ownership и актуальность `reading_text_id` проверяются на сервере.
 - `save-vocabulary-word` — валидирует принадлежность и актуальный `reading_text_id` единственного active text независимо от даты генерации, проверяет лимит словаря и быстро сохраняет слово как `not_started` + `pending`.
+- `delete-pending-vocabulary-word` — по подтверждению удаляет только еще не подготовленное pending-слово и все его source-связи; готовые карточки и прогресс повторения не затрагиваются.
 - `get-vocabulary-state` — возвращает количество pending/needs_approval/ready слов в словаре пользователя и состояние дневного лимита подготовки AI-карточек; пользовательский UI показывает pending и ready.
 - `get-vocabulary-words` — возвращает готовые карточки словаря; скрытый approval-flow оставлен в коде для следующих версий.
-- `prepare-vocabulary-cards` — batch-ом до 5 pending-слов списывает дневную попытку подготовки карточек, готовит AI-карточки, пробует следующую allowlist-модель при невалидном AI-ответе или provider-ошибке, сохраняет валидные карточки как `ready` и мержит pending-дубликаты в существующие канонические карточки.
+- `prepare-vocabulary-cards` — batch-ом до 5 pending-слов списывает дневную попытку подготовки карточек, готовит AI-карточки, пробует следующую allowlist-модель при невалидном AI-ответе или provider-ошибке и через атомарную server-only RPC сохраняет карточку либо мержит канонический дубль; удаленные во время AI-вызова targets пропускаются без побочных эффектов.
 - `approve-vocabulary-card` — скрытая server-side операция для будущего flow проверки карточек.
 - `approve-vocabulary-cards` — скрытая server-side операция для будущего массового flow проверки карточек.
 - `get-vocabulary-review-state` — возвращает точный snapshot дневной очереди, прогресс, следующую карточку и действия словаря.
@@ -87,7 +88,7 @@ Telegram Mini App для ежедневной практики английск�
 - `dev-tools` — технические действия для admin-пользователя; управляет попытками генерации, чтением, повторением слов, batch-переносом дневной очереди на выбранный шаг и подписками; работает только при `DEV_TOOLS_ENABLED="true"` и `users.app_role = 'admin'`.
 - `submit-support-report` — принимает пользовательский отчет об ошибке, валидирует Telegram `initData`, применяет rate limit и сохраняет sanitized diagnostic snapshot в `public.support_reports`.
 
-Все чувствительные операции выполняются на сервере. `TELEGRAM_BOT_TOKEN`, `SUPABASE_SERVICE_ROLE_KEY` и `OPENROUTER_API_KEY` нельзя использовать в клиентском коде. Неожиданные внутренние ошибки Edge Functions логируются на сервере, а клиент получает безопасный код и сообщение без SQL/provider details.
+Все чувствительные операции выполняются на сервере либо доверенным owner-run configuration helper. `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_WEBHOOK_SECRET`, `SUPABASE_SERVICE_ROLE_KEY` и `OPENROUTER_API_KEY` нельзя использовать в клиентском коде. Неожиданные внутренние ошибки Edge Functions логируются на сервере, а клиент получает безопасный код и сообщение без SQL/provider details.
 
 `users.telegram_user_id` используется только server-side для Telegram auth и будущего Bot API flow. Frontend user contract, новые support reports и прикладные логи не содержат прямой Telegram ID. Новый профиль сохраняет только Telegram ID, `first_name` и технические поля; `username`, `last_name` и `language_code` не собираются.
 
@@ -133,6 +134,8 @@ AI attempt metadata хранится `90` дней; scheduled cleanup выпол
 - `public.complete_daily_reading_text(...)` — завершает единственный active text независимо от даты генерации, атомарно фиксирует DB timestamp и соответствующую ему учебную дату, пишет completion-marker, сохраняет snapshot текста в историю, удаляет active text и обновляет onboarding-флаг.
 - `public.activate_mvp_subscription(...)` — активирует или планирует MVP-подписку с advisory lock по пользователю.
 - `public.save_pending_vocabulary_word_with_source(...)` — сохраняет pending-слово и источник из актуального active text независимо от даты генерации с advisory lock по пользователю.
+- `public.delete_pending_vocabulary_word_with_sources(...)` — под advisory/row lock удаляет только pending-слово из актуального active text; существующий FK cascade удаляет все его source-связи.
+- `public.persist_generated_vocabulary_card(...)` — под тем же пользовательским advisory lock атомарно сохраняет сгенерированную карточку или переносит sources в существующую каноническую карточку и удаляет pending-дубль; уже удаленный target возвращается как `cancelled`.
 - `public.claim_vocabulary_card_generation_attempt(...)` — атомарно проверяет дневной лимит подготовки карточек и создает attempt с advisory lock по пользователю и дате.
 - `public.review_vocabulary_word(...)` — атомарно фиксирует DB timestamp и соответствующую ему учебную дату, применяет действие повторения, обновляет интервалы и создает дневной completion-marker.
 - `public.get_or_create_vocabulary_review_state(...)` — атомарно считает очередь, фиксирует завершение пустого или выполненного плана и возвращает отдельные счетчики для обязательного плана и экрана повторения.
@@ -165,12 +168,13 @@ Production-переменные frontend хранятся в Vercel, а server s
 TELEGRAM_DEV_MODE="true"
 DEV_TELEGRAM_BOT_USERNAME="@english_daily_loop_dev_bot"
 TELEGRAM_BOT_TOKEN="YOUR_DEV_TELEGRAM_BOT_TOKEN"
+TELEGRAM_BOT_WEBHOOK_SECRET="YOUR_RANDOM_DEV_WEBHOOK_SECRET"
 OPENROUTER_API_KEY="YOUR_OPENROUTER_API_KEY"
 DEV_TOOLS_ENABLED="true"
 SUBSCRIPTION_FLOW_ENABLED="false"
 ```
 
-`DEV_TELEGRAM_BOT_USERNAME` и `TELEGRAM_BOT_TOKEN` должны принадлежать отдельному development-боту. Скрипт откажется запускаться для production-бота `@english_daily_loop_bot`.
+`DEV_TELEGRAM_BOT_USERNAME` и `TELEGRAM_BOT_TOKEN` должны принадлежать отдельному development-боту. `TELEGRAM_BOT_WEBHOOK_SECRET` — отдельное случайное значение длиной 32–256 символов из `A-Z`, `a-z`, `0-9`, `_`, `-`. Скрипт откажется запускаться для production-бота `@english_daily_loop_bot`.
 
 `VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY` в `.env.telegram.local` обновляются автоматически значениями локального Supabase и текущего API tunnel. Frontend Telegram dev-сборки получает env напрямую от скрипта и не загружает обычные Vite env-файлы.
 
@@ -225,14 +229,15 @@ npm run dev:telegram
 - запускает frontend через Vite preview в mode `telegram-dev` на `localhost:3000`;
 - автоматически пересобирает `dist-telegram` после изменений frontend-кода;
 - поднимает Quick Tunnel для frontend и ждёт появления URL в выводе `cloudflared`;
+- проверяет dev-бота через Telegram `getMe`, затем автоматически настраивает его profile, `/start`/`/help`, menu button `Открыть приложение` и webhook на текущие tunnel URL;
 - показывает логи frontend, Edge Functions, DB и API;
-- печатает `STARTUP SUMMARY` с URL для BotFather после получения обоих публичных адресов.
+- печатает `STARTUP SUMMARY` только после успешной настройки dev-бота.
 
 Frontend собирается после получения API tunnel URL, поэтому Telegram открывает production-like bundle с актуальным `VITE_SUPABASE_URL`.
 
 Quick Tunnel URL создаются один раз и остаются активными, пока работает команда. Скрипт не пересоздает домены и не блокирует запуск проверкой DNS: Windows `getaddrinfo` может временно возвращать закешированный `ENOTFOUND`, даже когда публичная DNS-запись уже существует. Если Telegram открыл новый URL слишком рано, Mini App нужно повторно открыть через несколько секунд, не перезапуская dev-stack.
 
-После ответа BotFather `Success! Menu settings updated` Telegram Desktop может обновить текст menu button с задержкой. В этом случае текущую команду нужно оставить запущенной и дождаться обновления кнопки; перезапуск создаст новые Quick Tunnel URL и может привести к Cloudflare `429 Too Many Requests`.
+Telegram Desktop может обновить текст menu button с задержкой после успешной автоматической настройки. В этом случае текущую команду нужно оставить запущенной и дождаться обновления кнопки; перезапуск создаст новые Quick Tunnel URL и может привести к Cloudflare `429 Too Many Requests`.
 
 Неожиданное завершение frontend, Edge Functions или tunnel останавливает dev-stack с ошибкой. Потоки DB/API-логов вспомогательные и не останавливают приложение.
 
@@ -258,18 +263,23 @@ npx supabase db reset
 npm run dev:stop
 ```
 
+Удалить только webhook отдельного dev-бота для rollback-проверки:
+
+```bash
+pnpm telegram:dev:webhook:delete
+```
+
+Menu button при этом сохраняется; следующий `npm run dev:telegram` зарегистрирует webhook заново.
+
 ## Запуск внутри Telegram
 
 После `npm run dev:telegram` дождись `STARTUP SUMMARY`.
 
-В BotFather:
+Summary должен подтвердить dev username, menu button, Mini App URL и webhook URL. Token и webhook secret в выводе отсутствуют.
 
-1. Выполни `/setmenubutton`.
-2. Выбери отдельного dev-бота, указанного в `DEV_TELEGRAM_BOT_USERNAME`.
-3. Вставь `BotFather /setmenubutton URL` из startup summary.
-4. Открой бота в Telegram и нажми кнопку меню.
+Открой dev-бота в Telegram, отправь `/start` и нажми inline button либо нижнюю menu button `Открыть приложение`. После перезапуска stack отправь новый `/start`: старое сообщение сохраняет уже выключенный Quick Tunnel URL.
 
-Не устанавливай временный tunnel URL production-боту `@english_daily_loop_bot`.
+`dev:telegram` проверяет username через `getMe` и не допускает настройку production-бота `@english_daily_loop_bot`.
 
 Приложение должно открываться внутри Telegram и проходить авторизацию через настоящий `initData`.
 

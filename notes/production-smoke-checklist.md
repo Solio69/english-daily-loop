@@ -4,7 +4,7 @@
 
 Этот чеклист нужен для ручной проверки production-деплоя `english-daily-loop` после первого запуска и перед следующими production-релизами.
 
-Проверки выполняются в Telegram Mini App через production BotFather menu URL, а не в обычном браузере. В браузере нет `Telegram.WebApp.initData`, поэтому auth там ожидаемо не проходит.
+Проверки выполняются через production Telegram bot и Mini App, а не в обычном браузере. В браузере нет `Telegram.WebApp.initData`, поэтому auth там ожидаемо не проходит.
 
 ## Release Context
 
@@ -18,6 +18,12 @@
 
 ## Critical Path
 
+- [ ] Профиль production-бота показывает имя `English Daily Loop` и согласованные short/full descriptions.
+- [ ] Main Mini App доступна из профиля бота и открывает production frontend.
+- [ ] `/start` возвращает согласованное приветствие и inline button `Открыть приложение`.
+- [ ] `/help` и обычный текст возвращают согласованную подсказку и ту же inline button.
+- [ ] Inline button и нижняя menu button `Открыть приложение` открывают один production frontend URL.
+
 - [ ] Приложение открывается из Telegram bot menu.
 - [ ] Telegram auth проходит без ошибки `initData`.
 - [ ] Новый пользователь создается в `public.users`.
@@ -26,6 +32,8 @@
 - [ ] Настройки уровня и времени чтения сохраняются.
 - [ ] После сохранения настроек открывается главный экран.
 - [ ] Главный экран показывает актуальный дневной прогресс.
+- [ ] В текущей onboarding-сессии главная показывает приветствие для нового пользователя; при новом открытии с завершёнными настройками — приветствие для вернувшегося.
+- [ ] Главная показывает ожидаемую серию чтения для существующего пользователя.
 - [ ] Экран `Текст` открывается из нижней навигации.
 - [ ] Генерация текста запускается и завершается успешно.
 - [ ] Сгенерированный текст соответствует выбранному уровню и времени чтения.
@@ -37,6 +45,9 @@
 ## Vocabulary And Review
 
 - [ ] Из активного текста можно сохранить слово.
+- [ ] Повторный tap по сохраненному pending-слову открывает inline-подтверждение удаления из очереди генерации.
+- [ ] `Отмена` сохраняет подсветку, а `Удалить` снимает все вхождения слова только после успешного server response.
+- [ ] Уже подготовленная карточка не предлагает destructive flow и не удаляется через экран текста.
 - [ ] Сохраненное слово появляется в `Мои материалы` -> `Словарь` как карточка для подготовки.
 - [ ] Подготовка карточек запускается из словаря.
 - [ ] После подготовки карточка становится готовой без ручного подтверждения.
@@ -88,6 +99,8 @@
 ## Observability
 
 - [ ] Ошибки Edge Functions видны в Supabase logs с request id.
+- [ ] `getWebhookInfo` показывает production webhook URL, `allowed_updates = message`, отсутствие накопленных updates и необработанной ошибки.
+- [ ] Логи `telegram-bot-webhook` не содержат raw update/message, update/chat/user id, names, bot token или webhook secret.
 - [ ] AI generation attempts пишут safe metadata в `reading_generation_attempts`.
 - [ ] Vocabulary card generation attempts пишут safe metadata в `vocabulary_card_generation_attempts`.
 - [ ] Failed AI generation возвращает user-facing ошибку без provider raw response.

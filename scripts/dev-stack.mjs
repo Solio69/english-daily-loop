@@ -22,6 +22,12 @@ import {
   startSupabase,
 } from "./dev/supabase-local.mjs";
 import { waitForTunnelUrl } from "./dev/tunnels.mjs";
+import {
+  DEV_TELEGRAM_BOT_DISPLAY_NAME,
+  TELEGRAM_BOT_PROFILE,
+  buildTelegramWebhookUrl,
+  configureTelegramBot,
+} from "./telegram/bot-config.mjs";
 
 let shuttingDown = false;
 const children = [];
@@ -33,6 +39,8 @@ let startupSummaryPrinted = false;
 let frontendStarted = false;
 let telegramDevEnvValues = null;
 let telegramDevBotUsername = null;
+let telegramBotConfigured = false;
+let telegramWebhookUrl = null;
 
 // TODO: Local Telegram infra helper; keep API tunnel sync limited to the isolated dev env file.
 function syncApiUrlToEnv(apiUrl) {
@@ -49,6 +57,7 @@ function maybePrintStartupSummary() {
   if (startupSummaryPrinted) return;
   if (!tunnelUrls.frontend || !tunnelUrls.api) return;
   if (!frontendStarted) return;
+  if (!telegramBotConfigured || !telegramWebhookUrl) return;
   startupSummaryPrinted = true;
 
   const checklistLine = "================ STARTUP SUMMARY ================";
@@ -59,16 +68,15 @@ function maybePrintStartupSummary() {
   );
   process.stdout.write(
     useColor
-      ? `${color.bold}${color.yellow}1) Update BotFather menu button:${color.reset}\n`
-      : "1) Update BotFather menu button:\n",
+      ? `${color.bold}${color.yellow}1) Telegram dev bot configured:${color.reset}\n`
+      : "1) Telegram dev bot configured:\n",
   );
-  process.stdout.write("   /setmenubutton\n");
-  process.stdout.write(`   Select dev bot: ${telegramDevBotUsername}\n`);
+  process.stdout.write(`   Bot: ${telegramDevBotUsername}\n`);
   process.stdout.write(
-    useColor
-      ? `   URL: ${color.green}${tunnelUrls.frontend}${color.reset}\n`
-      : `   URL: ${tunnelUrls.frontend}\n`,
+    `   Menu button: ${TELEGRAM_BOT_PROFILE.openAppButtonText}\n`,
   );
+  process.stdout.write(`   Mini App URL: ${tunnelUrls.frontend}\n`);
+  process.stdout.write(`   Webhook URL: ${telegramWebhookUrl}\n`);
   process.stdout.write(
     useColor
       ? `${color.bold}${color.yellow}2) ${envFilePath} contains:${color.reset}\n`
@@ -103,14 +111,38 @@ function highlightTunnelUrl(kind, url) {
   );
   process.stdout.write(
     useColor
-      ? `${color.yellow}Copy this value now.${color.reset}\n`
-      : "Copy this value now.\n",
+      ? `${color.yellow}URL ready.${color.reset}\n`
+      : "URL ready.\n",
   );
 
   if (kind === "api") {
     syncApiUrlToEnv(url);
   }
 
+  maybePrintStartupSummary();
+}
+
+async function configureDevTelegramBot() {
+  telegramWebhookUrl = buildTelegramWebhookUrl(tunnelUrls.api);
+  process.stdout.write(
+    `[telegram-bot] configuring ${telegramDevBotUsername} for current tunnels...\n`,
+  );
+  const result = await configureTelegramBot({
+    token: telegramDevEnvValues.TELEGRAM_BOT_TOKEN,
+    expectedBotUsername: telegramDevBotUsername,
+    displayName: DEV_TELEGRAM_BOT_DISPLAY_NAME,
+    frontendUrl: tunnelUrls.frontend,
+    webhookUrl: telegramWebhookUrl,
+    webhookSecret: telegramDevEnvValues.TELEGRAM_BOT_WEBHOOK_SECRET,
+    dropPendingUpdates: true,
+  });
+  telegramBotConfigured = true;
+  process.stdout.write(
+    `[telegram-bot] profile, commands, menu button and webhook configured for ${result.botUsername}.\n`,
+  );
+  process.stdout.write(
+    `[telegram-bot] pending updates: ${result.webhookInfo.pendingUpdateCount}; last error: ${result.webhookInfo.hasLastError ? "yes" : "no"}.\n`,
+  );
   maybePrintStartupSummary();
 }
 
@@ -375,6 +407,7 @@ async function main() {
   await assertLocalOriginReady("Frontend preview", localFrontendTunnelTarget);
   tunnelUrls.frontend = await startFrontendTunnel();
   highlightTunnelUrl("frontend", tunnelUrls.frontend);
+  await configureDevTelegramBot();
   await startContainerLogs();
 
   process.on("SIGINT", shutdown);

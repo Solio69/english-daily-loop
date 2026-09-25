@@ -92,6 +92,8 @@ Active text также хранит `reading_date` генерации; слов�
 - `supabase/migrations/20260701120000_scope_active_reading_text_by_date.sql`
 - `supabase/migrations/20260705130000_promote_vocabulary_needs_approval_cards.sql`
 - `supabase/migrations/20260723120000_add_moscow_study_day_and_carry_active_text.sql`
+- `supabase/migrations/20260813120000_add_pending_vocabulary_word_deletion.sql`
+- `supabase/migrations/20260813150000_add_atomic_vocabulary_card_persistence.sql`
 
 ## 5) Transactional RPC
 Атомарное сохранение слова и источника выполняет RPC:
@@ -107,6 +109,21 @@ RPC:
 - сохраняет source для текущего `reading_text_id` и `word_index`.
 
 RPC доступен только `service_role`.
+
+Атомарное удаление слова до подготовки карточки выполняет RPC:
+- `public.delete_pending_vocabulary_word_with_sources(...)`
+
+RPC:
+- берет тот же advisory lock словаря по пользователю;
+- проверяет актуальный active text и source по `reading_text_id` + `word_index`;
+- под row lock разрешает удаление только при `card_status = pending`;
+- возвращает все удаленные индексы текущего текста;
+- удаляет одну vocabulary word row, после чего существующий FK cascade удаляет
+  все ее sources, включая связи с другими текстами;
+- не изменяет сами active/completed reading texts.
+
+RPC закрыт для `public`, `anon`, `authenticated` и доступен только
+`service_role`.
 
 ## 6) Edge Function
 Функция сохранения:
@@ -125,6 +142,19 @@ RPC доступен только `service_role`.
 4. Проверяет, что `wordIndex` указывает на это слово в активном тексте.
 5. Нормализует выбранную форму слова.
 6. Через RPC проверяет дубль, лимит словаря, сохраняет pending-слово и source.
+
+Функция удаления до генерации:
+- `supabase/functions/delete-pending-vocabulary-word/index.ts`
+
+Вход:
+- `initData`
+- `readingTextId`
+- `wordIndex`
+
+Функция валидирует Telegram-пользователя и active text, а target и его
+`card_status` определяет только на сервере через RPC. При успехе возвращает все
+удаленные индексы текущего текста. Если карточка уже стала `ready`, возвращает
+безопасный `409 VOCABULARY_CARD_ALREADY_PREPARED` и ничего не удаляет.
 
 Функция состояния:
 - `supabase/functions/get-vocabulary-state/index.ts`
@@ -146,11 +176,15 @@ RPC доступен только `service_role`.
 5. Валидирует массив AI-карточек и пропускает невалидные элементы batch-а.
 6. Для валидных карточек заполняет поля слова, ставит `card_status = ready`,
    `status = not_started` и очищает данные повторения.
-7. Если каноническая форма уже есть у пользователя, переносит sources на существующую
-   карточку и удаляет pending-дубликат. Прогресс `active`-слова сохраняется, а
-   `learned`-слово возвращается в `not_started`.
-8. Оставляет слова без валидной карточки в `pending`.
-9. Возвращает статистику подготовки: `preparedCount`, `failedCount`, `mergedCount`,
+7. Через server-only RPC `persist_generated_vocabulary_card(...)` под тем же
+   advisory lock атомарно claim-ит исходную pending-строку. Если пользователь
+   уже удалил ее во время AI-вызова, результат считается cancelled/skipped, не
+   считается prepared/failed и не запускает дальнейшие side effects.
+8. Если каноническая форма уже есть у пользователя, та же транзакция переносит
+   sources на существующую карточку и удаляет pending-дубликат. Прогресс
+   `active`-слова сохраняется, а `learned`-слово возвращается в `not_started`.
+9. Оставляет слова без валидной карточки в `pending`.
+10. Возвращает статистику подготовки: `preparedCount`, `failedCount`, `mergedCount`,
    `reactivatedCount`, `remainingPendingCount`, `needsApprovalCount`.
 
 Валидация AI-карточки проверяет слово, перевод, часть речи, verb-данные и примеры.
@@ -211,7 +245,15 @@ UI:
 - нажимает `Добавить`;
 - frontend вызывает `save-vocabulary-word`;
 - слово подсвечивается только после успешного ответа сервера;
-- при ошибке показывается сообщение, слово не подсвечивается как сохраненное.
+- при ошибке показывается сообщение, слово не подсвечивается как сохраненное;
+- `get-reading-state` отдельно возвращает все сохраненные индексы и optional
+  pending-индексы, доступные для удаления;
+- повторный tap по подсвеченному pending-слову открывает inline-подтверждение
+  `Удалить слово из очереди на генерацию карточки?`;
+- `Отмена` не отправляет запрос, а `Удалить` вызывает
+  `delete-pending-vocabulary-word`;
+- подсветка всех вхождений слова снимается только после server success;
+- готовая карточка и прогресс повторения через этот flow не удаляются;
 - таб `Словарь` показывает summary-карточку с compact status card `Добавить`;
 - status card использует иконку `Layers`; активное значение подсвечивается warm-состоянием, нулевое значение показывает blue ready-state `Все готовы`;
 - pending-слова показываются внутри fixed-height action-блока с контекстом `N слов без карточек` и CTA `Готовить`;

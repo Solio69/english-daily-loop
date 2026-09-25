@@ -93,15 +93,72 @@ Frontend не имеет прямого доступа к `public.support_report
 cleanup_support_reports
 ```
 
-## Debug workflow
+## Processing workflow
 
-1. Найти свежий отчет в `public.support_reports`.
-2. Посмотреть `user_comment` и `current_screen`.
-3. Сверить `app_context.appVersion`, `buildId` и `environment` с Vercel deployment; локальный build использует `buildId = local`.
-4. Сопоставить `request_ids` с Edge/API логами.
-5. Если проблема связана с AI, смотреть `ai_diagnostics` и metadata попыток:
-   - `public.reading_generation_attempts`
-   - `public.vocabulary_card_generation_attempts`
+На текущем объеме отчеты обрабатываются вручную через последовательные read-only запросы из
+`docs/agents/skills/english-daily-loop-support-triage/references/sql.md`. Admin UI, отдельный
+реестр обработанных отчетов и lifecycle-поля в БД не используются.
+
+При работе с production агент сначала явно сообщает: `Мы работаем с production БД`. Если у
+агента нет прямого read-only доступа, владелец выполняет в Supabase SQL Editor по одному
+`SELECT`-запросу и передает только минимальный безопасный результат. Агент ждет результат
+текущего шага и только затем выбирает следующий запрос.
+
+1. Выполнить count/date summary. Если `total_reports = 0`, завершить проверку без раскрытия snapshot.
+2. Если отчеты есть, получить минимальный список: report id, дату, роль, экран, комментарий,
+   release metadata и только счетчики diagnostics. Первичная выборка не содержит `user_id`,
+   `telegram_user_id`, полные `events`, `request_ids`, `ai_diagnostics` или `app_context`.
+3. Выбрать конкретные `support_reports.id` в scope. Тестовые и явно исключенные записи дальше
+   не раскрывать.
+4. Для одного выбранного id запросить только релевантные безопасные поля. Не использовать
+   `select *` и не выгружать полный diagnostic snapshot.
+5. Сопоставить безопасные доказательства:
+   - release metadata — с актуальным deployment;
+   - `request_ids` — с Edge/API логами;
+   - отфильтрованные client events — с пользовательским сценарием;
+   - `ai_diagnostics` — со stage, model и `promptVersion`;
+   - AI metadata — с `public.reading_generation_attempts` или
+     `public.vocabulary_card_generation_attempts` в ограниченном временном окне рядом с отчетом.
+6. Отделить подтвержденные факты от гипотез и присвоить отчету ровно одну классификацию.
+7. Сразу перенести actionable evidence в каноническую карточку или feature draft, потому что
+   исходный отчет автоматически удалится через `30` дней.
+
+Во время triage строки `public.support_reports` не изменяются и не удаляются. Агент не применяет
+миграции, не выполняет deploy и не запускает SQL с побочными эффектами.
+
+## Классификация и маршрутизация
+
+- `тест / шум` — действий не требуется; дополнительные поля отчета не запрашиваются.
+- `дубликат` — используется существующая bug-карточка или feature draft; новый элемент не
+  создается, в существующий переносится только новая безопасная evidence.
+- `внешний инцидент` — фиксируются причина и восстановление; код не меняется без отдельного
+  подтвержденного дефекта приложения.
+- `наблюдаем` — данных недостаточно для подтверждения; кейс передается в bug dashboard со
+  статусом `наблюдаем`.
+- `bug` — создается или обновляется карточка через канонический skill
+  `docs/agents/skills/triage-english-daily-loop-bugs/SKILL.md`. Сам support triage не дает
+  допуска к изменению кода.
+- `improvement / feature` — создается или обновляется feature draft через канонический skill
+  `docs/agents/skills/english-daily-loop-feature-spec/SKILL.md`. Изменение продуктового правила
+  не маскируется под баг.
+
+Перед созданием карточки или draft сначала проверяется отсутствие дубликата. Дальнейшее
+согласование и допуск к реализации выполняются только по соответствующему каноническому
+workflow и `docs/agents/WORKFLOW.md`.
+
+## Data minimization during triage
+
+- Запрашивать по одному только те поля, которые нужны для текущей диагностической гипотезы.
+- Не включать `user_id` и `telegram_user_id` в результаты SQL. Внутренний `user_id` допустим
+  только внутри server-side `join` для корреляции и не должен попадать в `select`.
+- Не запрашивать и не переносить Telegram `initData`, токены, secrets, полный prompt, raw
+  provider response, generated content, stack trace, полный `app_context` или полные `events`.
+- Пользовательский комментарий считать потенциально чувствительным. Перед передачей в чат или
+  долговременную документацию удалять контакты, credentials и другие личные данные.
+- В bug-карточку, feature draft или operational note переносить только report id, дату,
+  безопасный краткий пересказ, релевантные request id и минимальные доказательства диагноза.
+  Не копировать исходный комментарий и весь snapshot целиком.
+- Использовать только синтетические значения в примерах документации.
 
 ## Security notes
 

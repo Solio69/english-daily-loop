@@ -13,11 +13,21 @@ import {
   generateReadingText,
   getReadingState,
 } from "../services/readingService";
-import { saveVocabularyWord } from "../services/vocabularyService";
+import {
+  deletePendingVocabularyWord,
+  saveVocabularyWord,
+} from "../services/vocabularyService";
+import { EdgeFunctionError } from "../services/edgeFunctionErrors";
 import { useReadingPosition } from "../hooks/useReadingPosition";
 import { ReadingHomeStatus } from "../types/homeProgress";
 import { ReadingText } from "../types/reading";
 import { normalizeSelectableWord } from "../utils/readingText";
+import {
+  removeWordIndexes,
+  resolveReadingWordAction,
+  shouldCloseStaleRemoveAction,
+  type ReadingWordAction,
+} from "../utils/readingWordAction";
 
 const resolveReadingStatus = (
   nextText: ReadingText | null,
@@ -52,17 +62,20 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
   const [remainingAttempts, setRemainingAttempts] = useState(0);
   const [hasCompletedReadingToday, setHasCompletedReadingToday] =
     useState(false);
-  const [selectedWord, setSelectedWord] = useState<{
-    word: string;
-    index: number;
-  } | null>(null);
+  const [selectedWord, setSelectedWord] =
+    useState<ReadingWordAction | null>(null);
   const [savedWords, setSavedWords] = useState<Set<number>>(new Set());
+  const [pendingSavedWords, setPendingSavedWords] = useState<Set<number>>(
+    new Set(),
+  );
   const [errorText, setErrorText] = useState<string | null>(null);
   const [wordFeedback, setWordFeedback] = useState<{
     tone: "success" | "error";
     message: string;
   } | null>(null);
-  const [savingWordIndex, setSavingWordIndex] = useState<number | null>(null);
+  const [mutatingWordIndex, setMutatingWordIndex] = useState<number | null>(
+    null,
+  );
   const [isFinishing, setIsFinishing] = useState(false);
   const {
     registerParagraph,
@@ -90,6 +103,9 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
 
         setText(state.activeText);
         setSavedWords(new Set(state.activeText?.savedWordIndexes ?? []));
+        setPendingSavedWords(
+          new Set(state.activeText?.pendingSavedWordIndexes ?? []),
+        );
         setSelectedWord(null);
         setWordFeedback(null);
         setDailyLimit(state.dailyLimit);
@@ -124,6 +140,7 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
 
     setLoading(true);
     setSavedWords(new Set());
+    setPendingSavedWords(new Set());
     setSelectedWord(null);
     setErrorText(null);
     setWordFeedback(null);
@@ -147,6 +164,9 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
         const state = await getReadingState();
         setText(state.activeText);
         setSavedWords(new Set(state.activeText?.savedWordIndexes ?? []));
+        setPendingSavedWords(
+          new Set(state.activeText?.pendingSavedWordIndexes ?? []),
+        );
         setDailyLimit(state.dailyLimit);
         setRemainingAttempts(state.remainingAttempts);
         setHasCompletedReadingToday(state.isReadingCompletedToday);
@@ -163,21 +183,26 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
 
   const handleWordClick = (word: string, index: number) => {
     const normalizedWord = normalizeSelectableWord(word);
-    if (!normalizedWord || savedWords.has(index) || savingWordIndex !== null) {
+    if (!normalizedWord || mutatingWordIndex !== null) {
       return;
     }
 
-    setWordFeedback(null);
-    setSelectedWord({
+    const nextAction = resolveReadingWordAction({
       word: normalizedWord,
       index,
+      savedWordIndexes: savedWords,
+      pendingSavedWordIndexes: pendingSavedWords,
     });
+    if (!nextAction) return;
+
+    setWordFeedback(null);
+    setSelectedWord(nextAction);
   };
 
   const handleAddWord = async () => {
-    if (!selectedWord || !text) return;
+    if (!selectedWord || selectedWord.mode !== "add" || !text) return;
 
-    setSavingWordIndex(selectedWord.index);
+    setMutatingWordIndex(selectedWord.index);
     setErrorText(null);
     setWordFeedback(null);
 
@@ -189,6 +214,9 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
       });
 
       setSavedWords((prev) => new Set(prev).add(result.wordIndex));
+      if (result.cardStatus === "pending") {
+        setPendingSavedWords((prev) => new Set(prev).add(result.wordIndex));
+      }
       setSelectedWord(null);
       setWordFeedback(null);
     } catch (error) {
@@ -200,7 +228,83 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
             : "Не удалось сохранить слово. Попробуй еще раз.",
       });
     } finally {
-      setSavingWordIndex(null);
+      setMutatingWordIndex(null);
+    }
+  };
+
+  const refreshSavedWordState = async (
+    readingTextId: string,
+  ): Promise<Set<number> | null> => {
+    const state = await getReadingState();
+    if (state.activeText?.id !== readingTextId) return null;
+
+    const refreshedSavedWords = new Set(
+      state.activeText.savedWordIndexes ?? [],
+    );
+    setSavedWords(refreshedSavedWords);
+    setPendingSavedWords(
+      new Set(state.activeText.pendingSavedWordIndexes ?? []),
+    );
+    return refreshedSavedWords;
+  };
+
+  const handleDeleteWord = async () => {
+    if (!selectedWord || selectedWord.mode !== "remove" || !text) return;
+
+    const readingTextId = text.id;
+    setMutatingWordIndex(selectedWord.index);
+    setErrorText(null);
+    setWordFeedback(null);
+
+    try {
+      const result = await deletePendingVocabularyWord({
+        readingTextId,
+        wordIndex: selectedWord.index,
+      });
+
+      setSavedWords((prev) =>
+        removeWordIndexes(prev, result.removedWordIndexes),
+      );
+      setPendingSavedWords((prev) =>
+        removeWordIndexes(prev, result.removedWordIndexes),
+      );
+      setSelectedWord(null);
+    } catch (error) {
+      let refreshedSavedWords: Set<number> | null = null;
+      if (
+        error instanceof EdgeFunctionError &&
+        (error.code === "VOCABULARY_CARD_ALREADY_PREPARED" ||
+          error.code === "VOCABULARY_SOURCE_NOT_FOUND")
+      ) {
+        try {
+          refreshedSavedWords = await refreshSavedWordState(readingTextId);
+        } catch {
+          // Keep the visible state stable if the conflict refresh also fails.
+        }
+      }
+
+      if (
+        shouldCloseStaleRemoveAction({
+          errorCode:
+            error instanceof EdgeFunctionError ? error.code : undefined,
+          selectedIndex: selectedWord.index,
+          refreshedSavedWordIndexes: refreshedSavedWords,
+        })
+      ) {
+        setSelectedWord(null);
+        setWordFeedback(null);
+        return;
+      }
+
+      setWordFeedback({
+        tone: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Не удалось удалить слово. Попробуй еще раз.",
+      });
+    } finally {
+      setMutatingWordIndex(null);
     }
   };
 
@@ -212,6 +316,7 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
       }
       setText(null);
       setSavedWords(new Set());
+      setPendingSavedWords(new Set());
       setSelectedWord(null);
       setWordFeedback(null);
       setHasCompletedReadingToday(true);
@@ -301,10 +406,11 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
           text={text}
           selectedWord={selectedWord}
           savedWords={savedWords}
-          savingWordIndex={savingWordIndex}
+          mutatingWordIndex={mutatingWordIndex}
           wordFeedback={wordFeedback}
           onWordClick={handleWordClick}
           onAddWord={handleAddWord}
+          onDeleteWord={handleDeleteWord}
           onCancelWord={() => {
             setSelectedWord(null);
             setWordFeedback(null);

@@ -38,6 +38,7 @@
 - `TELEGRAM_DEV_MODE="true"`
 - `DEV_TELEGRAM_BOT_USERNAME` с username отдельного dev-бота
 - `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_BOT_WEBHOOK_SECRET` — отдельное случайное значение длиной 32–256 символов из `A-Z`, `a-z`, `0-9`, `_`, `-`
 - `OPENROUTER_API_KEY`
 - `VITE_FEEDBACK_TELEGRAM_USERNAME`, если нужна ссылка обратной связи в настройках
 - `DEV_TOOLS_ENABLED`, если нужны dev tools действия для admin-пользователя
@@ -61,13 +62,9 @@
 - `SUPABASE API TUNNEL URL`
 - `STARTUP SUMMARY`
 
-3. Обновить URL у `@BotFather`:
+3. Проверить в `STARTUP SUMMARY`, что dev-бот, menu button, Mini App URL и webhook URL настроены автоматически. В summary не должно быть token или webhook secret.
 
-- команда в Telegram: `/setmenubutton`
-- выбрать dev-бота из `DEV_TELEGRAM_BOT_USERNAME`
-- вставить URL из `FRONTEND TUNNEL URL`
-
-4. Открыть бота в Telegram на телефоне и нажать кнопку меню.
+4. Открыть бота в Telegram, отправить `/start` и нажать inline button либо нижнюю menu button `Открыть приложение`.
 
 5. Смотреть логи в этом же терминале:
 
@@ -91,13 +88,14 @@
 7. Запускает frontend через Vite preview (`pnpm preview:telegram`) в mode `telegram-dev` на `localhost:3000` и обслуживает `dist-telegram`.
 8. Запускает `pnpm watch:telegram` с тем же изолированным env; watcher автоматически пересобирает `dist-telegram` при изменении frontend-кода.
 9. Поднимает HTTPS Quick Tunnel для frontend (`localhost:3000`) и ждёт появления URL в выводе `cloudflared`.
-10. Печатает `STARTUP SUMMARY` с именем dev-бота и двумя созданными URL.
-11. Подключает live-логи DB/API только с момента запуска stream (`docker logs --tail 0 --follow`), чтобы старая история контейнеров не скрывала summary.
+10. Проверяет username dev-бота через `getMe`, применяет display name `DEV: English Daily Loop`, остальной profile, `/start`/`/help`, default menu button и webhook на текущие tunnel URL; pending dev updates при новой регистрации очищаются.
+11. Печатает `STARTUP SUMMARY` только после успешной настройки бота.
+12. Подключает live-логи DB/API только с момента запуска stream (`docker logs --tail 0 --follow`), чтобы старая история контейнеров не скрывала summary.
 
 Обычный `pnpm build` использует только `dist`, поэтому production-проверка не
 перезаписывает bundle уже запущенного Telegram dev-preview. После изменения
 frontend-кода дождись успешного сообщения `[frontend-watch]` и обнови либо
-повторно открой Mini App. Tunnel, BotFather URL и весь `dev:telegram`
+повторно открой Mini App. Tunnel, Telegram bot configuration и весь `dev:telegram`
 перезапускать не нужно.
 
 Watcher пересобирает production-like bundle, но не использует HMR: состояние
@@ -106,6 +104,26 @@ Watcher пересобирает production-like bundle, но не исполь�
 Telegram-env передает именно оркестратор. Полный перезапуск требуется после
 изменения `.env.telegram.local`, `vite.config.ts`, package dependencies или
 обязательного процесса инфраструктуры.
+
+### Локальные migrations и перезапуск
+
+Новые migrations без пересоздания локальной БД применяются владельцем проекта:
+
+```powershell
+pnpm exec supabase migration up
+```
+
+Команда применяет только еще не примененные migrations и не удаляет локальные
+данные. После изменения только SQL migration работающий `dev:telegram`
+перезапускать не нужно: обновленный DB/RPC contract становится доступен текущему
+локальному стеку.
+
+Если scope добавляет новую Edge Function, ее обязательно нужно одновременно
+добавить в `edgeFunctionNames` файла `scripts/dev/config.mjs`. Уже запущенный
+function runner получил список функций в аргументах процесса и новую функцию не
+подхватит, поэтому после такого изменения требуется один полный перезапуск
+`npm run dev:telegram`. Изменения кода уже включенной Edge Function function
+runner подхватывает без полного перезапуска.
 
 Frontend preview, frontend watcher, Edge Functions и оба tunnel являются обязательными процессами. Если один из них неожиданно завершается, команда останавливает весь локальный стек с ошибкой. Потоки DB/API-логов вспомогательные: их завершение только фиксируется в терминале.
 
@@ -117,6 +135,7 @@ Frontend preview, frontend watcher, Edge Functions и оба tunnel являют
 - `save-user-settings`
 - `activate-subscription`
 - `complete-reading-text`
+- `delete-pending-vocabulary-word`
 - `dev-tools`
 - `get-reading-state`
 - `get-reading-history`
@@ -129,6 +148,7 @@ Frontend preview, frontend watcher, Edge Functions и оба tunnel являют
 - `save-reading-position`
 - `save-vocabulary-word`
 - `submit-support-report`
+- `telegram-bot-webhook`
 
 Локальные tunnel targets:
 
@@ -139,7 +159,7 @@ Frontend preview, frontend watcher, Edge Functions и оба tunnel являют
 
 Перед созданием туннелей скрипт проверяет локальные origins. Каждый Quick Tunnel URL создается один раз и остается активным до остановки команды. Скрипт не использует Node DNS readiness-check: на Windows системный `getaddrinfo` может сохранять отрицательный DNS-результат после того, как публичная запись уже появилась. Если Telegram открыл новый URL раньше публикации DNS, нужно повторно открыть Mini App через несколько секунд, не перезапуская команду.
 
-После ответа BotFather `Success! Menu settings updated` Telegram Desktop может некоторое время показывать предыдущий текст menu button из клиентского кеша. Это не означает, что настройка не сохранилась. Нужно оставить текущий dev-stack запущенным и дождаться обновления кнопки; повторный запуск создаёт новые Quick Tunnel URL и повышает риск Cloudflare `429 Too Many Requests`.
+После автоматической настройки Telegram Desktop может некоторое время показывать предыдущий текст menu button из клиентского кеша. Это не означает, что настройка не сохранилась. Нужно оставить текущий dev-stack запущенным и дождаться обновления кнопки; повторный запуск создаёт новые Quick Tunnel URL и повышает риск Cloudflare `429 Too Many Requests`.
 
 Frontend собирается после получения API tunnel URL, чтобы production-like bundle использовал актуальный публичный адрес Supabase API.
 
@@ -211,7 +231,7 @@ where telegram_user_id = YOUR_TELEGRAM_USER_ID;
 
    Причина: Quick Tunnel временный и может завершиться уже после публикации URL.
 
-   Что делать: перезапустить `npm run dev:telegram`, взять новый frontend URL и снова обновить `/setmenubutton`. Если новый URL сразу не открылся, повторить открытие через несколько секунд, сохраняя текущий dev-stack запущенным.
+   Что делать: перезапустить `npm run dev:telegram` и дождаться успешной автоматической настройки нового frontend URL и webhook. Если новый URL сразу не открылся, повторить открытие через несколько секунд, сохраняя текущий dev-stack запущенным; затем отправить новый `/start`.
 
 ## 7. Остановка
 
@@ -222,14 +242,24 @@ where telegram_user_id = YOUR_TELEGRAM_USER_ID;
    npm run dev:stop
    ```
 
+Для проверки rollback чат-ответчика отдельного dev-бота удалить webhook можно командой:
+
+```bash
+pnpm telegram:dev:webhook:delete
+```
+
+Команда проверяет dev username через `getMe`, очищает pending dev updates и не меняет menu button. Следующий `npm run dev:telegram` автоматически восстановит webhook на новые tunnel URL.
+
 ## 8. Важно по безопасности
 
 - Никогда не отправлять в чат и не коммитить:
   - `TELEGRAM_BOT_TOKEN`
+  - `TELEGRAM_BOT_WEBHOOK_SECRET`
   - `SUPABASE_SERVICE_ROLE_KEY`
   - `OPENROUTER_API_KEY`
   - любые секреты из `.env.telegram.local` и других локальных env-файлов
-- Не менять menu button production-бота `@english_daily_loop_bot` на временный tunnel URL.
+- Не менять menu button production-бота `@english_daily_loop_bot` на временный tunnel URL; dev launcher проверяет отдельный username до Bot API mutations.
 - Все проверки `initData` делать только на сервере в Edge Functions, не в клиенте.
+- Публичный `telegram-bot-webhook` не использует `initData`: Telegram аутентифицирует его отдельным secret header; функция не обращается к БД.
 - Локальная dev tools панель отображается только для `admin`, а действия с БД разрешает только server env `DEV_TOOLS_ENABLED` вместе с server-side проверкой `users.app_role = 'admin'`.
-- Отчеты об ошибках отправляются через `submit-support-report` и сохраняются в `public.support_reports`; для проверки этой функции после новой миграции нужен перезапуск `npm run dev:telegram`.
+- Отчеты об ошибках отправляются через `submit-support-report` и сохраняются в `public.support_reports`; применение только связанной SQL migration не требует перезапуска `dev:telegram`.

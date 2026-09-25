@@ -12,6 +12,7 @@ import {
   getFailureAfterSuccess,
   parseBackupFailureStatus,
   parseBackupSuccessStatus,
+  resolveBackupStatusState,
   sanitizeOperationalMessage,
   validateSnapshotDirectory,
   type BackupFailureStatus,
@@ -81,12 +82,19 @@ const main = (): void => {
     }
 
     const policy = classifyBackupAge(success.completedAt);
+    const failure = getFailureAfterSuccess(
+      success,
+      readFailureStatus(
+        path.join(statusDirectory, "last-failure.json"),
+      ),
+    );
+    const state = resolveBackupStatusState(policy.state, failure);
     const ageText =
       policy.ageHours === null
         ? "неизвестно"
         : `${policy.ageHours.toFixed(1)} ч`;
     process.stdout.write(
-      `Production backup: ${stateLabels[policy.state]}.\n`,
+      `Production backup: ${stateLabels[state]}.\n`,
     );
     process.stdout.write(
       `Последний snapshot: ${success.snapshotName}, возраст ${ageText}.\n`,
@@ -95,21 +103,15 @@ const main = (): void => {
       `Проверены ${manifest.files.length} SQL-файлов и SHA-256 checksums.\n`,
     );
 
-    const failure = getFailureAfterSuccess(
-      success,
-      readFailureStatus(
-        path.join(statusDirectory, "last-failure.json"),
-      ),
-    );
     if (failure) {
       process.stdout.write(
         `После последнего успеха была ошибка: ${failure.stage}/${failure.code} — ${failure.message}\n`,
       );
     }
 
-    if (policy.state === "degraded") {
+    if (state === "degraded") {
       process.exitCode = 2;
-    } else if (policy.state === "violated") {
+    } else if (state === "violated") {
       process.exitCode = 1;
     }
   } catch (error) {

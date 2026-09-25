@@ -198,6 +198,7 @@ Task:
 - использует `StartWhenAvailable`;
 - повторяется до трёх раз с интервалом 30 минут;
 - не создаёт параллельные backup instances;
+- при запуске в интерактивной сессии может кратко показывать окно PowerShell;
 - разрешён при питании от батареи;
 - ожидает доступную сеть.
 
@@ -243,7 +244,9 @@ Status:
 - не подключается к БД;
 - показывает последний completed snapshot;
 - возвращает `0` в штатном режиме;
-- возвращает `2` при возрасте больше 24, но не больше 72 часов;
+- возвращает `2` в деградированном режиме: возраст snapshot больше 24, но не
+  больше 72 часов, либо после последнего успешного snapshot была неуспешная
+  попытка; деградация снимается следующим успешным backup;
 - возвращает `1` при возрасте больше 72 часов, отсутствии или повреждении
   snapshot.
 
@@ -265,7 +268,11 @@ Windows Task Scheduler
 Если компьютер выключен, Task Scheduler запускает пропущенную задачу при
 следующей доступной пользовательской сессии. Если Docker или интернет
 недоступны, completed snapshot не публикуется, старые snapshots не удаляются,
-а безопасная ошибка записывается в `last-failure.json`.
+а безопасная ошибка записывается в `last-failure.json`. Запись создаётся для
+сбоев preflight worker до DB dump и для сбоев PowerShell-wrapper, когда доступны
+config, Node и `tsx`.
+Если dependencies проекта недоступны и wrapper не может вызвать
+`record-failure`, попытка видна только по `LastTaskResult` задачи.
 
 Владелец запускает `pnpm backup:status`:
 
@@ -294,6 +301,7 @@ snapshot и recovery drill.
 | Один dump завершился ошибкой | Остаётся `.partial`, retention не запускается | Проверить безопасное terminal message и повторить |
 | Checksum/manifest невалиден | Completed snapshot не публикуется | Сохранить `.partial` для диагностики |
 | Другой backup выполняется | Второй process останавливается | Дождаться текущего task |
+| Неуспешная попытка после последнего успеха | `backup:status` показывает деградированный режим до следующего успешного backup | Проверить `last-failure.json`, устранить причину и повторить backup |
 | Backup старше 72 часов | Policy violation | Запустить manual backup и проверить status |
 
 `last-failure.json` не содержит command arguments, connection string, database
@@ -459,6 +467,10 @@ Validation выполняет только `SELECT` и проверяет:
 - полный table access `service_role`;
 - required server-only functions, уже существующие на migration version
   snapshot;
+- `delete_pending_vocabulary_word_with_sources` требуется начиная с migration
+  `20260813120000`; более ранние snapshots валидируются без этой RPC;
+- `persist_generated_vocabulary_card` требуется начиная с migration
+  `20260813150000`; более ранние snapshots валидируются без этой RPC;
 - отсутствие client execute на обычных functions в `public`; PostgreSQL
   event-trigger functions не считаются клиентскими RPC;
 - отсутствие execute у `anon` и `authenticated`;
@@ -475,25 +487,35 @@ Safe JSON result сохраняется в `drills`. Он содержит count
 
 После DB validation:
 
-1. подтвердить production Git commit по Vercel deployment и GitHub Release;
-2. deploy все Edge Functions, существующие в этом commit, в recovery project с
-   явным recovery project ref;
+1. Зафиксировать Git SHA текущего production frontend по Vercel deployment и
+   сверить с последним проверенным GitHub Release. Для регулярного drill
+   проверяемый runtime использует этот production commit. Для pre-release drill
+   после изменения recovery contract заранее фиксируется отдельный release
+   candidate commit с согласованными миграциями, Edge Functions и frontend.
+   SHA локального backup tooling из manifest не подменяет ни один из них.
+2. Deploy все Edge Functions проверяемого commit в recovery project с явным
+   recovery project ref;
 3. задать token отдельного development bot, feature gates и доступный владельцу
    OpenRouter key;
 4. не задавать production bot token; общий OpenRouter key допускается только
    как принятое для текущего solo-MVP исключение с общими quota и расходами;
-5. подключить Vercel preview или локальную recovery-сборку;
+5. подключить Vercel preview или локальную recovery-сборку из того же
+   проверяемого commit;
 6. открыть приложение через development bot;
 7. проверить auth, reading, history, vocabulary, review и support report;
 8. подтвердить, что новые тестовые записи появились только в recovery DB;
-9. зафиксировать start/end time, фактические RPO/RTO, snapshot id и Git SHA;
+9. зафиксировать start/end time, фактические RPO/RTO, snapshot id, SHA
+   текущего production deployment и SHA проверенного runtime;
 10. удалить recovery project после сохранения evidence.
 
 Production Vercel env и production BotFather URL во время drill не меняются.
 
 ### Последний подтверждённый drill
 
-Текущий recovery contract подтверждён полным isolated drill от `2026-07-30`:
+Последний подтверждённый полный isolated drill выполнен `2026-07-30` для
+snapshot с migration version `20260707120000`. Для release candidate с
+server-only RPC из migrations `20260813120000` и `20260813150000` требуется
+новый snapshot и drill перед публикацией нового runtime:
 
 - snapshot: `2026-07-30T124541Z_d4771c56`;
 - production Git commit: `3e414616906b1d7cf03a59927d785a159dc9eb2a`;
@@ -575,6 +597,9 @@ pnpm release:check
 - migration history parser;
 - manifest и SHA-256;
 - atomic publish и partial failure;
+- запись ранней preflight-ошибки в `last-failure.json`;
+- record-failure CLI для ошибок PowerShell-wrapper;
+- деградацию status после неуспешной попытки;
 - retention;
 - age thresholds;
 - secret redaction;

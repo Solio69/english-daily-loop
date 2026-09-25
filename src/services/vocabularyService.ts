@@ -2,6 +2,7 @@ import { invokeFunction } from "./functionClient";
 import {
   ApproveVocabularyCardResult,
   ApproveVocabularyCardsResult,
+  DeletePendingVocabularyWordResult,
   PrepareVocabularyCardsResult,
   ReviewVocabularyWordResult,
   SaveVocabularyWordResult,
@@ -24,6 +25,19 @@ export const saveVocabularyWord = async ({
     "save-vocabulary-word",
     { readingTextId, word, wordIndex },
     "Не удалось сохранить слово. Попробуй еще раз.",
+  );
+
+export const deletePendingVocabularyWord = async ({
+  readingTextId,
+  wordIndex,
+}: {
+  readingTextId: string;
+  wordIndex: number;
+}): Promise<DeletePendingVocabularyWordResult> =>
+  invokeFunction<DeletePendingVocabularyWordResult>(
+    "delete-pending-vocabulary-word",
+    { readingTextId, wordIndex },
+    "Не удалось удалить слово. Попробуй еще раз.",
   );
 
 export const getVocabularyState = async (): Promise<VocabularyState> =>

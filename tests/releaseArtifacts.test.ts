@@ -9,25 +9,25 @@ import {
 import { currentRelease } from "../src/constants/currentRelease";
 
 const validArtifacts = {
-  packageVersion: "0.1.1",
+  packageVersion: "1.0.0",
   currentRelease,
   changelog: [
     "# Changelog",
     "",
     "## [Unreleased]",
     "",
-    "## [0.1.1] - 2026-07-24",
+    "## [1.0.0] - 2026-09-25",
   ].join("\n"),
 };
 
-test("current release contains the approved single user-facing entry", () => {
-  assert.equal(currentRelease.version, "0.1.1");
-  assert.equal(currentRelease.releasedAt, "2026-07-24");
+test("current release contains the approved user-facing entries", () => {
+  assert.equal(currentRelease.version, "1.0.0");
+  assert.equal(currentRelease.releasedAt, "2026-09-25");
   assert.deepEqual(currentRelease.items, [
-    "Приложение запоминает место чтения и возвращает к нему после повторного открытия.",
-    "Незавершённый текст сохраняется, а новый учебный день начинается в 5 утра.",
-    "Главная точнее показывает прогресс урока и количество прочитанных текстов.",
-    "Повторение слов корректнее отображает завершённый план и новые карточки.",
+    "Бот помогает начать занятия и подсказывает, как открыть приложение.",
+    "Главная приветствует с учётом текущей сессии.",
+    "Серия чтения сохраняется, пока не пропущен учебный день.",
+    "Ожидающее слово можно удалить прямо из текста до подготовки карточки.",
   ]);
   assert.equal(Object.isFrozen(currentRelease), true);
   assert.equal(Object.isFrozen(currentRelease.items), true);
@@ -56,7 +56,7 @@ test("release check reports a current release version mismatch", () => {
   assert.match(
     validateReleaseArtifacts({
       ...validArtifacts,
-      currentRelease: { ...currentRelease, version: "0.1.2" },
+      currentRelease: { ...currentRelease, version: "1.0.1" },
     }).join("\n"),
     /currentRelease\.ts.*не совпадает/,
   );
@@ -113,9 +113,9 @@ test("release check reports missing changelog release heading", () => {
   assert.match(
     validateReleaseArtifacts({
       ...validArtifacts,
-      changelog: "## [Unreleased]\n\n## [0.1.1] - 2026-07-23",
+      changelog: "## [Unreleased]\n\n## [1.0.0] - 2026-09-24",
     }).join("\n"),
-    /CHANGELOG\.md.*0\.1\.1.*2026-07-24/,
+    /CHANGELOG\.md.*1\.0\.0.*2026-09-25/,
   );
 });
 
@@ -123,7 +123,7 @@ test("release check reports a missing Unreleased section", () => {
   assert.match(
     validateReleaseArtifacts({
       ...validArtifacts,
-      changelog: "## [0.1.1] - 2026-07-24",
+      changelog: "## [1.0.0] - 2026-09-25",
     }).join("\n"),
     /CHANGELOG\.md.*Unreleased/,
   );

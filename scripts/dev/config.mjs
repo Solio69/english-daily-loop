@@ -28,6 +28,7 @@ export const edgeFunctionNames = [
   "save-user-settings",
   "activate-subscription",
   "complete-reading-text",
+  "delete-pending-vocabulary-word",
   "dev-tools",
   "get-reading-state",
   "get-reading-history",
@@ -40,4 +41,5 @@ export const edgeFunctionNames = [
   "save-reading-position",
   "save-vocabulary-word",
   "submit-support-report",
+  "telegram-bot-webhook",
 ];

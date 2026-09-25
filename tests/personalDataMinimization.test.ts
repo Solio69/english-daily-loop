@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { sanitizeClientLogDetails } from "../src/services/clientLogger.ts";
 import { getSafeErrorDetails } from "../supabase/functions/_shared/server.ts";
 import {
   getSupportReportByteLength,
@@ -39,6 +40,7 @@ const edgeLogSources = [
   "supabase/functions/auth-telegram/index.ts",
   "supabase/functions/complete-reading-text/index.ts",
   "supabase/functions/dev-tools/index.ts",
+  "supabase/functions/delete-pending-vocabulary-word/index.ts",
   "supabase/functions/generate-reading-text/index.ts",
   "supabase/functions/get-reading-history/index.ts",
   "supabase/functions/get-reading-state/index.ts",
@@ -147,6 +149,59 @@ test("support diagnostics remove direct Telegram ids before persistence", () => 
   assert.equal(sanitized.appContext.appUserId, "app-user-uuid");
   assert.equal(sanitized.appContext.telegramColorScheme, "dark");
   assert.equal(sanitized.appContext.unexpectedTopLevel, undefined);
+  assert.deepEqual(sanitized.requestIds, ["req_safe-request"]);
+});
+
+test("client diagnostics keep prompt version and redact prompt content", () => {
+  const sanitized = sanitizeClientLogDetails({
+    requestId: "req_safe-request",
+    diagnostics: {
+      promptVersion: "vocabulary-card-v1",
+      prompt: "synthetic full prompt",
+      rawPrompt: "synthetic raw prompt",
+      promptText: "synthetic prompt text",
+      promptVersions: "must not use the safe-key exception",
+      token: "synthetic-token",
+    },
+  });
+  const diagnostics = sanitized?.diagnostics as Record<string, unknown>;
+
+  assert.equal(diagnostics.promptVersion, "vocabulary-card-v1");
+  assert.equal(diagnostics.prompt, "[redacted]");
+  assert.equal(diagnostics.rawPrompt, "[redacted]");
+  assert.equal(diagnostics.promptText, "[redacted]");
+  assert.equal(diagnostics.promptVersions, "[redacted]");
+  assert.equal(diagnostics.token, "[redacted]");
+  assert.equal(sanitized?.requestId, "req_safe-request");
+});
+
+test("server diagnostics keep prompt version and redact prompt content", () => {
+  const sanitized = sanitizeSupportDiagnostics(
+    {
+      appContext: {},
+      events: [],
+      requestIds: ["req_safe-request"],
+      aiDiagnostics: [
+        {
+          promptVersion: "vocabulary-card-v1",
+          prompt: "synthetic full prompt",
+          rawPrompt: "synthetic raw prompt",
+          promptText: "synthetic prompt text",
+          promptVersions: "must not use the safe-key exception",
+          secret: "synthetic-secret",
+        },
+      ],
+    },
+    987654321,
+  );
+  const diagnostics = sanitized.aiDiagnostics[0] as Record<string, unknown>;
+
+  assert.equal(diagnostics.promptVersion, "vocabulary-card-v1");
+  assert.equal(diagnostics.prompt, "[redacted]");
+  assert.equal(diagnostics.rawPrompt, "[redacted]");
+  assert.equal(diagnostics.promptText, "[redacted]");
+  assert.equal(diagnostics.promptVersions, "[redacted]");
+  assert.equal(diagnostics.secret, "[redacted]");
   assert.deepEqual(sanitized.requestIds, ["req_safe-request"]);
 });
 

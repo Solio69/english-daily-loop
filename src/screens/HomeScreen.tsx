@@ -28,6 +28,7 @@ import {
   getReviewProgressPresentation,
   type HomeProgressStepState,
 } from "../utils/homeProgressPresentation";
+import { getHomeGreeting } from "../utils/homeGreeting";
 import { getRussianPlural } from "../utils/russianPlural";
 
 type HomeScreenProps = {
@@ -46,6 +47,7 @@ type HomeScreenProps = {
   reviewReviewedTodayCount?: number;
   completedReadingTextCount?: number | null;
   isFirstSetup?: boolean;
+  didSessionStartWithoutSettings?: boolean;
   subscription?: SubscriptionSummary;
   readingMinutes?: number | null;
 };
@@ -182,6 +184,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   reviewReviewedTodayCount = 0,
   completedReadingTextCount = null,
   isFirstSetup = false,
+  didSessionStartWithoutSettings = false,
   subscription,
   readingMinutes,
 }) => {
@@ -211,6 +214,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const isPaid = subscription?.tier === "paid";
   const SubscriptionIcon = isPaid ? Crown : WalletCards;
   const displayName = userName ?? "Пользователь";
+  const greeting = getHomeGreeting(didSessionStartWithoutSettings);
   const isLongDisplayName = displayName.length > 12;
   const lessonButtonLabel =
     lessonStatus === "in_progress" ? "Продолжить" : "Начать";
@@ -275,7 +279,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         <div className="space-y-1">
           <div className="flex items-center justify-between gap-2">
             <p className="min-w-0 text-[16px] font-medium leading-tight text-[var(--primary)] min-[390px]:text-[17px] min-[480px]:text-[16px]">
-              С возвращением,
+              {greeting}
             </p>
 
             <div className="flex shrink-0 items-center justify-end gap-1.5">

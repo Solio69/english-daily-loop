@@ -58,7 +58,7 @@
   - отдельно обрабатывать ошибки формата/длины ответа модели
 
 ## 7) Secrets and environment
-- `OPENROUTER_API_KEY`, `TELEGRAM_BOT_TOKEN`, `SUPABASE_SERVICE_ROLE_KEY` должны оставаться только на сервере.
+- `OPENROUTER_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_WEBHOOK_SECRET`, `SUPABASE_SERVICE_ROLE_KEY` должны оставаться только на сервере; production Telegram configuration helper получает bot token и webhook secret только через hidden prompts владельца и не сохраняет их.
 - Frontend может видеть только `VITE_*` переменные.
 - Production env split зафиксирован в `notes/production-env.md`: публичные frontend env живут в Vercel, server-only secrets живут в Supabase Edge Function secrets.
 - Перед production проверить, что реальные секреты не попали в git history и логи.

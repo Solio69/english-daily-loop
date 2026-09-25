@@ -4,6 +4,8 @@
 
 Этот runbook описывает ручной production-релиз схемы `Supabase Cloud + Vercel`.
 
+Состав и порядок выпуска `1.0.0` зафиксированы в `notes/releases/1.0.0.md`.
+
 Главная идея: frontend деплоится как Vite static build на Vercel, а backend/data слой живет в Supabase Cloud: Postgres, RLS/grants, RPC, Edge Functions, secrets и logs. На Supabase Free production БД защищается отдельным локальным logical backup по `notes/backup-and-restore.md`.
 
 ## Official References
@@ -25,6 +27,7 @@
 - Перед применением миграций на production сначала смотреть dry run.
 - Первый деплой выполняется вручную владельцем проекта, без автоматического CI/CD применения миграций.
 - Исполняемые команды применения production-миграций в этом runbook не приводятся: владелец выполняет их только по отдельно проверенной operational-процедуре.
+- Release PR можно открыть до production-действий, но merge в `main` выполняется только после успешных migration, postcheck, нового snapshot, recovery drill и деплоя Edge Functions. Если Vercel автоматически публикует `main`, merge запускает frontend deployment.
 - Tag и GitHub Release создаются только после успешного production smoke.
 
 ## Phase 0: Local Preflight
@@ -108,6 +111,12 @@ npx supabase secrets set OPENROUTER_API_KEY="<production-openrouter-key>"
 npx supabase secrets set TELEGRAM_BOT_TOKEN="<production-telegram-bot-token>"
 ```
 
+Создать отдельное случайное значение длиной 32–256 символов из `A-Z`, `a-z`, `0-9`, `_`, `-`, сохранить его в password manager и задать как webhook secret:
+
+```bash
+npx supabase secrets set TELEGRAM_BOT_WEBHOOK_SECRET="<production-telegram-webhook-secret>"
+```
+
 ```bash
 npx supabase secrets set DEV_TOOLS_ENABLED="true"
 ```
@@ -143,6 +152,7 @@ npx supabase functions deploy complete-reading-text
 npx supabase functions deploy get-reading-history
 npx supabase functions deploy save-reading-position
 npx supabase functions deploy save-vocabulary-word
+npx supabase functions deploy delete-pending-vocabulary-word
 npx supabase functions deploy get-vocabulary-state
 npx supabase functions deploy get-vocabulary-words
 npx supabase functions deploy prepare-vocabulary-cards
@@ -153,6 +163,7 @@ npx supabase functions deploy submit-support-report
 npx supabase functions deploy activate-subscription
 npx supabase functions deploy approve-vocabulary-card
 npx supabase functions deploy approve-vocabulary-cards
+npx supabase functions deploy telegram-bot-webhook
 ```
 
 После деплоя проверить в Supabase Dashboard, что функции появились и не падают на старте из-за отсутствующих env.
@@ -193,20 +204,29 @@ VITE_FEEDBACK_TELEGRAM_USERNAME="<telegram-username-without-at>"
 - в настройках отображается номер из `package.json`;
 - support report содержит `environment = production` и ожидаемый Vercel Git SHA в `buildId`.
 
-## Phase 8: Telegram BotFather
+## Phase 8: Telegram Bot и webhook
 
-В BotFather:
+1. В BotFather включить Main Mini App production-бота с Vercel production URL. Preview screenshots/video в текущий scope не входят.
+2. Убедиться, что `telegram-bot-webhook` уже задеплоена, а `TELEGRAM_BOT_WEBHOOK_SECRET` задан в Supabase Cloud.
+3. Из корня release checkout запустить helper. Параметры содержат только публичные URL; production token и тот же webhook secret helper запросит скрыто:
 
-1. Выполнить `/setmenubutton`.
-2. Выбрать production bot.
-3. Указать Vercel production URL.
-4. Открыть bot menu в Telegram.
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/telegram/configure-production-bot.ps1 -Mode Configure -MiniAppUrl "https://english-daily-loop.vercel.app" -WebhookUrl "https://<project-ref>.supabase.co/functions/v1/telegram-bot-webhook" -DropPendingUpdates
+```
+
+`-DropPendingUpdates` использовать при первой регистрации, чтобы старые unanswered updates не получили запоздалые ответы. При последующих обновлениях этот switch по умолчанию не указывать.
+
+Helper перед mutations проверяет точный username `@english_daily_loop_bot`, применяет display name/descriptions, private commands, default menu button `Открыть приложение`, webhook с `allowed_updates = ["message"]` и выводит безопасный `getWebhookInfo` без credentials.
 
 Telegram Mini App получает настоящий `initData` только внутри Telegram WebView, поэтому финальная проверка auth выполняется именно там.
 
 ## Phase 9: Production Smoke
 
-Минимальный smoke после переключения BotFather URL:
+Минимальный smoke после настройки production-бота:
+
+- profile показывает `English Daily Loop` и согласованные descriptions;
+- `/start`, `/help` и обычный текст получают согласованные ответы с inline button `Открыть приложение`;
+- inline button, default menu button и Main Mini App открывают один production frontend URL;
 
 - новый пользователь открывает приложение и проходит Telegram auth;
 - настройки сохраняются;
@@ -221,6 +241,14 @@ Telegram Mini App получает настоящий `initData` только в
 - support report содержит ожидаемые `appVersion`, `buildId`, `environment`;
 - admin видит dev tools, tester/user не видит dev tools;
 - subscription entry скрыт.
+
+При необходимости rollback сначала удалить webhook, не передавая token в аргументах:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/telegram/configure-production-bot.ps1 -Mode DeleteWebhook -DropPendingUpdates
+```
+
+После `deleteWebhook` default menu button и Main Mini App продолжают открывать production frontend.
 
 Подробный чеклист для ручной проверки хранится в `notes/production-smoke-checklist.md`.
 

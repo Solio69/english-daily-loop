@@ -68,6 +68,7 @@ Supabase Edge Function secrets содержат server-only значения:
 
 - `OPENROUTER_API_KEY`;
 - `TELEGRAM_BOT_TOKEN`;
+- `TELEGRAM_BOT_WEBHOOK_SECRET`;
 - `DEV_TOOLS_ENABLED`;
 - `SUBSCRIPTION_FLOW_ENABLED`;
 - необязательные переменные цепочки моделей OpenRouter.

@@ -380,6 +380,7 @@ Deno.serve(async (req: Request) => {
 
     let preparedCount = 0;
     let failedCount = 0;
+    let cancelledCount = 0;
     let mergedCount = 0;
     let reactivatedCount = 0;
 
@@ -396,6 +397,11 @@ Deno.serve(async (req: Request) => {
         word.id,
         card,
       );
+
+      if (saveResult.cancelled) {
+        cancelledCount += 1;
+        continue;
+      }
 
       if (!saveResult.prepared) {
         failedCount += 1;
@@ -437,6 +443,7 @@ Deno.serve(async (req: Request) => {
       generatedValidCount: cardsById.size,
       preparedCount,
       failedCount,
+      cancelledCount,
       mergedCount,
       reactivatedCount,
       remainingPendingCount,

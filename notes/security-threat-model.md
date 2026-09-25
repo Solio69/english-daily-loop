@@ -13,6 +13,7 @@ Backend-граница сейчас проходит через Supabase Edge Fu
 Критичные секреты не должны попадать во frontend, git, публичные логи или ответы API:
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_BOT_WEBHOOK_SECRET`
 - `OPENROUTER_API_KEY`
 - реальные production-секреты и токены
 
@@ -78,6 +79,7 @@ Edge Functions:
 - `activate-subscription`
 - `dev-tools`
 - `submit-support-report`
+- `telegram-bot-webhook` — публичный Telegram callback без Supabase JWT, защищенный отдельным secret header и не имеющий доступа к БД
 
 Другие входы:
 - frontend Supabase client
@@ -86,7 +88,7 @@ Edge Functions:
 
 ## 5) Базовые правила защиты
 - Telegram `initData` проверяется только на сервере.
-- Все чувствительные Edge Functions должны валидировать `initData`.
+- Все пользовательские Edge Functions должны валидировать `initData`. Исключение — server-to-server `telegram-bot-webhook`: он проверяет `X-Telegram-Bot-Api-Secret-Token`, не определяет прикладного пользователя и не обращается к БД.
 - Текущий пользователь определяется из валидного `initData`, а не из body.
 - Все входные параметры из клиента проходят allowlist/range validation.
 - Frontend не пишет напрямую в защищенные пользовательские, reading и subscription таблицы.
@@ -116,6 +118,7 @@ Edge Functions:
 - Ошибка OpenRouter не должна записывать в БД raw provider response, полный prompt или stack trace.
 - Отчет об ошибке не должен принимать чужой `user_id`, обходить rate limit или сохранять secrets/raw AI data.
 - Секреты не должны попадать в frontend bundle, git, ответы API или логи.
+- Прямой вызов `telegram-bot-webhook` без корректного secret header не должен вызывать Telegram Bot API; raw update, message, chat/user id и credentials не логируются.
 
 ## 7) Чеклист дальнейшего аудита
 1. Секреты и frontend env.
