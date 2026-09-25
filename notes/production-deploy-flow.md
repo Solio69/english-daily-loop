@@ -27,6 +27,7 @@
 - Перед применением миграций на production сначала смотреть dry run.
 - Первый деплой выполняется вручную владельцем проекта, без автоматического CI/CD применения миграций.
 - Исполняемые команды применения production-миграций в этом runbook не приводятся: владелец выполняет их только по отдельно проверенной operational-процедуре.
+- Release PR можно открыть до production-действий, но merge в `main` выполняется только после успешных migration, postcheck, нового snapshot, recovery drill и деплоя Edge Functions. Если Vercel автоматически публикует `main`, merge запускает frontend deployment.
 - Tag и GitHub Release создаются только после успешного production smoke.
 
 ## Phase 0: Local Preflight
