@@ -1,0 +1,4 @@
+interface:
+  display_name: "Разбор багов English Daily Loop"
+  short_description: "Разбирает баги и готовит согласуемые пачки"
+  default_prompt: "Разбери баг English Daily Loop, проверь дубликаты и факты, создай одну карточку в проекте и подготовь согласуемую единицу работы для SDD."

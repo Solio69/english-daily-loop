@@ -58,7 +58,7 @@ Telegram Mini App для ежедневной практики английск�
 - `supabase/migrations` — схема базы данных.
 - `supabase/functions` — серверная логика в Deno runtime.
 - `notes` — проектные решения и текущие ограничения.
-- `docs/agents` — рабочая документация для владельца проекта и AI-агентов, включая единый workflow, дизайн-систему и локальный Telegram-запуск.
+- `docs/` — документация продукта и архив прежнего процесса; `.agents/` — действующие инструкции и скиллы агентов; `.specify/` и `specs/` — комплект SDD и документы фич.
 - `scripts/dev-stack.mjs` и `scripts/dev/*` — локальная инфраструктура разработки.
 - `tools` — локальные утилиты вроде `cloudflared.exe`; папка не коммитится.
 
@@ -358,7 +358,7 @@ pnpm build
 - Новую работу с данными лучше выносить в `src/services`, а не напрямую в UI-компоненты.
 - App-level orchestration держать в hooks: профиль пользователя и refresh — в `useAppUserProfile`, toast — в `useToast`, пользовательские действия и локальные обновления `homeProgress` — в `useAppUserActions`.
 - Общие типы держать в `src/types`.
-- Дизайн-токены и общие glass utilities держать в `src/index.css`; актуальные UI-правила главной фиксировать в `docs/agents/DESIGN_SYSTEM.md`.
+- Дизайн-токены и общие glass utilities держать в `src/index.css`; актуальные UI-правила главной фиксировать в `docs/DESIGN_SYSTEM.md`.
 - Для внутренних экранов с back navigation использовать `ScreenHeader`; для встроенных статусов использовать `InlineStatusCard`; для загрузок использовать `LoadingState`.
 - UI экрана чтения держать как контейнер `src/screens/ReadingScreen.tsx`, презентационные компоненты `src/components/reading/*` и helper парсинга текста `src/utils/readingText.ts`.
 - Серверные проверки Telegram `initData`, ролей, лимитов и подписок должны оставаться в Edge Functions.
@@ -378,14 +378,14 @@ pnpm build
 Дополнительный контекст лежит в:
 
 - `AGENTS.md` — правила работы в репозитории и текущий статус.
-- `GIT_POLICY.md` — строгая политика Git для AI-агентов.
-- `docs/agents/WORKFLOW.md` — единый жизненный цикл задач, точки согласования и распределение ответственности.
-- `docs/agents/LOCAL_TELEGRAM_RUN.md` — подробный локальный запуск внутри Telegram.
-- `docs/agents/DESIGN_SYSTEM.md` — актуальная дизайн-система приложения.
-- `docs/agents/references/manual-testing-guide.md` — единый формат подробных сценариев ручного тестирования для фич и баг-пачек.
-- `docs/agents/skills/english-daily-loop-support-triage` — project-local skill source для разбора support reports и AI diagnostics.
-- `docs/agents/skills/triage-english-daily-loop-bugs` — project-local skill source для pre-code разбора сырых багов и формирования согласуемых баг-пачек.
-- `docs/agents/skills/english-daily-loop-feature-spec` — project-local skill source для grooming новых фич, подготовки согласуемой спецификации и подробного checklist ручного тестирования.
+- `GIT_POLICY.md` — текущие полномочия Git для AI-агентов.
+- `D:\anastasiaStorage\Проекты\English daily loop\_work\SDD workflow English Daily Loop.md` — согласованный жизненный цикл задач и точки участия пользователя.
+- `docs/LOCAL_TELEGRAM_RUN.md` — подробный локальный запуск внутри Telegram.
+- `docs/DESIGN_SYSTEM.md` — актуальная дизайн-система приложения.
+- `.agents/references/manual-testing-guide.md` — единый формат подробных сценариев ручного тестирования для фич и баг-пачек.
+- `.agents/skills/english-daily-loop-support-triage` — project-local skill source для разбора support reports и AI diagnostics.
+- `.agents/skills/triage-english-daily-loop-bugs` — project-local skill source для pre-code разбора сырых багов и формирования согласуемых баг-пачек.
+- `.agents/skills/english-daily-loop-feature-spec` — проектный скилл груминга: исследование, варианты реализации и компактный обзор фичи для согласования перед полным Spec Kit.
 - `CHANGELOG.md` — курируемая техническая история релизов.
 - `notes/server-side-data-guards.md` — серверные границы доступа, RLS и транзакционные RPC.
 - `notes/security-threat-model.md` — модель угроз MVP и чеклист security-аудита.

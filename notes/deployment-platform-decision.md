@@ -158,4 +158,4 @@ Dev tools по-прежнему требуют прохождения двух �
 - `notes/backup-and-restore.md`;
 - `notes/server-side-data-guards.md`;
 - `notes/security-threat-model.md`;
-- `docs/agents/LOCAL_TELEGRAM_RUN.md`.
+- `docs/LOCAL_TELEGRAM_RUN.md`.

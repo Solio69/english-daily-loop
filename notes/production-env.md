@@ -106,4 +106,4 @@ or reduce production dev tools to a safer subset.
 - `.env.telegram.example`
 - `notes/security-threat-model.md`
 - `notes/server-side-data-guards.md`
-- `docs/agents/LOCAL_TELEGRAM_RUN.md`
+- `docs/LOCAL_TELEGRAM_RUN.md`

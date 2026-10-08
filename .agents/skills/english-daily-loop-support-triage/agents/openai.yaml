@@ -1,0 +1,4 @@
+interface:
+  display_name: "EDL Support Triage"
+  short_description: "Analyze support reports and AI diagnostics"
+  default_prompt: "Безопасно исследуй один support report English Daily Loop и передай подтверждённый баг либо фичу в соответствующий SDD-процесс."
