@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { currentRelease } from "../src/constants/currentRelease";
 import {
   getBuildOutputDirectory,
   getReleaseBuildMetadata,
@@ -50,13 +49,16 @@ test("Telegram frontend watcher rebuilds the isolated bundle with dev-stack env"
 });
 
 test("production and Telegram builds receive the same package version", () => {
+  const packageJson = JSON.parse(
+    readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+  ) as { version: string };
   const productionMetadata = getReleaseBuildMetadata("production", {
     VERCEL_ENV: "production",
     VERCEL_GIT_COMMIT_SHA: "production-commit",
   });
   const telegramMetadata = getReleaseBuildMetadata("telegram-dev", {});
 
-  assert.equal(productionMetadata.appVersion, currentRelease.version);
+  assert.equal(productionMetadata.appVersion, packageJson.version);
   assert.equal(telegramMetadata.appVersion, productionMetadata.appVersion);
   assert.equal(productionMetadata.buildId, "production-commit");
   assert.equal(telegramMetadata.buildId, "local");

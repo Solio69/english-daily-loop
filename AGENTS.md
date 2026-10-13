@@ -20,7 +20,7 @@
 
 ## Документация для владельца и агентов
 
-- Канонический workflow и подготовка фичи для пользователя: `D:\anastasiaStorage\Проекты\English daily loop\_work\SDD workflow English Daily Loop.md` и `Подготовка и согласование фичи English Daily Loop.md`. Компактные обзоры фич ведутся там же, полный пакет Spec Kit в `specs/NNN-slug/`.
+- Канонический workflow: `D:\anastasiaStorage\Проекты\English daily loop\_work\release-1.1-refactor\SDD workflow English Daily Loop.md`; правила груминга всех задач: `D:\anastasiaStorage\Проекты\English daily loop\_agents\rules\Груминг задач English Daily Loop.md`. Рабочие обзоры рефакторинга пока находятся в `_work` Obsidian, документы изменений релиза — в `_work/release-1.1-refactor/`, полный пакет Spec Kit — в `specs/NNN-slug/`.
 - Постоянные принципы: `.specify/memory/constitution.md`; полномочия Git: `GIT_POLICY.md`; восемь операций Spec Kit и три проектных скилла: `.agents/skills/`.
 - Актуальная дизайн-система: `docs/DESIGN_SYSTEM.md`; локальный Telegram-запуск: `docs/LOCAL_TELEGRAM_RUN.md`; руководство ручного тестирования: `.agents/references/manual-testing-guide.md`; правила написания кода: `.agents/rules/CODING_RULES.md`.
 - Шаблон локального Telegram env: `.env.telegram.example`; production env: `.env.production.example` и `notes/production-env.md`; backup/recovery: `notes/backup-and-restore.md`.

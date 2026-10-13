@@ -379,7 +379,7 @@ pnpm build
 
 - `AGENTS.md` — правила работы в репозитории и текущий статус.
 - `GIT_POLICY.md` — текущие полномочия Git для AI-агентов.
-- `D:\anastasiaStorage\Проекты\English daily loop\_work\SDD workflow English Daily Loop.md` — согласованный жизненный цикл задач и точки участия пользователя.
+- `D:\anastasiaStorage\Проекты\English daily loop\_work\release-1.1-refactor\SDD workflow English Daily Loop.md` — согласованный жизненный цикл разработки и точки участия пользователя.
 - `docs/LOCAL_TELEGRAM_RUN.md` — подробный локальный запуск внутри Telegram.
 - `docs/DESIGN_SYSTEM.md` — актуальная дизайн-система приложения.
 - `.agents/references/manual-testing-guide.md` — единый формат подробных сценариев ручного тестирования для фич и баг-пачек.

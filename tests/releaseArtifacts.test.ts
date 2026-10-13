@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -33,13 +34,42 @@ test("current release contains the approved user-facing entries", () => {
   assert.equal(Object.isFrozen(currentRelease.items), true);
 });
 
-test("release check accepts the repository artifacts", () => {
+test("published release matches its changelog entry", () => {
   const projectRoot = path.resolve(
     path.dirname(fileURLToPath(import.meta.url)),
     "..",
   );
 
-  assert.deepEqual(checkReleaseArtifacts(projectRoot), []);
+  const changelog = readFileSync(path.join(projectRoot, "CHANGELOG.md"), "utf8");
+  assert.deepEqual(
+    validateReleaseArtifacts({
+      packageVersion: currentRelease.version,
+      currentRelease,
+      changelog,
+    }),
+    [],
+  );
+});
+
+test("release check requires the candidate version to be published", () => {
+  const projectRoot = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "..",
+  );
+  const packageJson = JSON.parse(
+    readFileSync(path.join(projectRoot, "package.json"), "utf8"),
+  ) as { version: string };
+  const errors = checkReleaseArtifacts(projectRoot);
+
+  if (packageJson.version === currentRelease.version) {
+    assert.deepEqual(errors, []);
+    return;
+  }
+
+  assert.deepEqual(errors, [
+    `src/constants/currentRelease.ts: version "${currentRelease.version}" не совпадает с package.json version "${packageJson.version}".`,
+    `CHANGELOG.md: не найден heading "## [${packageJson.version}] - ${currentRelease.releasedAt}".`,
+  ]);
 });
 
 test("release check reports an invalid package version", () => {

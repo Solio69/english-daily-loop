@@ -144,7 +144,7 @@ cleanup_support_reports
 
 Перед созданием карточки или обзора сначала проверяется отсутствие дубликата. Дальнейшее
 согласование и допуск к реализации выполняются только по соответствующему каноническому
-workflow и `D:\anastasiaStorage\Проекты\English daily loop\_work\SDD workflow English Daily Loop.md`.
+workflow и `D:\anastasiaStorage\Проекты\English daily loop\_work\release-1.1-refactor\SDD workflow English Daily Loop.md`.
 
 ## Data minimization during triage
 

@@ -5,7 +5,7 @@ description: Исследовать и согласовать фичу English D
 
 # Подготовка и согласование фичи
 
-Этот скилл сохраняет полезный подход прежнего feature-spec. Канонический порядок пользователя: `D:\anastasiaStorage\Проекты\English daily loop\_work\Подготовка и согласование фичи English Daily Loop.md`. Общий жизненный цикл: `D:\anastasiaStorage\Проекты\English daily loop\_work\SDD workflow English Daily Loop.md`. Прочитай оба документа перед грумингом. Технические спецификации после согласования находятся в `specs/NNN-slug/`; их пишут `speckit-*` скиллы.
+Этот скилл сохраняет полезный подход прежнего feature-spec. Общие правила груминга всех задач: `D:\anastasiaStorage\Проекты\English daily loop\_agents\rules\Груминг задач English Daily Loop.md`. Жизненный цикл разработки: `D:\anastasiaStorage\Проекты\English daily loop\_work\release-1.1-refactor\SDD workflow English Daily Loop.md`. Прочитай оба документа перед грумингом фичи. Технические спецификации после согласования находятся в `specs/NNN-slug/`; их пишут `speckit-*` скиллы.
 
 ## Порядок
 
