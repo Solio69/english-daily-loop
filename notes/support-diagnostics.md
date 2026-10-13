@@ -96,7 +96,7 @@ cleanup_support_reports
 ## Processing workflow
 
 На текущем объеме отчеты обрабатываются вручную через последовательные read-only запросы из
-`docs/agents/skills/english-daily-loop-support-triage/references/sql.md`. Admin UI, отдельный
+`.agents/skills/english-daily-loop-support-triage/references/sql.md`. Admin UI, отдельный
 реестр обработанных отчетов и lifecycle-поля в БД не используются.
 
 При работе с production агент сначала явно сообщает: `Мы работаем с production БД`. Если у
@@ -120,7 +120,7 @@ cleanup_support_reports
    - AI metadata — с `public.reading_generation_attempts` или
      `public.vocabulary_card_generation_attempts` в ограниченном временном окне рядом с отчетом.
 6. Отделить подтвержденные факты от гипотез и присвоить отчету ровно одну классификацию.
-7. Сразу перенести actionable evidence в каноническую карточку или feature draft, потому что
+7. Сразу перенести actionable evidence в карточку проекта или обзор фичи, потому что
    исходный отчет автоматически удалится через `30` дней.
 
 Во время triage строки `public.support_reports` не изменяются и не удаляются. Агент не применяет
@@ -129,22 +129,22 @@ cleanup_support_reports
 ## Классификация и маршрутизация
 
 - `тест / шум` — действий не требуется; дополнительные поля отчета не запрашиваются.
-- `дубликат` — используется существующая bug-карточка или feature draft; новый элемент не
+- `дубликат` — используется существующая карточка бага или обзор фичи; новый элемент не
   создается, в существующий переносится только новая безопасная evidence.
 - `внешний инцидент` — фиксируются причина и восстановление; код не меняется без отдельного
   подтвержденного дефекта приложения.
-- `наблюдаем` — данных недостаточно для подтверждения; кейс передается в bug dashboard со
+- `наблюдаем` — данных недостаточно для подтверждения; кейс передается в карточку проекта со
   статусом `наблюдаем`.
 - `bug` — создается или обновляется карточка через канонический skill
-  `docs/agents/skills/triage-english-daily-loop-bugs/SKILL.md`. Сам support triage не дает
+  `.agents/skills/triage-english-daily-loop-bugs/SKILL.md`. Сам support triage не дает
   допуска к изменению кода.
-- `improvement / feature` — создается или обновляется feature draft через канонический skill
-  `docs/agents/skills/english-daily-loop-feature-spec/SKILL.md`. Изменение продуктового правила
+- `improvement / feature` — создается или обновляется обзор фичи через канонический skill
+  `.agents/skills/english-daily-loop-feature-spec/SKILL.md`. Изменение продуктового правила
   не маскируется под баг.
 
-Перед созданием карточки или draft сначала проверяется отсутствие дубликата. Дальнейшее
+Перед созданием карточки или обзора сначала проверяется отсутствие дубликата. Дальнейшее
 согласование и допуск к реализации выполняются только по соответствующему каноническому
-workflow и `docs/agents/WORKFLOW.md`.
+workflow и `D:\anastasiaStorage\Проекты\English daily loop\_work\SDD workflow English Daily Loop.md`.
 
 ## Data minimization during triage
 
@@ -155,7 +155,7 @@ workflow и `docs/agents/WORKFLOW.md`.
   provider response, generated content, stack trace, полный `app_context` или полные `events`.
 - Пользовательский комментарий считать потенциально чувствительным. Перед передачей в чат или
   долговременную документацию удалять контакты, credentials и другие личные данные.
-- В bug-карточку, feature draft или operational note переносить только report id, дату,
+- В карточку бага, обзор фичи или эксплуатационную заметку переносить только report id, дату,
   безопасный краткий пересказ, релевантные request id и минимальные доказательства диагноза.
   Не копировать исходный комментарий и весь snapshot целиком.
 - Использовать только синтетические значения в примерах документации.
