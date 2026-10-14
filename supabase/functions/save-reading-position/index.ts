@@ -1,4 +1,3 @@
-// @ts-nocheck
 import {
   AppError,
   DEFAULT_INTERNAL_ERROR_MESSAGE,
@@ -9,7 +8,7 @@ import {
   getRequiredEnv,
   getTelegramUserFromBody,
   handleCorsPreflight,
-  parseJsonBody,
+  parseJsonObjectBody,
   successResponse,
 } from "../_shared/server.ts";
 import {
@@ -49,19 +48,20 @@ const parseParagraphIndex = (
     return null;
   }
 
+  const paragraphIndex = body.paragraphIndex;
   if (
-    typeof body.paragraphIndex !== "number" ||
-    !Number.isInteger(body.paragraphIndex) ||
-    body.paragraphIndex < 0
+    typeof paragraphIndex !== "number" ||
+    !Number.isInteger(paragraphIndex) ||
+    paragraphIndex < 0
   ) {
-    fail(
+    return fail(
       400,
       "INVALID_PARAGRAPH_INDEX",
       "paragraphIndex must be null or a non-negative integer.",
     );
   }
 
-  return body.paragraphIndex;
+  return paragraphIndex;
 };
 
 Deno.serve(async (req: Request) => {
@@ -81,7 +81,7 @@ Deno.serve(async (req: Request) => {
       "SUPABASE_SERVICE_ROLE_KEY",
       "TELEGRAM_BOT_TOKEN",
     ]);
-    const body = await parseJsonBody<Record<string, unknown>>(req);
+    const body = await parseJsonObjectBody(req);
     const tgUser = await getTelegramUserFromBody(
       body,
       env.TELEGRAM_BOT_TOKEN,

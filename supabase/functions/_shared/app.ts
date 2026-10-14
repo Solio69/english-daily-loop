@@ -73,7 +73,7 @@ export const getUserEnglishLevel = async (
     (settingsRow as { english_level?: unknown }).english_level,
   );
   if (!englishLevel) {
-    fail(
+    return fail(
       500,
       "INVALID_ENGLISH_LEVEL",
       "User english level has an unsupported value.",

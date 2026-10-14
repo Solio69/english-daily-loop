@@ -163,6 +163,17 @@ export const parseJsonBody = async <TBody>(req: Request): Promise<TBody> => {
   }
 };
 
+export const parseJsonObjectBody = async (
+  req: Request,
+): Promise<Record<string, unknown>> => {
+  const body: unknown = await parseJsonBody(req);
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    fail(400, "INVALID_BODY", "Request body must be a JSON object.");
+  }
+
+  return body as Record<string, unknown>;
+};
+
 export const getRequiredEnv = <TKey extends string>(
   keys: TKey[],
 ): Record<TKey, string> => {
@@ -354,5 +365,5 @@ export const getTelegramUserFromBody = async (
     fail(400, "INIT_DATA_REQUIRED", "initData is required.");
   }
 
-  return validateTelegramInitData(initData, botToken);
+  return await validateTelegramInitData(initData, botToken);
 };

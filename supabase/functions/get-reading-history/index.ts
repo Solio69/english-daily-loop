@@ -1,5 +1,3 @@
-// @ts-nocheck
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import {
   AppError,
   DEFAULT_INTERNAL_ERROR_MESSAGE,
@@ -10,10 +8,10 @@ import {
   getRequestId,
   getTelegramUserFromBody,
   handleCorsPreflight,
-  parseJsonBody,
+  parseJsonObjectBody,
   successResponse,
 } from "../_shared/server.ts";
-import { getAppUserByTelegramId } from "../_shared/app.ts";
+import { createServiceClient, getAppUserByTelegramId } from "../_shared/app.ts";
 
 type CompletedReadingTextRow = {
   id: string;
@@ -52,7 +50,7 @@ const parseCursor = (cursor: unknown): ReadingHistoryCursor | null => {
   }
 
   if (typeof cursor !== "string") {
-    fail(400, "INVALID_CURSOR", "History cursor must be a string.");
+    return fail(400, "INVALID_CURSOR", "History cursor must be a string.");
   }
 
   const [completedAt, id, ...extra] = cursor.split("|");
@@ -99,11 +97,7 @@ Deno.serve(async (req: Request) => {
       "TELEGRAM_BOT_TOKEN",
     ]);
 
-    const body = await parseJsonBody<{
-      initData?: unknown;
-      limit?: unknown;
-      cursor?: unknown;
-    }>(req);
+    const body = await parseJsonObjectBody(req);
 
     const limit = clampPageLimit(body?.limit);
     const cursor = parseCursor(body?.cursor);
@@ -112,13 +106,7 @@ Deno.serve(async (req: Request) => {
       env.TELEGRAM_BOT_TOKEN,
     );
 
-    const supabase = createClient(
-      env.SUPABASE_URL,
-      env.SUPABASE_SERVICE_ROLE_KEY,
-      {
-        auth: { persistSession: false },
-      },
-    );
+    const supabase = createServiceClient(env);
 
     const appUser = await getAppUserByTelegramId(
       supabase,
