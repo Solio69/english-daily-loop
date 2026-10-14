@@ -34,6 +34,7 @@ export {
 export const VOCABULARY_CARD_PROMPT_VERSION = "vocabulary-card-v1";
 
 const MODEL_TIMEOUT_MS = 30_000;
+const GENERATION_TIMEOUT_MS = 30_000;
 const ALLOWED_PARTS_OF_SPEECH = new Set([
   "noun",
   "verb",
@@ -368,9 +369,17 @@ export const generateVocabularyCardsBatch = async ({
   let remainingModels = [...models];
   let lastErrorMessage = "Unknown vocabulary card error.";
   let lastModel: string | null = null;
+  const startedAt = Date.now();
 
   while (remainingModels.length > 0) {
     let routed: { content: string; usedModel: string };
+    const remainingBudgetMs = GENERATION_TIMEOUT_MS - (Date.now() - startedAt);
+    if (remainingBudgetMs <= 0) {
+      throw new VocabularyAiError(
+        "AI-модели не ответили в общий лимит времени. Попробуй еще раз чуть позже.",
+        { stage: "provider_request" },
+      );
+    }
 
     try {
       routed = await requestOpenRouter({
@@ -379,7 +388,7 @@ export const generateVocabularyCardsBatch = async ({
         messages,
         maxTokens: Math.max(1400, words.length * 420),
         temperature: 0.2,
-        timeoutMs: MODEL_TIMEOUT_MS,
+        timeoutMs: Math.min(MODEL_TIMEOUT_MS, remainingBudgetMs),
       });
     } catch (error) {
       lastErrorMessage =
@@ -395,7 +404,12 @@ export const generateVocabularyCardsBatch = async ({
         error: lastErrorMessage,
       });
 
-      if (stage === "provider_response" && remainingModels.length > 1) {
+      if (
+        error instanceof OpenRouterError &&
+        error.retryableContent &&
+        remainingModels.length > 1 &&
+        Date.now() - startedAt < GENERATION_TIMEOUT_MS
+      ) {
         const failedModel = getFailedOpenRouterModel(error, remainingModels);
         remainingModels = excludeModel(remainingModels, failedModel);
         continue;

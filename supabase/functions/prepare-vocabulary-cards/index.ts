@@ -75,7 +75,6 @@ const buildVocabularyAiDiagnostics = ({
   stage:
     error instanceof VocabularyAiError ? error.stage : "output_validation",
   durationMs,
-  error,
   metadata:
     error instanceof VocabularyAiError
       ? {
@@ -90,7 +89,6 @@ const buildVocabularyAiDiagnostics = ({
   details: {
     englishLevel,
     requestedCount: words.length,
-    problemWords: words.map((word) => word.word),
     preparedCount: counts?.preparedCount ?? 0,
     failedCount: counts?.failedCount ?? words.length,
   },

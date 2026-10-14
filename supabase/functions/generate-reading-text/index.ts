@@ -184,7 +184,6 @@ const buildReadingAiDiagnostics = ({
   modelChain: attemptMetadata?.modelChain ?? null,
   stage: failureStage,
   durationMs,
-  error,
   metadata:
     error instanceof AiGenerationError
       ? {

@@ -255,7 +255,8 @@ export const generateReadingTextWithOpenRouter = async ({
       });
 
       if (
-        (stage === "provider_response" || stage === "provider_request") &&
+        error instanceof OpenRouterError &&
+        error.retryableContent &&
         remainingModels.length > 1 &&
         Date.now() - startedAt < GENERATION_TIMEOUT_MS
       ) {
