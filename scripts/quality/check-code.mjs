@@ -14,10 +14,12 @@ const sourceRoots = ['src', 'tests', 'scripts']
 const rootFiles = [
   'eslint.config.mjs',
   'package.json',
+  'tsconfig.json',
   '.prettierrc.json',
   '.stylelintrc.json',
   'vite.config.ts',
   'vitest.config.ts',
+  'playwright.config.ts',
 ]
 
 const relativePath = (filePath) =>
@@ -51,6 +53,7 @@ const checkLint = async () => {
     'scripts/**/*.{ts,mjs}',
     'vite.config.ts',
     'vitest.config.ts',
+    'playwright.config.ts',
     'eslint.config.mjs',
   ])
   const findings = results.filter((result) => {

@@ -1,7 +1,7 @@
 {
   "name": "english-daily-loop",
   "private": true,
-  "version": "1.1.1",
+  "version": "1.1.2",
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0 --strictPort",
@@ -21,6 +21,8 @@
     "test:legacy": "tsx --test tests/*.test.ts",
     "test:unit": "vitest run",
     "test": "tsx --test tests/*.test.ts && vitest run",
+    "test:e2e": "playwright test",
+    "test:edge": "node scripts/quality/run-deno.mjs",
     "release:check": "tsx scripts/release-check.ts",
     "backup:setup": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/backup/initialize-production-backup.ps1",
     "backup:schedule": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/backup/register-production-backup-task.ps1",
@@ -37,6 +39,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.0",
     "@tailwindcss/vite": "^4.1.14",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/jest-dom": "^7.0.1",
