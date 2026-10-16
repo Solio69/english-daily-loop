@@ -49,7 +49,7 @@
 
 ## 6) OpenRouter/free model reliability
 - Free-модели могут быть временно недоступны или менять доступные endpoints.
-- В MVP дефолтная цепочка free-моделей для чтения: `qwen/qwen3-next-80b-a3b-instruct:free` -> `nvidia/nemotron-nano-9b-v2:free` -> `google/gemma-4-31b-it:free` -> `google/gemma-4-26b-a4b-it:free` -> `openai/gpt-oss-20b:free`.
+- В MVP дефолтная цепочка free-моделей для чтения: `nvidia/nemotron-3-super-120b-a12b:free` -> `dots-studio/dots-3-note-preview:free` -> `nvidia/nemotron-3.5-super-vl:free` (не более трёх моделей в запросе).
 - Для infra/provider ошибок используется OpenRouter `models` parameter, а app-level валидация JSON/длины остается в Edge Function.
 - Перед production стоит:
   - проверить платный/стабильный fallback

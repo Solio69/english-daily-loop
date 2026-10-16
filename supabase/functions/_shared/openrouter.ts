@@ -99,24 +99,34 @@ export const getFailedOpenRouterModel = (
 };
 
 export const OPENROUTER_PROVIDER = "openrouter";
-export const DEFAULT_PRIMARY_MODEL = "openai/gpt-oss-20b:free";
-export const DEFAULT_FALLBACK_MODEL =
-  "qwen/qwen3-next-80b-a3b-instruct:free";
-export const DEFAULT_TERTIARY_MODEL = "google/gemma-4-26b-a4b-it:free";
+export const DEFAULT_PRIMARY_MODEL = "nvidia/nemotron-3-super-120b-a12b:free";
+export const DEFAULT_FALLBACK_MODEL = "dots-studio/dots-3-note-preview:free";
+export const DEFAULT_TERTIARY_MODEL = "nvidia/nemotron-3.5-super-vl:free";
 export const DEFAULT_READING_MODEL_CHAIN = [
-  DEFAULT_FALLBACK_MODEL,
-  "nvidia/nemotron-nano-9b-v2:free",
-  "google/gemma-4-31b-it:free",
-  DEFAULT_TERTIARY_MODEL,
   DEFAULT_PRIMARY_MODEL,
+  DEFAULT_FALLBACK_MODEL,
+  DEFAULT_TERTIARY_MODEL,
 ];
 
+export const OPENROUTER_MODEL_ENV = {
+  chain: "OPENROUTER_MODEL_CHAIN",
+  primary: "OPENROUTER_MODEL_PRIMARY",
+  fallback: "OPENROUTER_MODEL_FALLBACK",
+  tertiary: "OPENROUTER_MODEL_TERTIARY",
+} as const;
+export const OPENROUTER_MODEL_SEPARATOR = ",";
+
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const MAX_OPENROUTER_MODELS = 3;
+const OPTIONAL_FREE_MODELS = [
+  "google/gemma-4-31b-it:free",
+  "google/gemma-4-26b-a4b-it:free",
+] as const;
 const ALLOWED_OPENROUTER_MODELS = new Set([
   DEFAULT_PRIMARY_MODEL,
   DEFAULT_FALLBACK_MODEL,
   DEFAULT_TERTIARY_MODEL,
-  ...DEFAULT_READING_MODEL_CHAIN,
+  ...OPTIONAL_FREE_MODELS,
 ]);
 
 export const getOpenRouterModelChain = (...values: string[]): string[] => {
@@ -136,7 +146,26 @@ export const getOpenRouterModelChain = (...values: string[]): string[] => {
     throw new Error("OpenRouter model chain is empty.");
   }
 
+  if (models.length > MAX_OPENROUTER_MODELS) {
+    throw new Error(`OpenRouter model chain exceeds ${MAX_OPENROUTER_MODELS} models.`);
+  }
+
   return models;
+};
+
+export const getConfiguredOpenRouterModelChain = (
+  readOptionalEnv: (name: string) => string | null,
+): string[] => {
+  const configuredChain = readOptionalEnv(OPENROUTER_MODEL_ENV.chain);
+  if (configuredChain) {
+    return getOpenRouterModelChain(...configuredChain.split(OPENROUTER_MODEL_SEPARATOR));
+  }
+
+  return getOpenRouterModelChain(
+    readOptionalEnv(OPENROUTER_MODEL_ENV.primary) || DEFAULT_PRIMARY_MODEL,
+    readOptionalEnv(OPENROUTER_MODEL_ENV.fallback) || DEFAULT_FALLBACK_MODEL,
+    readOptionalEnv(OPENROUTER_MODEL_ENV.tertiary) || DEFAULT_TERTIARY_MODEL,
+  );
 };
 
 export const excludeModel = (
@@ -192,7 +221,7 @@ export const requestOpenRouter = async ({
           models,
           temperature,
           max_tokens: maxTokens,
-          reasoning: { effort: "low", exclude: true },
+          reasoning: { enabled: false },
           response_format: { type: "json_object" },
           messages,
         }),

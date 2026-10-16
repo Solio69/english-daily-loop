@@ -48,7 +48,7 @@ AI-пайплайн разделен на слои:
 
 ## 4) Prompt и model governance
 Текущий prompt version:
-- `reading-text-v1`
+- `reading-text-v2`
 
 Prompt считается частью кода:
 - хранится в репозитории
@@ -57,9 +57,10 @@ Prompt считается частью кода:
 
 OpenRouter-модели проходят allowlist в `supabase/functions/_shared/openrouter.ts`.
 Текущие разрешенные модели:
-- `openai/gpt-oss-20b:free`
-- `qwen/qwen3-next-80b-a3b-instruct:free`
-- `google/gemma-4-26b-a4b-it:free`
+- `nvidia/nemotron-3-super-120b-a12b:free`
+- `dots-studio/dots-3-note-preview:free`
+- `nvidia/nemotron-3.5-super-vl:free`
+- `google/gemma-4-31b-it:free` и `google/gemma-4-26b-a4b-it:free` (разрешены как запасные конфигурации)
 
 Если server env указывает модель вне allowlist, Edge Function возвращает `AI_MODEL_CONFIG_INVALID`
 до списания пользовательской попытки.

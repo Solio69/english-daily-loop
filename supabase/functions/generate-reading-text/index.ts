@@ -20,13 +20,12 @@ import {
   buildSafeAiDiagnostics,
   sanitizeDiagnosticMessage,
 } from "../_shared/ai-diagnostics.ts";
+import { getConfiguredOpenRouterModelChain } from "../_shared/openrouter.ts";
 import {
   AiGenerationError,
-  DEFAULT_READING_MODEL_CHAIN,
   OPENROUTER_PROVIDER,
   READING_TEXT_PROMPT_VERSION,
   generateReadingTextWithOpenRouter,
-  getOpenRouterModelChain,
   type AiFailureStage,
   type EnglishLevel,
   type ReadingGenerationConfig,
@@ -307,20 +306,9 @@ Deno.serve(async (req: Request) => {
       "TELEGRAM_BOT_TOKEN",
       "OPENROUTER_API_KEY",
     ]);
-    const modelChainEnv = getOptionalEnv("OPENROUTER_MODEL_CHAIN");
-    const primaryModel = getOptionalEnv("OPENROUTER_MODEL_PRIMARY");
-    const fallbackModel = getOptionalEnv("OPENROUTER_MODEL_FALLBACK");
-    const tertiaryModel = getOptionalEnv("OPENROUTER_MODEL_TERTIARY");
     let models: string[];
     try {
-      models = modelChainEnv
-        ? getOpenRouterModelChain(...modelChainEnv.split(","))
-        : getOpenRouterModelChain(
-            ...DEFAULT_READING_MODEL_CHAIN,
-            primaryModel || "",
-            fallbackModel || "",
-            tertiaryModel || "",
-          );
+      models = getConfiguredOpenRouterModelChain(getOptionalEnv);
     } catch (error) {
       console.error("[generate-reading-text] invalid model configuration", {
         requestId,
