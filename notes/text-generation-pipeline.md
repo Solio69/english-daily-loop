@@ -67,25 +67,22 @@ Supabase Edge Function, базой и внешней AI-моделью.
 ## 4) OpenRouter
 Server env:
 - `OPENROUTER_API_KEY` — обязательный; локально хранится в gitignored `.env.telegram.local`, в production — в Supabase Cloud Edge Function secrets
-- `OPENROUTER_MODEL_CHAIN` — опциональный comma-separated список моделей для генерации текста
+- `OPENROUTER_MODEL_CHAIN` — опциональная общая comma-separated цепочка моделей для генерации текста и словарных карточек
 - `OPENROUTER_MODEL_PRIMARY` / `OPENROUTER_MODEL_FALLBACK` /
-  `OPENROUTER_MODEL_TERTIARY` — опциональные добавления к дефолтной цепочке,
-  используются после текущих дефолтных моделей, если `OPENROUTER_MODEL_CHAIN`
-  не задан
+  `OPENROUTER_MODEL_TERTIARY` — опциональные замены соответствующих позиций
+  дефолтной цепочки обеих функций, если `OPENROUTER_MODEL_CHAIN` не задан
 
 Текущие дефолты:
-- `qwen/qwen3-next-80b-a3b-instruct:free`
-- `nvidia/nemotron-nano-9b-v2:free`
-- `google/gemma-4-31b-it:free`
-- `google/gemma-4-26b-a4b-it:free`
-- `openai/gpt-oss-20b:free`
+- `nvidia/nemotron-3-super-120b-a12b:free`
+- `dots-studio/dots-3-note-preview:free`
+- `nvidia/nemotron-3.5-super-vl:free`
 
 Текущая стратегия:
-- prompt version: `reading-text-v1`
+- prompt version: `reading-text-v2`
 - OpenRouter model chain проходит allowlist в `supabase/functions/_shared/openrouter.ts`
 - на запрос отправляется массив моделей через OpenRouter `models` parameter
 - запрос использует `response_format: { type: "json_object" }`
-- запрос ограничивает reasoning через `reasoning: { effort: "low", exclude: true }`, чтобы reasoning-модели оставляли token budget для финального JSON
+- запрос отключает reasoning через `reasoning: { enabled: false }`, чтобы лимит токенов использовался для финального JSON
 - OpenRouter делает router-level failover для provider/infra ошибок
 - пустой content и другие app-detected `provider_response` ошибки исключают фактически ответившую модель и запускают запрос по оставшейся цепочке
 - если успешный ответ пришел, но не прошел app-level валидацию JSON, длины или content safety, Edge Function исключает использованную модель и повторяет запрос по оставшемуся списку

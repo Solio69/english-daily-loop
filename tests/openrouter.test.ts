@@ -5,29 +5,54 @@ import {
   DEFAULT_PRIMARY_MODEL,
   DEFAULT_READING_MODEL_CHAIN,
   DEFAULT_TERTIARY_MODEL,
+  OPENROUTER_MODEL_ENV,
+  OPENROUTER_MODEL_SEPARATOR,
   OpenRouterError,
+  getConfiguredOpenRouterModelChain,
   getOpenRouterModelChain,
   requestOpenRouter,
 } from "../supabase/functions/_shared/openrouter.ts";
 import { generateReadingTextWithOpenRouter } from "../supabase/functions/generate-reading-text/ai-pipeline.ts";
 
-test("default OpenRouter base model chain contains three current unique models", () => {
+const ALTERNATE_FREE_MODEL = "google/gemma-4-26b-a4b-it:free";
+const FREE_MODEL_SUFFIX = ":free";
+const EXPECTED_MODEL_LIMIT = 3;
+const OBSOLETE_MODEL_OVERRIDE = "openai/gpt-oss-20b:free";
+
+test("both AI features use the full model chain before positional overrides", () => {
+  const configuredChain = DEFAULT_READING_MODEL_CHAIN.join(OPENROUTER_MODEL_SEPARATOR);
+  const env = new Map<string, string>([
+    [OPENROUTER_MODEL_ENV.chain, configuredChain],
+    [OPENROUTER_MODEL_ENV.primary, OBSOLETE_MODEL_OVERRIDE],
+  ]);
+
   assert.deepEqual(
-    getOpenRouterModelChain(
-      DEFAULT_PRIMARY_MODEL,
-      DEFAULT_FALLBACK_MODEL,
-      DEFAULT_TERTIARY_MODEL,
-    ),
-    [
-      "openai/gpt-oss-20b:free",
-      "qwen/qwen3-next-80b-a3b-instruct:free",
-      "google/gemma-4-26b-a4b-it:free",
-    ],
+    getConfiguredOpenRouterModelChain((name) => env.get(name) ?? null),
+    DEFAULT_READING_MODEL_CHAIN,
   );
+  assert.deepEqual(
+    getConfiguredOpenRouterModelChain(() => null),
+    DEFAULT_READING_MODEL_CHAIN,
+  );
+});
+
+test("default OpenRouter base model chain contains three current unique models", () => {
+  const models = getOpenRouterModelChain(
+    DEFAULT_PRIMARY_MODEL,
+    DEFAULT_FALLBACK_MODEL,
+    DEFAULT_TERTIARY_MODEL,
+  );
+  assert.equal(models.length, EXPECTED_MODEL_LIMIT);
+  assert.ok(models.every((model) => model.endsWith(FREE_MODEL_SUFFIX)));
+  assert.equal(new Set(models).size, models.length);
 
   assert.throws(
     () => getOpenRouterModelChain("qwen/qwen3.6-plus:free"),
     /Unsupported OpenRouter model/,
+  );
+  assert.throws(
+    () => getOpenRouterModelChain(...models, ALTERNATE_FREE_MODEL),
+    new RegExp(`exceeds ${EXPECTED_MODEL_LIMIT} models`),
   );
 });
 
@@ -35,11 +60,9 @@ test("default reading generation model chain contains current unique models", ()
   assert.deepEqual(
     getOpenRouterModelChain(...DEFAULT_READING_MODEL_CHAIN),
     [
-      "qwen/qwen3-next-80b-a3b-instruct:free",
-      "nvidia/nemotron-nano-9b-v2:free",
-      "google/gemma-4-31b-it:free",
-      "google/gemma-4-26b-a4b-it:free",
-      "openai/gpt-oss-20b:free",
+      DEFAULT_PRIMARY_MODEL,
+      DEFAULT_FALLBACK_MODEL,
+      DEFAULT_TERTIARY_MODEL,
     ],
   );
 });
@@ -49,7 +72,7 @@ test("reading generation retries with fallback after empty provider content", as
   const originalConsoleError = console.error;
   const requestBodies: Array<{
     models: string[];
-    reasoning?: { effort?: string; exclude?: boolean };
+    reasoning?: { enabled?: boolean };
     response_format?: { type?: string };
   }> = [];
 
@@ -128,12 +151,10 @@ test("reading generation retries with fallback after empty provider content", as
       DEFAULT_TERTIARY_MODEL,
     ]);
     assert.deepEqual(requestBodies[0].reasoning, {
-      effort: "low",
-      exclude: true,
+      enabled: false,
     });
     assert.deepEqual(requestBodies[1].reasoning, {
-      effort: "low",
-      exclude: true,
+      enabled: false,
     });
     assert.equal(requestBodies[0].response_format?.type, "json_object");
     assert.equal(requestBodies[1].response_format?.type, "json_object");
@@ -146,7 +167,7 @@ test("reading generation retries with fallback after empty provider content", as
 test("OpenRouter provider errors keep safe diagnostics", async () => {
   const originalFetch = globalThis.fetch;
   const requestBodies: Array<{
-    reasoning?: { effort?: string; exclude?: boolean };
+    reasoning?: { enabled?: boolean };
     response_format?: { type?: string };
   }> = [];
 
@@ -186,8 +207,7 @@ test("OpenRouter provider errors keep safe diagnostics", async () => {
     );
 
     assert.deepEqual(requestBodies[0].reasoning, {
-      effort: "low",
-      exclude: true,
+      enabled: false,
     });
     assert.equal(requestBodies[0].response_format?.type, "json_object");
   } finally {

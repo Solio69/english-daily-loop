@@ -14,6 +14,7 @@ import {
   successResponse,
 } from "../_shared/server.ts";
 import { buildSafeAiDiagnostics } from "../_shared/ai-diagnostics.ts";
+import { getConfiguredOpenRouterModelChain } from "../_shared/openrouter.ts";
 import {
   createServiceClient,
   getAppUserByTelegramId,
@@ -22,13 +23,9 @@ import {
 } from "../_shared/app.ts";
 import { getMoscowStudyDate } from "../_shared/moscow-study-date.ts";
 import {
-  DEFAULT_FALLBACK_MODEL,
-  DEFAULT_PRIMARY_MODEL,
-  DEFAULT_TERTIARY_MODEL,
   VOCABULARY_CARD_PROMPT_VERSION,
   VocabularyAiError,
   generateVocabularyCardsBatch,
-  getOpenRouterModelChain,
   type VocabularyCardBatchItem,
 } from "./ai-pipeline.ts";
 import { saveGeneratedCard } from "./card-persistence.ts";
@@ -182,20 +179,9 @@ Deno.serve(async (req: Request) => {
       "TELEGRAM_BOT_TOKEN",
       "OPENROUTER_API_KEY",
     ]);
-    const primaryModel =
-      getOptionalEnv("OPENROUTER_MODEL_PRIMARY") || DEFAULT_PRIMARY_MODEL;
-    const fallbackModel =
-      getOptionalEnv("OPENROUTER_MODEL_FALLBACK") || DEFAULT_FALLBACK_MODEL;
-    const tertiaryModel =
-      getOptionalEnv("OPENROUTER_MODEL_TERTIARY") || DEFAULT_TERTIARY_MODEL;
-
     let models: string[];
     try {
-      models = getOpenRouterModelChain(
-        primaryModel,
-        fallbackModel,
-        tertiaryModel,
-      );
+      models = getConfiguredOpenRouterModelChain(getOptionalEnv);
     } catch (error) {
       console.error("[prepare-vocabulary-cards] invalid model configuration", {
         error: error instanceof Error ? error.message : "Unknown model error.",
