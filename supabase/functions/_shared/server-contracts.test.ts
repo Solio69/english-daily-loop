@@ -1,81 +1,93 @@
+/// <reference path="../deno-globals.d.ts" />
+
 import {
-  AppError,
   errorResponse,
   getTelegramUserFromBody,
   parseJsonObjectBody,
 } from './server.ts'
+import {
+  assertEquals,
+  assertRejectsAppError,
+  TEST_HTTP,
+} from './test-support.ts'
+
+import { SERVER_CASES } from './test-mocks.ts'
 
 const request = (body: string) =>
-  new Request('http://localhost/', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
+  new Request(TEST_HTTP.url, {
+    method: TEST_HTTP.method.post,
+    headers: { [TEST_HTTP.header.contentType]: TEST_HTTP.contentType.json },
     body,
   })
 
-const assertError = async (
-  action: () => Promise<unknown>,
-  status: number,
-  code: string,
-) => {
-  let caught: unknown
-  try {
-    await action()
-  } catch (error) {
-    caught = error
-  }
-  if (
-    !(caught instanceof AppError) ||
-    caught.status !== status ||
-    caught.code !== code
-  ) {
-    throw new Error(`Expected ${status} ${code}, received ${String(caught)}`)
-  }
-}
-
 Deno.test('JSON object boundary keeps fields as untrusted values', async () => {
-  const body = await parseJsonObjectBody(request('{"initData":7,"limit":"3"}'))
-  if (body.initData !== 7 || body.limit !== '3') {
-    throw new Error('Parsed object fields changed unexpectedly')
-  }
+  const body = await parseJsonObjectBody(request(SERVER_CASES.objectBody.raw))
+  assertEquals({ actual: body, expected: SERVER_CASES.objectBody.expected })
 })
 
-Deno.test('JSON object boundary rejects invalid roots and malformed JSON', async () => {
-  for (const raw of ['null', '[]', '3', '"value"', 'true']) {
-    await assertError(() => parseJsonObjectBody(request(raw)), 400, 'INVALID_BODY')
-  }
-  await assertError(() => parseJsonObjectBody(request('{')), 400, 'INVALID_JSON')
-})
+Deno.test(
+  'JSON object boundary rejects invalid roots and malformed JSON',
+  async () => {
+    for (const raw of SERVER_CASES.invalidRoots) {
+      await assertRejectsAppError({
+        action: () => parseJsonObjectBody(request(raw)),
+        expectedStatus: TEST_HTTP.status.badRequest,
+        expectedCode: TEST_HTTP.errorCode.invalidBody,
+      })
+    }
+    await assertRejectsAppError({
+      action: () => parseJsonObjectBody(request(SERVER_CASES.invalidJson)),
+      expectedStatus: TEST_HTTP.status.badRequest,
+      expectedCode: TEST_HTTP.errorCode.invalidJson,
+    })
+  },
+)
 
-Deno.test('missing Telegram initData is rejected before signature or DB work', async () => {
-  await assertError(
-    () => getTelegramUserFromBody({}, 'fake-test-token'),
-    400,
-    'INIT_DATA_REQUIRED',
-  )
-})
+Deno.test(
+  'missing Telegram initData is rejected before signature or DB work',
+  async () => {
+    await assertRejectsAppError({
+      action: () => getTelegramUserFromBody({}, SERVER_CASES.telegram.token),
+      expectedStatus: TEST_HTTP.status.badRequest,
+      expectedCode: TEST_HTTP.errorCode.initDataRequired,
+    })
+  },
+)
 
 Deno.test('invalid Telegram signature is rejected by the server', async () => {
   const initData = new URLSearchParams({
-    user: JSON.stringify({ id: 123456 }),
-    auth_date: String(Math.floor(Date.now() / 1000)),
-    hash: '0'.repeat(64),
+    user: JSON.stringify({ id: SERVER_CASES.telegram.userId }),
+    auth_date: String(
+      Math.floor(Date.now() / SERVER_CASES.telegram.millisecondsPerSecond),
+    ),
+    hash: SERVER_CASES.telegram.invalidHash,
   }).toString()
-  await assertError(
-    () => getTelegramUserFromBody({ initData }, 'fake-test-token'),
-    401,
-    'AUTH_VALIDATION_FAILED',
-  )
+  await assertRejectsAppError({
+    action: () =>
+      getTelegramUserFromBody({ initData }, SERVER_CASES.telegram.token),
+    expectedStatus: TEST_HTTP.status.unauthorized,
+    expectedCode: TEST_HTTP.errorCode.authValidationFailed,
+  })
 })
 
 Deno.test('error envelope does not add internal details', async () => {
-  const response = errorResponse(400, 'INVALID_BODY', 'Request body must be a JSON object.')
+  const response = errorResponse(
+    TEST_HTTP.status.badRequest,
+    TEST_HTTP.errorCode.invalidBody,
+    TEST_HTTP.errorMessage.invalidBody,
+  )
   const payload = await response.json()
-  if (
-    response.status !== 400 ||
-    payload.ok !== false ||
-    payload.error.code !== 'INVALID_BODY' ||
-    'diagnostics' in payload.error
-  ) {
-    throw new Error('Public error response contract changed')
-  }
+  assertEquals({
+    actual: response.status,
+    expected: TEST_HTTP.status.badRequest,
+  })
+  assertEquals({ actual: payload.ok, expected: false })
+  assertEquals({
+    actual: payload.error.code,
+    expected: TEST_HTTP.errorCode.invalidBody,
+  })
+  assertEquals({
+    actual: SERVER_CASES.hiddenErrorField in payload.error,
+    expected: false,
+  })
 })

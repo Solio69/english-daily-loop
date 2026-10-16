@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
+import { createServiceClient, type ServiceClient } from "../_shared/app.ts";
 import { getMoscowStudyDate } from "../_shared/moscow-study-date.ts";
 import { getReadingCompletionStreak } from "../_shared/reading-streak.ts";
 import { getCompletedReadingTextCount } from "../_shared/reading-history.ts";
@@ -42,7 +41,7 @@ const mapSettings = (row: UserSettingsRow | null) =>
     : null;
 
 const getUserSettings = async (
-  supabase: ReturnType<typeof createClient>,
+  supabase: ServiceClient,
   userId: string,
 ) => {
   const { data, error } = await supabase
@@ -93,13 +92,7 @@ Deno.serve(async (req: Request) => {
     );
     console.log("[auth-telegram] initData validated");
 
-    const supabase = createClient(
-      env.SUPABASE_URL,
-      env.SUPABASE_SERVICE_ROLE_KEY,
-      {
-        auth: { persistSession: false },
-      },
-    );
+    const supabase = createServiceClient(env);
 
     const { data: existingUser, error: findError } = await supabase
       .from("users")

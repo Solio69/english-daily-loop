@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
+import { createServiceClient, getAppUserByTelegramId } from "../_shared/app.ts";
 import {
   AppError,
   DEFAULT_INTERNAL_ERROR_MESSAGE,
@@ -15,7 +14,6 @@ import {
 } from "../_shared/server.ts";
 import { getMoscowStudyDate } from "../_shared/moscow-study-date.ts";
 import { getDailyReadingGenerationLimit } from "../_shared/access.ts";
-import { getAppUserByTelegramId } from "../_shared/app.ts";
 
 type ActiveReadingTextRow = {
   user_id: string;
@@ -63,13 +61,7 @@ Deno.serve(async (req: Request) => {
       env.TELEGRAM_BOT_TOKEN,
     );
 
-    const supabase = createClient(
-      env.SUPABASE_URL,
-      env.SUPABASE_SERVICE_ROLE_KEY,
-      {
-        auth: { persistSession: false },
-      },
-    );
+    const supabase = createServiceClient(env);
 
     const appUser = await getAppUserByTelegramId(
       supabase,

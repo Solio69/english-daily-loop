@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
+import { createServiceClient, getAppUserByTelegramId, type ServiceClient } from "../_shared/app.ts";
 import {
   AppError,
   DEFAULT_INTERNAL_ERROR_MESSAGE,
@@ -15,7 +14,6 @@ import {
   successResponse,
 } from "../_shared/server.ts";
 import { getSubscriptionSummary } from "../_shared/access.ts";
-import { getAppUserByTelegramId } from "../_shared/app.ts";
 
 type PlanType = "monthly" | "yearly";
 
@@ -42,7 +40,7 @@ const parsePlanType = (value: unknown): PlanType => {
 };
 
 const activateMvpSubscription = async (
-  supabase: ReturnType<typeof createClient>,
+  supabase: ServiceClient,
   userId: string,
   planType: PlanType,
   nowIso: string,
@@ -114,13 +112,7 @@ Deno.serve(async (req: Request) => {
       env.TELEGRAM_BOT_TOKEN,
     );
 
-    const supabase = createClient(
-      env.SUPABASE_URL,
-      env.SUPABASE_SERVICE_ROLE_KEY,
-      {
-        auth: { persistSession: false },
-      },
-    );
+    const supabase = createServiceClient(env);
 
     const appUser = await getAppUserByTelegramId(
       supabase,

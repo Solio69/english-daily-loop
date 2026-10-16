@@ -16,6 +16,12 @@ export default tseslint.config(
   },
   ...tseslint.configs.recommended,
   {
+    files: ['supabase/functions/**/*.ts'],
+    rules: {
+      '@typescript-eslint/triple-slash-reference': 'off',
+    },
+  },
+  {
     files: ['src/**/*.{ts,tsx}'],
     plugins: { 'react-hooks': reactHooks },
     rules: reactHooks.configs.flat.recommended.rules,

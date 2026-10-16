@@ -1,4 +1,3 @@
-// @ts-nocheck
 import {
   AppError,
   DEFAULT_INTERNAL_ERROR_MESSAGE,

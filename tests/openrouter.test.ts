@@ -10,6 +10,8 @@ import {
   requestOpenRouter,
 } from '../supabase/functions/_shared/openrouter.ts'
 import { generateReadingTextWithOpenRouter } from '../supabase/functions/generate-reading-text/ai-pipeline.ts'
+import { HTTP_STATUS } from './fixtures/http.ts'
+import { OPENROUTER_MOCKS, OPENROUTER_RESPONSES } from './mocks/openrouter.ts'
 
 test('default OpenRouter base model chain contains three current unique models', () => {
   assert.deepEqual(
@@ -18,27 +20,20 @@ test('default OpenRouter base model chain contains three current unique models',
       DEFAULT_FALLBACK_MODEL,
       DEFAULT_TERTIARY_MODEL,
     ),
-    [
-      'openai/gpt-oss-20b:free',
-      'qwen/qwen3-next-80b-a3b-instruct:free',
-      'google/gemma-4-26b-a4b-it:free',
-    ],
+    OPENROUTER_MOCKS.baseModels,
   )
 
   assert.throws(
-    () => getOpenRouterModelChain('qwen/qwen3.6-plus:free'),
-    /Unsupported OpenRouter model/,
+    () => getOpenRouterModelChain(OPENROUTER_MOCKS.unsupportedModel),
+    OPENROUTER_MOCKS.unsupportedModelPattern,
   )
 })
 
 test('default reading generation model chain contains current unique models', () => {
-  assert.deepEqual(getOpenRouterModelChain(...DEFAULT_READING_MODEL_CHAIN), [
-    'qwen/qwen3-next-80b-a3b-instruct:free',
-    'nvidia/nemotron-nano-9b-v2:free',
-    'google/gemma-4-31b-it:free',
-    'google/gemma-4-26b-a4b-it:free',
-    'openai/gpt-oss-20b:free',
-  ])
+  assert.deepEqual(
+    getOpenRouterModelChain(...DEFAULT_READING_MODEL_CHAIN),
+    OPENROUTER_MOCKS.readingModels,
+  )
 })
 
 test('reading generation retries with fallback after empty provider content', async () => {
@@ -54,86 +49,54 @@ test('reading generation retries with fallback after empty provider content', as
   globalThis.fetch = (async (_input, init) => {
     requestBodies.push(JSON.parse(String(init?.body)))
 
-    if (requestBodies.length === 1) {
-      return new Response(
-        JSON.stringify({
-          model: DEFAULT_PRIMARY_MODEL,
-          choices: [
-            {
-              finish_reason: 'length',
-              message: { content: '' },
-            },
-          ],
-          usage: {
-            completion_tokens: 450,
-            completion_tokens_details: { reasoning_tokens: 450 },
-          },
-        }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } },
-      )
+    if (requestBodies.length === OPENROUTER_MOCKS.requestBodies.firstLength) {
+      return OPENROUTER_RESPONSES.emptyContent()
     }
 
-    return new Response(
-      JSON.stringify({
-        model: DEFAULT_FALLBACK_MODEL,
-        choices: [
-          {
-            finish_reason: 'stop',
-            message: {
-              content: JSON.stringify({
-                title: 'A Small Story',
-                body: 'One calm day begins.',
-                estimatedMinutes: 3,
-                level: 'A1',
-              }),
-            },
-          },
-        ],
-      }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } },
-    )
+    return OPENROUTER_RESPONSES.fallbackContent()
   }) as typeof fetch
 
   try {
     const result = await generateReadingTextWithOpenRouter({
-      apiKey: 'test-key',
+      apiKey: OPENROUTER_MOCKS.apiKey,
       models: [
         DEFAULT_PRIMARY_MODEL,
         DEFAULT_FALLBACK_MODEL,
         DEFAULT_TERTIARY_MODEL,
       ],
-      targetLevel: 'A1',
-      readingMinutes: 3,
-      config: {
-        wordMin: 3,
-        wordMax: 5,
-        validationWordMin: 2,
-        validationWordMax: 6,
-        maxTokens: 450,
-      },
+      targetLevel: OPENROUTER_MOCKS.targetLevel,
+      readingMinutes: OPENROUTER_MOCKS.readingMinutes,
+      config: OPENROUTER_MOCKS.readingConfig,
     })
 
     assert.equal(result.usedModel, DEFAULT_FALLBACK_MODEL)
-    assert.equal(requestBodies.length, 2)
-    assert.deepEqual(requestBodies[0].models, [
-      DEFAULT_PRIMARY_MODEL,
-      DEFAULT_FALLBACK_MODEL,
-      DEFAULT_TERTIARY_MODEL,
-    ])
-    assert.deepEqual(requestBodies[1].models, [
-      DEFAULT_FALLBACK_MODEL,
-      DEFAULT_TERTIARY_MODEL,
-    ])
-    assert.deepEqual(requestBodies[0].reasoning, {
-      effort: 'low',
-      exclude: true,
-    })
-    assert.deepEqual(requestBodies[1].reasoning, {
-      effort: 'low',
-      exclude: true,
-    })
-    assert.equal(requestBodies[0].response_format?.type, 'json_object')
-    assert.equal(requestBodies[1].response_format?.type, 'json_object')
+    assert.equal(requestBodies.length, OPENROUTER_MOCKS.requestBodies.total)
+    assert.deepEqual(
+      requestBodies[OPENROUTER_MOCKS.requestBodies.firstIndex].models,
+      [DEFAULT_PRIMARY_MODEL, DEFAULT_FALLBACK_MODEL, DEFAULT_TERTIARY_MODEL],
+    )
+    assert.deepEqual(
+      requestBodies[OPENROUTER_MOCKS.requestBodies.secondIndex].models,
+      [DEFAULT_FALLBACK_MODEL, DEFAULT_TERTIARY_MODEL],
+    )
+    assert.deepEqual(
+      requestBodies[OPENROUTER_MOCKS.requestBodies.firstIndex].reasoning,
+      OPENROUTER_MOCKS.expectedReasoning,
+    )
+    assert.deepEqual(
+      requestBodies[OPENROUTER_MOCKS.requestBodies.secondIndex].reasoning,
+      OPENROUTER_MOCKS.expectedReasoning,
+    )
+    assert.equal(
+      requestBodies[OPENROUTER_MOCKS.requestBodies.firstIndex].response_format
+        ?.type,
+      OPENROUTER_MOCKS.responseFormatType,
+    )
+    assert.equal(
+      requestBodies[OPENROUTER_MOCKS.requestBodies.secondIndex].response_format
+        ?.type,
+      OPENROUTER_MOCKS.responseFormatType,
+    )
   } finally {
     globalThis.fetch = originalFetch
     console.error = originalConsoleError
@@ -150,46 +113,47 @@ test('OpenRouter provider errors keep safe diagnostics', async () => {
   globalThis.fetch = (async (_input, init) => {
     requestBodies.push(JSON.parse(String(init?.body)))
 
-    return new Response(
-      JSON.stringify({
-        error: {
-          code: 'rate_limit_exceeded',
-          message: 'Provider returned error',
-        },
-      }),
-      { status: 429, headers: { 'Content-Type': 'application/json' } },
-    )
+    return OPENROUTER_RESPONSES.rateLimited()
   }) as typeof fetch
 
   try {
     await assert.rejects(
       () =>
         requestOpenRouter({
-          apiKey: 'test-key',
+          apiKey: OPENROUTER_MOCKS.apiKey,
           models: [DEFAULT_PRIMARY_MODEL],
-          messages: [{ role: 'user', content: 'Return JSON.' }],
-          maxTokens: 100,
-          temperature: 0.1,
-          timeoutMs: 1000,
+          messages: [
+            {
+              role: OPENROUTER_MOCKS.providerRequest.role,
+              content: OPENROUTER_MOCKS.providerRequest.content,
+            },
+          ],
+          maxTokens: OPENROUTER_MOCKS.providerRequest.maxTokens,
+          temperature: OPENROUTER_MOCKS.providerRequest.temperature,
+          timeoutMs: OPENROUTER_MOCKS.providerRequest.timeoutMs,
         }),
       (error) => {
         assert.ok(error instanceof OpenRouterError)
-        assert.equal(error.stage, 'provider_response')
+        assert.equal(error.stage, OPENROUTER_MOCKS.providerStage)
+        assert.equal(error.message, OPENROUTER_MOCKS.safeProviderMessage)
+        assert.equal(error.providerStatus, HTTP_STATUS.rateLimited)
         assert.equal(
-          error.message,
-          'AI-сервис временно недоступен. Попробуй еще раз позже.',
+          error.providerErrorCode,
+          OPENROUTER_MOCKS.rateLimitResponse.error.code,
         )
-        assert.equal(error.providerStatus, 429)
-        assert.equal(error.providerErrorCode, 'rate_limit_exceeded')
         return true
       },
     )
 
-    assert.deepEqual(requestBodies[0].reasoning, {
-      effort: 'low',
-      exclude: true,
-    })
-    assert.equal(requestBodies[0].response_format?.type, 'json_object')
+    assert.deepEqual(
+      requestBodies[OPENROUTER_MOCKS.requestBodies.firstIndex].reasoning,
+      OPENROUTER_MOCKS.expectedReasoning,
+    )
+    assert.equal(
+      requestBodies[OPENROUTER_MOCKS.requestBodies.firstIndex].response_format
+        ?.type,
+      OPENROUTER_MOCKS.responseFormatType,
+    )
   } finally {
     globalThis.fetch = originalFetch
   }

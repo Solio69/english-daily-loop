@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
+import { createServiceClient } from "../_shared/app.ts";
 import {
   AppError,
   DEFAULT_INTERNAL_ERROR_MESSAGE,
@@ -93,13 +92,7 @@ Deno.serve(async (req: Request) => {
       env.TELEGRAM_BOT_TOKEN,
     );
 
-    const supabase = createClient(
-      env.SUPABASE_URL,
-      env.SUPABASE_SERVICE_ROLE_KEY,
-      {
-        auth: { persistSession: false },
-      },
-    );
+    const supabase = createServiceClient(env);
 
     const { data: userRow, error: userError } = await supabase
       .from("users")

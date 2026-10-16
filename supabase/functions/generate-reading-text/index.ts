@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
+import { createServiceClient, getAppUserByTelegramId, type ServiceClient } from "../_shared/app.ts";
 import {
   AppError,
   assertPostRequest,
@@ -15,7 +14,6 @@ import {
 } from "../_shared/server.ts";
 import { getMoscowStudyDate } from "../_shared/moscow-study-date.ts";
 import { getDailyReadingGenerationLimit } from "../_shared/access.ts";
-import { getAppUserByTelegramId } from "../_shared/app.ts";
 import {
   buildSafeAiDiagnostics,
   sanitizeDiagnosticMessage,
@@ -207,7 +205,7 @@ const buildReadingAiDiagnostics = ({
 });
 
 const claimGenerationAttempt = async (
-  supabase: ReturnType<typeof createClient>,
+  supabase: ServiceClient,
   userId: string,
   attemptDate: string,
   dailyLimit: number,
@@ -248,7 +246,7 @@ const claimGenerationAttempt = async (
 };
 
 const getUserReadingSettingsFromDb = async (
-  supabase: ReturnType<typeof createClient>,
+  supabase: ServiceClient,
   telegramUserId: number,
   requestId: string,
 ): Promise<UserReadingSettings> => {
@@ -293,7 +291,7 @@ Deno.serve(async (req: Request) => {
   const requestStartedAt = Date.now();
   const requestId = getRequestId(req);
   let startedAttempt:
-    | { supabase: ReturnType<typeof createClient>; attemptId: string }
+    | { supabase: ServiceClient; attemptId: string }
     | null = null;
   let attemptMetadata: AttemptMetadata | null = null;
 
@@ -338,13 +336,7 @@ Deno.serve(async (req: Request) => {
       body,
       env.TELEGRAM_BOT_TOKEN,
     );
-    const supabase = createClient(
-      env.SUPABASE_URL,
-      env.SUPABASE_SERVICE_ROLE_KEY,
-      {
-        auth: { persistSession: false },
-      },
-    );
+    const supabase = createServiceClient(env);
     const settings = await getUserReadingSettingsFromDb(
       supabase,
       tgUser.id,

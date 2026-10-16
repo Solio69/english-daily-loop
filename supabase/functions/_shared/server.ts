@@ -110,9 +110,10 @@ export const getRequestId = (req: Request): string => {
   return createRequestId();
 };
 
-export const fail = (status: number, code: string, message: string): never => {
+// A declaration lets Deno narrow control flow after a call that always throws.
+export function fail(status: number, code: string, message: string): never {
   throw new AppError(status, code, message);
-};
+}
 
 export const jsonResponse = (status: number, payload: unknown): Response =>
   new Response(JSON.stringify(payload), {

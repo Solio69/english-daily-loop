@@ -217,9 +217,9 @@ where telegram_user_id = YOUR_TELEGRAM_USER_ID;
 
 2. `503 BOOT_ERROR / Worker failed to boot` в Edge Function
 
-   Причина: ошибка в Deno-конфиге или коде функции.
+   Причина: ошибка загрузки зависимости или кода функции.
 
-   Что делать: проверить `supabase/functions/deno.json` и логи `[edge]`.
+   Что делать: проверить логи `[edge]`, прямой `npm:`-импорт в `supabase/functions/_shared/app.ts` и выполнить `pnpm test:edge`.
 
 3. `failed to parse environment file: .env.telegram.local`
 

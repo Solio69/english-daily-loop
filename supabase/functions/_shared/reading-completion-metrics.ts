@@ -1,5 +1,6 @@
 /// <reference path="../deno-globals.d.ts" />
 
+import type { ServiceClient } from "./app.ts";
 import { getCompletedReadingTextCount } from "./reading-history.ts";
 import { getReadingCompletionStreak } from "./reading-streak.ts";
 
@@ -12,7 +13,7 @@ const getErrorMessage = (reason: unknown): string =>
   reason instanceof Error ? reason.message : "Unknown metric error.";
 
 export const getPostReadingCompletionMetrics = async (
-  supabase: { from: (table: string) => any },
+  supabase: ServiceClient,
   userId: string,
   today: string,
   logPrefix: string,

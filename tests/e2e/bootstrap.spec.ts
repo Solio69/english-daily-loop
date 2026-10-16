@@ -1,36 +1,11 @@
 import { expect, test, type Page } from '@playwright/test'
+import {
+  HTTP_CONTENT_TYPE,
+  HTTP_METHOD,
+  HTTP_STATUS,
+} from '../fixtures/http.ts'
 
-const baseURL = 'http://127.0.0.1:4173'
-const apiURL = 'http://127.0.0.1:54321'
-const fakeInitData = 'query_id=f02-fixture&auth_date=1&hash=not-real'
-
-const successfulAuth = {
-  ok: true,
-  data: {
-    user: {
-      id: 'f0200000-0000-4000-8000-000000000001',
-      firstName: 'Тест',
-      settingsCompletedAt: null,
-      firstTextCompletedAt: null,
-      role: 'user',
-    },
-    settings: null,
-    subscription: {
-      tier: 'free',
-      accessType: 'free',
-      limits: { dailyReadingGenerations: 3, vocabularyWordsLimit: 30 },
-      activeSubscription: null,
-      scheduledSubscription: null,
-    },
-    homeProgress: {
-      lesson: { status: 'not_started', currentStep: 'reading' },
-      reading: { status: 'not_started' },
-      review: { status: 'completed', dueCount: 0, reviewedTodayCount: 0 },
-    },
-    streakDays: 0,
-    completedReadingTextCount: 0,
-  },
-}
+import { BOOTSTRAP_MOCKS, MOCK_SUCCESSFUL_AUTH } from '../mocks/bootstrap.ts'
 
 const installMocks = async ({
   page,
@@ -44,60 +19,63 @@ const installMocks = async ({
   const unexpectedRequests: string[] = []
   const authBodies: unknown[] = []
 
-  await page.addInitScript((initData) => {
-    Object.defineProperty(window, 'Telegram', {
-      configurable: true,
-      value: {
-        WebApp: {
-          initData,
-          colorScheme: 'light',
-          ready: () => {},
-          onEvent: () => {},
-          offEvent: () => {},
+  await page.addInitScript(
+    ({ initData, colorScheme, telegramGlobal }) => {
+      Object.defineProperty(window, telegramGlobal, {
+        configurable: true,
+        value: {
+          WebApp: {
+            initData,
+            colorScheme,
+            ready: () => {},
+            onEvent: () => {},
+            offEvent: () => {},
+          },
         },
-      },
-    })
-  }, fakeInitData)
+      })
+    },
+    {
+      initData: BOOTSTRAP_MOCKS.fakeInitData,
+      colorScheme: BOOTSTRAP_MOCKS.colorScheme,
+      telegramGlobal: BOOTSTRAP_MOCKS.telegramGlobal,
+    },
+  )
 
-  await page.route('**/*', async (route) => {
+  await page.route(BOOTSTRAP_MOCKS.routePattern, async (route) => {
     const request = route.request()
     const url = new URL(request.url())
 
-    if (url.origin === baseURL) {
+    if (url.origin === BOOTSTRAP_MOCKS.baseURL) {
       await route.continue()
       return
     }
     if (
-      url.origin === 'https://telegram.org' &&
-      url.pathname === '/js/telegram-web-app.js'
+      url.origin === BOOTSTRAP_MOCKS.telegramScriptOrigin &&
+      url.pathname === BOOTSTRAP_MOCKS.telegramScriptPath
     ) {
       await route.fulfill({
-        status: 200,
-        contentType: 'text/javascript',
-        body: '',
+        status: HTTP_STATUS.ok,
+        contentType: HTTP_CONTENT_TYPE.javascript,
+        body: BOOTSTRAP_MOCKS.emptyBody,
       })
       return
     }
     if (
-      url.origin === apiURL &&
-      url.pathname === '/functions/v1/auth-telegram'
+      url.origin === BOOTSTRAP_MOCKS.apiURL &&
+      url.pathname === BOOTSTRAP_MOCKS.authPath
     ) {
-      if (request.method() === 'OPTIONS') {
+      if (request.method() === HTTP_METHOD.options) {
         await route.fulfill({
-          status: 204,
-          headers: {
-            'access-control-allow-origin': '*',
-            'access-control-allow-headers': '*',
-            'access-control-allow-methods': 'POST, OPTIONS',
-          },
+          status: HTTP_STATUS.noContent,
+          headers: BOOTSTRAP_MOCKS.corsHeaders,
         })
         return
       }
       authBodies.push(request.postDataJSON())
       await route.fulfill({
         status: authStatus,
-        contentType: 'application/json',
-        headers: { 'access-control-allow-origin': '*' },
+        contentType: HTTP_CONTENT_TYPE.json,
+        headers: BOOTSTRAP_MOCKS.authCorsHeaders,
         body: JSON.stringify(authResponse),
       })
       return
@@ -115,17 +93,27 @@ test('Telegram bootstrap opens the home screen with a mocked API', async ({
 }) => {
   const requests = await installMocks({
     page,
-    authResponse: successfulAuth,
-    authStatus: 200,
+    authResponse: MOCK_SUCCESSFUL_AUTH,
+    authStatus: HTTP_STATUS.ok,
   })
 
-  await page.goto('/')
+  await page.goto(BOOTSTRAP_MOCKS.homePath)
 
-  await expect(page.getByRole('heading', { name: 'Тест!' })).toBeVisible()
   await expect(
-    page.getByRole('button', { name: 'Открыть настройки' }).first(),
+    page.getByRole(BOOTSTRAP_MOCKS.headingRole, {
+      name: BOOTSTRAP_MOCKS.homeHeading,
+    }),
   ).toBeVisible()
-  expect(requests.authBodies).toContainEqual({ initData: fakeInitData })
+  await expect(
+    page
+      .getByRole(BOOTSTRAP_MOCKS.buttonRole, {
+        name: BOOTSTRAP_MOCKS.settingsButton,
+      })
+      .first(),
+  ).toBeVisible()
+  expect(requests.authBodies).toContainEqual({
+    initData: BOOTSTRAP_MOCKS.fakeInitData,
+  })
   expect(requests.unexpectedRequests).toEqual([])
 })
 
@@ -134,22 +122,18 @@ test('auth failure shows an actionable error without contacting a real backend',
 }) => {
   const requests = await installMocks({
     page,
-    authResponse: {
-      ok: false,
-      error: {
-        code: 'AUTH_VALIDATION_FAILED',
-        message: 'Не удалось проверить данные Telegram.',
-      },
-    },
-    authStatus: 401,
+    authResponse: BOOTSTRAP_MOCKS.authError,
+    authStatus: HTTP_STATUS.unauthorized,
   })
 
-  await page.goto('/')
+  await page.goto(BOOTSTRAP_MOCKS.homePath)
 
   await expect(
-    page.getByText('Не удалось проверить данные Telegram.'),
+    page.getByText(BOOTSTRAP_MOCKS.authError.error.message),
   ).toBeVisible()
-  await expect(page.getByText('Загружаем профиль...')).not.toBeVisible()
-  expect(requests.authBodies).toContainEqual({ initData: fakeInitData })
+  await expect(page.getByText(BOOTSTRAP_MOCKS.loadingText)).not.toBeVisible()
+  expect(requests.authBodies).toContainEqual({
+    initData: BOOTSTRAP_MOCKS.fakeInitData,
+  })
   expect(requests.unexpectedRequests).toEqual([])
 })

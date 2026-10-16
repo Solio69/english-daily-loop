@@ -12,7 +12,10 @@
     "allowJs": true,
     "jsx": "react-jsx",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "npm:@supabase/supabase-js@2.101.1": [
+        "./node_modules/@supabase/supabase-js"
+      ]
     },
     "allowImportingTsExtensions": true,
     "noEmit": true

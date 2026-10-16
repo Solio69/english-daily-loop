@@ -10,55 +10,41 @@ import {
 } from '../supabase/functions/_shared/openrouter.ts'
 import { generateReadingTextWithOpenRouter } from '../supabase/functions/generate-reading-text/ai-pipeline.ts'
 import { generateVocabularyCardsBatch } from '../supabase/functions/prepare-vocabulary-cards/ai-pipeline.ts'
-
-const testRequest = {
-  apiKey: 'secret-synthetic-key',
-  models: [DEFAULT_PRIMARY_MODEL],
-  messages: [{ role: 'user' as const, content: 'private synthetic prompt' }],
-  maxTokens: 100,
-  temperature: 0.1,
-  timeoutMs: 1000,
-}
+import { HTTP_STATUS } from './fixtures/http.ts'
+import {
+  OPENROUTER_SAFETY_MOCKS,
+  OPENROUTER_SAFETY_REQUEST,
+  OPENROUTER_SAFETY_RESPONSES,
+} from './mocks/openrouterSafety.ts'
 
 test('provider 429 is safe and causes no application retry for reading', async () => {
   const originalFetch = globalThis.fetch
-  let calls = 0
+  let calls = OPENROUTER_SAFETY_MOCKS.counter.initial
   globalThis.fetch = (async () => {
-    calls += 1
-    return new Response(
-      JSON.stringify({
-        error: {
-          code: 'rate_limit_exceeded',
-          message: 'private synthetic prompt secret-synthetic-key',
-        },
-      }),
-      { status: 429 },
-    )
+    calls += OPENROUTER_SAFETY_MOCKS.counter.increment
+    return OPENROUTER_SAFETY_RESPONSES.rateLimited()
   }) as typeof fetch
 
   try {
     await assert.rejects(
       () =>
         generateReadingTextWithOpenRouter({
-          apiKey: testRequest.apiKey,
-          models: testRequest.models,
-          targetLevel: 'A1',
-          readingMinutes: 3,
-          config: {
-            wordMin: 3,
-            wordMax: 5,
-            validationWordMin: 2,
-            validationWordMax: 6,
-            maxTokens: 100,
-          },
+          apiKey: OPENROUTER_SAFETY_REQUEST.apiKey,
+          models: OPENROUTER_SAFETY_REQUEST.models,
+          targetLevel: OPENROUTER_SAFETY_MOCKS.targetLevel,
+          readingMinutes: OPENROUTER_SAFETY_MOCKS.readingMinutes,
+          config: OPENROUTER_SAFETY_MOCKS.readingConfig,
         }),
       (error: unknown) => {
         assert.ok(error instanceof Error)
-        assert.doesNotMatch(error.message, /private synthetic|secret-synthetic/)
+        assert.doesNotMatch(
+          error.message,
+          OPENROUTER_SAFETY_MOCKS.secretPattern,
+        )
         return true
       },
     )
-    assert.equal(calls, 1)
+    assert.equal(calls, OPENROUTER_SAFETY_MOCKS.counter.expected)
   } finally {
     globalThis.fetch = originalFetch
   }
@@ -66,24 +52,21 @@ test('provider 429 is safe and causes no application retry for reading', async (
 
 test('provider 500 causes no application retry for vocabulary cards', async () => {
   const originalFetch = globalThis.fetch
-  let calls = 0
+  let calls = OPENROUTER_SAFETY_MOCKS.counter.initial
   globalThis.fetch = (async () => {
-    calls += 1
-    return new Response(
-      JSON.stringify({ error: { message: 'raw private message' } }),
-      { status: 500 },
-    )
+    calls += OPENROUTER_SAFETY_MOCKS.counter.increment
+    return OPENROUTER_SAFETY_RESPONSES.serverError()
   }) as typeof fetch
   try {
     await assert.rejects(() =>
       generateVocabularyCardsBatch({
-        apiKey: testRequest.apiKey,
-        models: testRequest.models,
-        words: [{ id: 'synthetic-id', word: 'apple' }],
-        level: 'A1',
+        apiKey: OPENROUTER_SAFETY_REQUEST.apiKey,
+        models: OPENROUTER_SAFETY_REQUEST.models,
+        words: [OPENROUTER_SAFETY_MOCKS.vocabularyWord],
+        level: OPENROUTER_SAFETY_MOCKS.targetLevel,
       }),
     )
-    assert.equal(calls, 1)
+    assert.equal(calls, OPENROUTER_SAFETY_MOCKS.counter.expected)
   } finally {
     globalThis.fetch = originalFetch
   }
@@ -93,26 +76,29 @@ test('network failure and invalid provider JSON are safe and non-retryable', asy
   const originalFetch = globalThis.fetch
   try {
     globalThis.fetch = (async () => {
-      throw new Error('secret-synthetic-key')
+      throw new Error(OPENROUTER_SAFETY_MOCKS.apiKey)
     }) as typeof fetch
     await assert.rejects(
-      () => requestOpenRouter(testRequest),
+      () => requestOpenRouter(OPENROUTER_SAFETY_REQUEST),
       (error: unknown) => {
         assert.ok(error instanceof OpenRouterError)
         assert.equal(error.retryableContent, false)
-        assert.doesNotMatch(error.message, /secret-synthetic/)
+        assert.doesNotMatch(
+          error.message,
+          OPENROUTER_SAFETY_MOCKS.apiKeyPattern,
+        )
         return true
       },
     )
 
     globalThis.fetch = (async () =>
-      new Response('{', { status: 200 })) as typeof fetch
+      OPENROUTER_SAFETY_RESPONSES.invalidJson()) as typeof fetch
     await assert.rejects(
-      () => requestOpenRouter(testRequest),
+      () => requestOpenRouter(OPENROUTER_SAFETY_REQUEST),
       (error: unknown) => {
         assert.ok(error instanceof OpenRouterError)
         assert.equal(error.retryableContent, false)
-        assert.equal(error.stage, 'provider_response')
+        assert.equal(error.stage, OPENROUTER_SAFETY_MOCKS.providerResponseStage)
         return true
       },
     )
@@ -126,20 +112,32 @@ test('transport timeout becomes a safe non-retryable error', async () => {
   globalThis.fetch = ((_input, init) =>
     new Promise((_resolve, reject) => {
       init?.signal?.addEventListener(
-        'abort',
+        OPENROUTER_SAFETY_MOCKS.abortEvent,
         () => {
-          reject(new DOMException('secret-synthetic-key', 'AbortError'))
+          reject(
+            new DOMException(
+              OPENROUTER_SAFETY_MOCKS.apiKey,
+              OPENROUTER_SAFETY_MOCKS.timeoutErrorName,
+            ),
+          )
         },
         { once: true },
       )
     })) as typeof fetch
   try {
     await assert.rejects(
-      () => requestOpenRouter({ ...testRequest, timeoutMs: 5 }),
+      () =>
+        requestOpenRouter({
+          ...OPENROUTER_SAFETY_REQUEST,
+          timeoutMs: OPENROUTER_SAFETY_MOCKS.timeoutMs,
+        }),
       (error: unknown) => {
         assert.ok(error instanceof OpenRouterError)
         assert.equal(error.retryableContent, false)
-        assert.doesNotMatch(error.message, /secret-synthetic/)
+        assert.doesNotMatch(
+          error.message,
+          OPENROUTER_SAFETY_MOCKS.apiKeyPattern,
+        )
         return true
       },
     )
@@ -150,28 +148,22 @@ test('transport timeout becomes a safe non-retryable error', async () => {
 
 test('invalid provider JSON does not retry across remaining models', async () => {
   const originalFetch = globalThis.fetch
-  let calls = 0
+  let calls = OPENROUTER_SAFETY_MOCKS.counter.initial
   globalThis.fetch = (async () => {
-    calls += 1
-    return new Response('{', { status: 200 })
+    calls += OPENROUTER_SAFETY_MOCKS.counter.increment
+    return OPENROUTER_SAFETY_RESPONSES.invalidJson()
   }) as typeof fetch
   try {
     await assert.rejects(() =>
       generateReadingTextWithOpenRouter({
-        apiKey: testRequest.apiKey,
+        apiKey: OPENROUTER_SAFETY_REQUEST.apiKey,
         models: [DEFAULT_PRIMARY_MODEL, DEFAULT_FALLBACK_MODEL],
-        targetLevel: 'A1',
-        readingMinutes: 3,
-        config: {
-          wordMin: 3,
-          wordMax: 5,
-          validationWordMin: 2,
-          validationWordMax: 6,
-          maxTokens: 100,
-        },
+        targetLevel: OPENROUTER_SAFETY_MOCKS.targetLevel,
+        readingMinutes: OPENROUTER_SAFETY_MOCKS.readingMinutes,
+        config: OPENROUTER_SAFETY_MOCKS.readingConfig,
       }),
     )
-    assert.equal(calls, 1)
+    assert.equal(calls, OPENROUTER_SAFETY_MOCKS.counter.expected)
   } finally {
     globalThis.fetch = originalFetch
   }
@@ -179,32 +171,30 @@ test('invalid provider JSON does not retry across remaining models', async () =>
 
 test('HTTP 200 with a provider error object does not retry', async () => {
   const originalFetch = globalThis.fetch
-  let calls = 0
+  let calls = OPENROUTER_SAFETY_MOCKS.counter.initial
   globalThis.fetch = (async () => {
-    calls += 1
-    return new Response(
-      JSON.stringify({
-        error: { code: 'internal_error', message: 'private synthetic prompt' },
-      }),
-      { status: 200 },
-    )
+    calls += OPENROUTER_SAFETY_MOCKS.counter.increment
+    return OPENROUTER_SAFETY_RESPONSES.providerError()
   }) as typeof fetch
   try {
     await assert.rejects(
       () =>
         generateVocabularyCardsBatch({
-          apiKey: testRequest.apiKey,
+          apiKey: OPENROUTER_SAFETY_REQUEST.apiKey,
           models: [DEFAULT_PRIMARY_MODEL, DEFAULT_FALLBACK_MODEL],
-          words: [{ id: 'synthetic-id', word: 'apple' }],
-          level: 'A1',
+          words: [OPENROUTER_SAFETY_MOCKS.vocabularyWord],
+          level: OPENROUTER_SAFETY_MOCKS.targetLevel,
         }),
       (error: unknown) => {
         assert.ok(error instanceof Error)
-        assert.doesNotMatch(error.message, /private synthetic/)
+        assert.doesNotMatch(
+          error.message,
+          OPENROUTER_SAFETY_MOCKS.privatePromptPattern,
+        )
         return true
       },
     )
-    assert.equal(calls, 1)
+    assert.equal(calls, OPENROUTER_SAFETY_MOCKS.counter.expected)
   } finally {
     globalThis.fetch = originalFetch
   }
@@ -212,59 +202,50 @@ test('HTTP 200 with a provider error object does not retry', async () => {
 
 test('client AI diagnostics expose only bounded metadata', () => {
   const diagnostics = buildSafeAiDiagnostics({
-    functionName: 'prepare-vocabulary-cards',
-    requestId: 'req_synthetic',
-    promptVersion: 'vocabulary-card-v1',
+    functionName: OPENROUTER_SAFETY_MOCKS.functionName,
+    requestId: OPENROUTER_SAFETY_MOCKS.requestId,
+    promptVersion: OPENROUTER_SAFETY_MOCKS.promptVersion,
     modelChain: [DEFAULT_PRIMARY_MODEL],
-    stage: 'provider_response',
-    durationMs: 31_000,
+    stage: OPENROUTER_SAFETY_MOCKS.providerResponseStage,
+    durationMs: OPENROUTER_SAFETY_MOCKS.elapsedMs,
     metadata: {
-      model: 'private synthetic prompt',
-      finishReason: 'private synthetic prompt',
-      providerErrorCode: 'secret-synthetic-key',
-      providerStatus: 429,
+      model: OPENROUTER_SAFETY_MOCKS.privatePrompt,
+      finishReason: OPENROUTER_SAFETY_MOCKS.privatePrompt,
+      providerErrorCode: OPENROUTER_SAFETY_MOCKS.apiKey,
+      providerStatus: HTTP_STATUS.rateLimited,
     },
-    details: { englishLevel: 'A1', requestedCount: 1, failedCount: 1 },
+    details: OPENROUTER_SAFETY_MOCKS.diagnosticsDetails,
   })
   const serialized = JSON.stringify(diagnostics)
-  assert.equal(diagnostics.providerStatus, 429)
+  assert.equal(diagnostics.providerStatus, HTTP_STATUS.rateLimited)
   assert.equal(diagnostics.model, null)
-  assert.doesNotMatch(
-    serialized,
-    /private synthetic|secret-synthetic|errorMessage|problemWords|providerErrorCode/,
-  )
+  assert.doesNotMatch(serialized, OPENROUTER_SAFETY_MOCKS.diagnosticLeakPattern)
 })
 
 test('vocabulary content retry stops when the shared 30-second budget is spent', async () => {
   const originalFetch = globalThis.fetch
   const originalNow = Date.now
-  let elapsed = 0
-  let calls = 0
+  let elapsed: number = OPENROUTER_SAFETY_MOCKS.counter.initial
+  let calls = OPENROUTER_SAFETY_MOCKS.counter.initial
   Date.now = () => elapsed
   globalThis.fetch = (async () => {
-    calls += 1
-    elapsed = 30_001
-    return new Response(
-      JSON.stringify({
-        model: DEFAULT_PRIMARY_MODEL,
-        choices: [{ message: { content: '{}' } }],
-      }),
-      { status: 200 },
-    )
+    calls += OPENROUTER_SAFETY_MOCKS.counter.increment
+    elapsed = OPENROUTER_SAFETY_MOCKS.budgetExceededAtMs
+    return OPENROUTER_SAFETY_RESPONSES.emptyContent()
   }) as typeof fetch
 
   try {
     await assert.rejects(
       () =>
         generateVocabularyCardsBatch({
-          apiKey: testRequest.apiKey,
+          apiKey: OPENROUTER_SAFETY_REQUEST.apiKey,
           models: [DEFAULT_PRIMARY_MODEL, DEFAULT_FALLBACK_MODEL],
-          words: [{ id: 'synthetic-id', word: 'apple' }],
-          level: 'A1',
+          words: [OPENROUTER_SAFETY_MOCKS.vocabularyWord],
+          level: OPENROUTER_SAFETY_MOCKS.targetLevel,
         }),
-      /общий лимит времени/,
+      OPENROUTER_SAFETY_MOCKS.budgetErrorPattern,
     )
-    assert.equal(calls, 1)
+    assert.equal(calls, OPENROUTER_SAFETY_MOCKS.counter.expected)
   } finally {
     globalThis.fetch = originalFetch
     Date.now = originalNow

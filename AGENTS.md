@@ -256,7 +256,7 @@
   - опционально `OPENROUTER_MODEL_FALLBACK`
   - опционально `OPENROUTER_MODEL_TERTIARY`.
 - `OPENROUTER_MODEL_CHAIN` задает полный порядок моделей для генерации текста; `OPENROUTER_MODEL_PRIMARY/FALLBACK/TERTIARY` используются как дополнительные модели после дефолтной цепочки, если `OPENROUTER_MODEL_CHAIN` не задан.
-- Для стабильной DX в редакторе: у функции используется `// @ts-nocheck`, а для Deno-окружения есть `supabase/functions/deno.json` и `supabase/functions/deno-globals.d.ts`.
+- Edge Functions проверяются Deno без `@ts-nocheck`; Supabase JS импортируется напрямую через версионированный `npm:`-адрес в `_shared/app.ts`. Локальные Deno-типы описаны в `supabase/functions/deno-globals.d.ts`, а `pnpm test:edge` проверяет каждую функцию отдельно.
 - На фронте подключен Telegram WebApp SDK (`index.html`) и типы `window.Telegram.WebApp` (`src/types/telegram-webapp.d.ts`).
 - UI-слой использует Tailwind CSS 4 через Vite plugin, дизайн-токены в `src/index.css`, локальные шрифты `@fontsource/inter` и `@fontsource/manrope`, иконки `lucide-react`.
 - Общие UI primitives находятся в `src/components`: `ScreenHeader` для внутренних экранов с back navigation, `LoadingState` для glass-загрузок, `InlineStatusCard` для встроенных статусов и `Button` для CTA/control кнопок.

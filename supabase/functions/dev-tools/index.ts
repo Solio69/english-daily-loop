@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
+import { createServiceClient, getAppUserByTelegramId, type ServiceClient } from "../_shared/app.ts";
 import {
   AppError,
   DEFAULT_INTERNAL_ERROR_MESSAGE,
@@ -16,7 +15,6 @@ import {
 } from "../_shared/server.ts";
 import { getMoscowStudyDate } from "../_shared/moscow-study-date.ts";
 import { assertAdminRole } from "../_shared/access.ts";
-import { getAppUserByTelegramId } from "../_shared/app.ts";
 
 type DevToolAction =
   | "reset_generation_attempts"
@@ -77,8 +75,30 @@ const parseReviewStep = (value: unknown): VocabularyReviewStep => {
   fail(400, "INVALID_REVIEW_STEP", "Review step is invalid.");
 };
 
+type ParsedDevToolInput =
+  | {
+      action: "complete_today_vocabulary_reviews_at_step";
+      reviewStep: VocabularyReviewStep;
+    }
+  | {
+      action: Exclude<DevToolAction, "complete_today_vocabulary_reviews_at_step">;
+      reviewStep: null;
+    };
+
+const parseDevToolInput = (body: {
+  action?: unknown;
+  reviewStep?: unknown;
+}): ParsedDevToolInput => {
+  const action = parseAction(body.action);
+  if (action === "complete_today_vocabulary_reviews_at_step") {
+    return { action, reviewStep: parseReviewStep(body.reviewStep) };
+  }
+
+  return { action, reviewStep: null };
+};
+
 const resetGenerationAttempts = async (
-  supabase: ReturnType<typeof createClient>,
+  supabase: ServiceClient,
   userId: string,
   today: string,
 ) => {
@@ -101,7 +121,7 @@ const resetGenerationAttempts = async (
 };
 
 const resetVocabularyCardAttempts = async (
-  supabase: ReturnType<typeof createClient>,
+  supabase: ServiceClient,
   userId: string,
   today: string,
 ) => {
@@ -128,7 +148,7 @@ const resetVocabularyCardAttempts = async (
 };
 
 const resetVocabularyReviewProgress = async (
-  supabase: ReturnType<typeof createClient>,
+  supabase: ServiceClient,
   userId: string,
 ) => {
   const { count, error } = await supabase
@@ -167,7 +187,7 @@ const resetVocabularyReviewProgress = async (
 };
 
 const makeVocabularyReviewsDueToday = async (
-  supabase: ReturnType<typeof createClient>,
+  supabase: ServiceClient,
   userId: string,
   today: string,
 ) => {
@@ -195,7 +215,7 @@ const makeVocabularyReviewsDueToday = async (
 };
 
 const clearTodayVocabularyReviewCompletion = async (
-  supabase: ReturnType<typeof createClient>,
+  supabase: ServiceClient,
   userId: string,
   today: string,
 ) => {
@@ -222,7 +242,7 @@ const clearTodayVocabularyReviewCompletion = async (
 };
 
 const completeTodayVocabularyReviewsAtStep = async (
-  supabase: ReturnType<typeof createClient>,
+  supabase: ServiceClient,
   userId: string,
   today: string,
   reviewStep: VocabularyReviewStep,
@@ -287,7 +307,7 @@ const completeTodayVocabularyReviewsAtStep = async (
 };
 
 const deleteTodayReadingCompletions = async (
-  supabase: ReturnType<typeof createClient>,
+  supabase: ServiceClient,
   userId: string,
   today: string,
 ) => {
@@ -329,7 +349,7 @@ const deleteTodayReadingCompletions = async (
 };
 
 const resetSubscriptions = async (
-  supabase: ReturnType<typeof createClient>,
+  supabase: ServiceClient,
   userId: string,
 ) => {
   const { count, error } = await supabase
@@ -376,23 +396,13 @@ Deno.serve(async (req: Request) => {
       reviewStep?: unknown;
     }>(req);
 
-    const action = parseAction(body?.action);
-    const reviewStep =
-      action === "complete_today_vocabulary_reviews_at_step"
-        ? parseReviewStep(body?.reviewStep)
-        : null;
+    const { action, reviewStep } = parseDevToolInput(body ?? {});
     const tgUser = await getTelegramUserFromBody(
       body,
       env.TELEGRAM_BOT_TOKEN,
     );
 
-    const supabase = createClient(
-      env.SUPABASE_URL,
-      env.SUPABASE_SERVICE_ROLE_KEY,
-      {
-        auth: { persistSession: false },
-      },
-    );
+    const supabase = createServiceClient(env);
     const appUser = await getAppUserByTelegramId(
       supabase,
       tgUser.id,
