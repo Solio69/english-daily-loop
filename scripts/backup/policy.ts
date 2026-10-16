@@ -57,6 +57,8 @@ export const PROTECTED_PUBLIC_TABLES = [
 export const REQUIRED_SERVER_FUNCTIONS = [
   "get_random_reading_text",
   "claim_reading_generation_attempt",
+  "claim_reading_generation_request",
+  "finish_reading_generation_request",
   "complete_daily_reading_text",
   "activate_mvp_subscription",
   "save_vocabulary_word_with_source",
@@ -80,6 +82,7 @@ export const REQUIRED_CRON_JOBS = [
 
 export const REQUIRED_INDEXES = [
   "idx_reading_generation_attempts_user_date",
+  "idx_reading_generation_attempts_user_request",
   "idx_user_completed_reading_texts_user_completed",
   "idx_user_vocabulary_words_review_queue",
   "idx_user_daily_vocabulary_review_completions_user_date",

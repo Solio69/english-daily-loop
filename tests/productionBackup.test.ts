@@ -553,6 +553,16 @@ const createRecoveryReport = (
       name: "telegram_user_id",
       nullable: true,
     },
+    {
+      table: "reading_generation_attempts",
+      name: "request_id",
+      nullable: true,
+    },
+    {
+      table: "reading_generation_attempts",
+      name: "reading_text_id",
+      nullable: true,
+    },
   ],
   rlsEnabledTables: [...PROTECTED_PUBLIC_TABLES],
   protectedRolePrivileges: [],
@@ -717,6 +727,25 @@ test(
       persistenceReport,
     ).join("\n");
     assert.match(persistenceErrors, /persist_generated_vocabulary_card/);
+
+    const generationManifest = {
+      ...currentManifest,
+      latestMigrationVersion: "20261016120000",
+    };
+    const generationReport = createRecoveryReport(generationManifest);
+    generationReport.serverFunctions = generationReport.serverFunctions.filter(
+      (name) => name !== "claim_reading_generation_request",
+    );
+    generationReport.indexes = generationReport.indexes.filter(
+      (name) => name !== "idx_reading_generation_attempts_user_request",
+    );
+
+    const generationErrors = validateRecoveryDatabaseReport(
+      generationManifest,
+      generationReport,
+    ).join("\n");
+    assert.match(generationErrors, /claim_reading_generation_request/);
+    assert.match(generationErrors, /idx_reading_generation_attempts_user_request/);
   },
 );
 

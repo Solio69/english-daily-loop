@@ -20,18 +20,39 @@ export const TELEGRAM_WEBHOOK_PATH =
   "/functions/v1/telegram-bot-webhook";
 
 const WEBHOOK_SECRET_PATTERN = /^[A-Za-z0-9_-]{32,256}$/;
+const WEBHOOK_REJECTION_REASONS = Object.freeze([
+  { pattern: /failed to resolve host|dns/i, code: "HOST_RESOLUTION" },
+  { pattern: /failed to connect|connection refused|connect timeout/i, code: "CONNECTION" },
+  { pattern: /ssl|tls|certificate/i, code: "TLS" },
+  { pattern: /wrong response|http error/i, code: "HTTP_RESPONSE" },
+  { pattern: /invalid url|bad url|unsupported port|invalid port/i, code: "INVALID_URL" },
+  { pattern: /secret.token/i, code: "INVALID_SECRET" },
+]);
+const PROFILE_READ_OPERATIONS = Object.freeze({
+  setMyName: Object.freeze({ operation: "getMyName", field: "name" }),
+  setMyShortDescription: Object.freeze({
+    operation: "getMyShortDescription",
+    field: "short_description",
+  }),
+  setMyDescription: Object.freeze({
+    operation: "getMyDescription",
+    field: "description",
+  }),
+});
 
 export class TelegramBotConfigurationError extends Error {
   operation;
   code;
   providerStatus;
   providerErrorCode;
+  providerReason;
 
   constructor(
     operation,
     code,
     providerStatus = null,
     providerErrorCode = null,
+    providerReason = null,
   ) {
     super(`Telegram bot configuration operation ${operation} failed.`);
     this.name = "TelegramBotConfigurationError";
@@ -39,7 +60,18 @@ export class TelegramBotConfigurationError extends Error {
     this.code = code;
     this.providerStatus = providerStatus;
     this.providerErrorCode = providerErrorCode;
+    this.providerReason = providerReason;
   }
+}
+
+function classifyWebhookRejection(operation, description) {
+  if (operation !== "setWebhook" || typeof description !== "string") {
+    return null;
+  }
+  return (
+    WEBHOOK_REJECTION_REASONS.find(({ pattern }) => pattern.test(description))
+      ?.code ?? "OTHER"
+  );
 }
 
 const normalizeBotUsername = (value) => {
@@ -211,6 +243,7 @@ export function createTelegramBotApi({
           "TELEGRAM_API_REJECTED",
           response.status,
           Number.isSafeInteger(body?.error_code) ? body.error_code : null,
+          classifyWebhookRejection(operation, body?.description),
         );
       }
 
@@ -256,6 +289,13 @@ export async function configureTelegramBot({
     dropPendingUpdates,
   });
   for (const { operation, payload } of operations) {
+    const profileRead = PROFILE_READ_OPERATIONS[operation];
+    if (profileRead) {
+      const currentProfile = await api.call(profileRead.operation);
+      if (currentProfile?.[profileRead.field] === payload[profileRead.field]) {
+        continue;
+      }
+    }
     await api.call(operation, payload);
   }
 

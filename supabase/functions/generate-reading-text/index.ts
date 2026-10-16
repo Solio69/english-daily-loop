@@ -2,6 +2,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import {
   AppError,
+  HTTP_STATUS,
   assertPostRequest,
   errorResponse,
   fail,
@@ -60,6 +61,7 @@ type AttemptMetadata = {
 type ClaimGenerationAttemptResult =
   | {
       ok: true;
+      isDuplicate: boolean;
       attemptId: string;
       usedAttempts: number;
       remainingAttempts: number;
@@ -74,6 +76,50 @@ type ClaimGenerationAttemptResult =
 
 const AI_ERROR_MESSAGE =
   "Не удалось сгенерировать текст. Попробуй еще раз позже.";
+const DUPLICATE_RESULT_WAIT_MS = 95_000;
+const DUPLICATE_STATUS_POLL_MS = 2_000;
+const FINISH_RPC_MAX_ATTEMPTS = 2;
+const READING_GENERATION_RPC = {
+  CLAIM: "claim_reading_generation_request",
+  FINISH: "finish_reading_generation_request",
+} as const;
+const READING_GENERATION_TABLE = {
+  ATTEMPTS: "reading_generation_attempts",
+  ACTIVE_TEXTS: "user_active_reading_texts",
+} as const;
+const READING_GENERATION_COLUMN = {
+  ID: "id",
+  USER_ID: "user_id",
+  READING_TEXT_ID: "reading_text_id",
+  STATUS: "status",
+} as const;
+const ATTEMPT_RESULT_COLUMNS =
+  "status, reading_text_id, model, fallback_used, prompt_version";
+const ACTIVE_TEXT_RESULT_COLUMNS =
+  "reading_text_id, title, body, level, estimated_minutes, last_read_paragraph_index";
+const DUPLICATE_RESULT_ERROR = {
+  ATTEMPT_LOOKUP: {
+    code: "ATTEMPT_LOOKUP_FAILED",
+    message: "Failed to load generation attempt.",
+  },
+  ACTIVE_TEXT_LOOKUP: {
+    code: "ACTIVE_TEXT_LOOKUP_FAILED",
+    message: "Failed to load generated text.",
+  },
+  SUPERSEDED: {
+    code: "GENERATION_RESULT_SUPERSEDED",
+    message: "A newer reading text is active.",
+  },
+  PROCESSING: {
+    code: "GENERATION_STILL_PROCESSING",
+    message: "Generation is still processing.",
+  },
+} as const;
+const TEXT_GENERATION_FAILED_CODE = "TEXT_GENERATION_FAILED";
+const LOG_FINISH_FAILED = "[generate-reading-text] failed to finish attempt";
+const ATTEMPT_STATUS_SUCCEEDED = "succeeded";
+const ATTEMPT_STATUS_FAILED = "failed";
+const ATTEMPT_STATUS_STARTED = "started";
 const READING_CONFIG_BY_MINUTES: Record<
   ReadingMinutes,
   Omit<ReadingGenerationConfig, "validationWordMin" | "validationWordMax">
@@ -211,13 +257,15 @@ const claimGenerationAttempt = async (
   userId: string,
   attemptDate: string,
   dailyLimit: number,
+  requestId: string,
 ): Promise<Extract<ClaimGenerationAttemptResult, { ok: true }>> => {
   const { data, error } = await supabase.rpc(
-    "claim_reading_generation_attempt",
+    READING_GENERATION_RPC.CLAIM,
     {
       p_user_id: userId,
       p_attempt_date: attemptDate,
       p_daily_limit: dailyLimit,
+      p_request_id: requestId,
       p_provider: OPENROUTER_PROVIDER,
     },
   );
@@ -245,6 +293,104 @@ const claimGenerationAttempt = async (
   }
 
   return result;
+};
+
+const waitForExistingGeneration = async ({
+  supabase,
+  userId,
+  attemptId,
+  dailyLimit,
+  usedAttempts,
+  remainingAttempts,
+  requestId,
+}: {
+  supabase: ReturnType<typeof createClient>;
+  userId: string;
+  attemptId: string;
+  dailyLimit: number;
+  usedAttempts: number;
+  remainingAttempts: number;
+  requestId: string;
+}): Promise<Response> => {
+  const deadline = Date.now() + DUPLICATE_RESULT_WAIT_MS;
+
+  while (true) {
+    const { data: attempt, error: attemptError } = await supabase
+      .from(READING_GENERATION_TABLE.ATTEMPTS)
+      .select(ATTEMPT_RESULT_COLUMNS)
+      .eq(READING_GENERATION_COLUMN.ID, attemptId)
+      .eq(READING_GENERATION_COLUMN.USER_ID, userId)
+      .single();
+
+    if (attemptError || !attempt) {
+      fail(
+        HTTP_STATUS.INTERNAL_SERVER_ERROR,
+        DUPLICATE_RESULT_ERROR.ATTEMPT_LOOKUP.code,
+        DUPLICATE_RESULT_ERROR.ATTEMPT_LOOKUP.message,
+      );
+    }
+
+    if (attempt.status === ATTEMPT_STATUS_SUCCEEDED) {
+      const { data: activeText, error: activeTextError } = await supabase
+        .from(READING_GENERATION_TABLE.ACTIVE_TEXTS)
+        .select(ACTIVE_TEXT_RESULT_COLUMNS)
+        .eq(READING_GENERATION_COLUMN.USER_ID, userId)
+        .eq(READING_GENERATION_COLUMN.READING_TEXT_ID, attempt.reading_text_id)
+        .maybeSingle();
+
+      if (activeTextError) {
+        fail(
+          HTTP_STATUS.INTERNAL_SERVER_ERROR,
+          DUPLICATE_RESULT_ERROR.ACTIVE_TEXT_LOOKUP.code,
+          DUPLICATE_RESULT_ERROR.ACTIVE_TEXT_LOOKUP.message,
+        );
+      }
+      if (!activeText) {
+        fail(
+          HTTP_STATUS.CONFLICT,
+          DUPLICATE_RESULT_ERROR.SUPERSEDED.code,
+          DUPLICATE_RESULT_ERROR.SUPERSEDED.message,
+        );
+      }
+
+      return successResponse(
+        HTTP_STATUS.OK,
+        {
+          text: {
+            id: activeText.reading_text_id,
+            title: activeText.title,
+            body: activeText.body,
+            level: activeText.level,
+            estimatedMinutes: activeText.estimated_minutes,
+            lastReadParagraphIndex: activeText.last_read_paragraph_index,
+          },
+          generation: {
+            provider: OPENROUTER_PROVIDER,
+            model: attempt.model,
+            fallbackUsed: attempt.fallback_used,
+            promptVersion: attempt.prompt_version,
+          },
+          dailyLimit,
+          usedAttempts,
+          remainingAttempts,
+        },
+        requestId,
+      );
+    }
+
+    if (attempt.status === ATTEMPT_STATUS_FAILED) {
+      fail(HTTP_STATUS.BAD_GATEWAY, TEXT_GENERATION_FAILED_CODE, AI_ERROR_MESSAGE);
+    }
+    if (Date.now() >= deadline) {
+      fail(
+        HTTP_STATUS.GATEWAY_TIMEOUT,
+        DUPLICATE_RESULT_ERROR.PROCESSING.code,
+        DUPLICATE_RESULT_ERROR.PROCESSING.message,
+      );
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, DUPLICATE_STATUS_POLL_MS));
+  }
 };
 
 const getUserReadingSettingsFromDb = async (
@@ -351,7 +497,20 @@ Deno.serve(async (req: Request) => {
       settings.appUserId,
       studyDate,
       dailyLimit,
+      requestId,
     );
+
+    if (claimedAttempt.isDuplicate) {
+      return await waitForExistingGeneration({
+        supabase,
+        userId: settings.appUserId,
+        attemptId: claimedAttempt.attemptId,
+        dailyLimit,
+        usedAttempts: claimedAttempt.usedAttempts,
+        remainingAttempts: claimedAttempt.remainingAttempts,
+        requestId,
+      });
+    }
 
     startedAttempt = {
       supabase,
@@ -411,55 +570,35 @@ Deno.serve(async (req: Request) => {
     attemptMetadata.outputWordCount = generated.validation.wordCount;
     const readingTextId = crypto.randomUUID();
 
-    const { error: activeTextError } = await supabase
-      .from("user_active_reading_texts")
-      .upsert(
-        {
-          user_id: settings.appUserId,
-          reading_text_id: readingTextId,
-          title: generated.title,
-          body: generated.body,
-          level: generated.level,
-          estimated_minutes: generated.estimatedMinutes,
-          provider: OPENROUTER_PROVIDER,
-          model: generated.usedModel,
-          fallback_used: fallbackUsed,
-          reading_date: studyDate,
-          last_read_paragraph_index: null,
-          generated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id" },
-      );
-
-    if (activeTextError) {
-      console.error("[generate-reading-text] failed to save active text", {
-        appUserId: settings.appUserId,
-        attemptId: startedAttempt.attemptId,
-        error: activeTextError.message,
-      });
-      fail(500, "ACTIVE_TEXT_SAVE_FAILED", "Failed to save generated text.");
+    const finishArgs = {
+      p_user_id: settings.appUserId,
+      p_attempt_id: startedAttempt.attemptId,
+      p_reading_text_id: readingTextId,
+      p_title: generated.title,
+      p_body: generated.body,
+      p_level: generated.level,
+      p_estimated_minutes: generated.estimatedMinutes,
+      p_provider: OPENROUTER_PROVIDER,
+      p_model: generated.usedModel,
+      p_fallback_used: fallbackUsed,
+      p_reading_date: studyDate,
+      p_output_word_count: generated.validation.wordCount,
+      p_duration_ms: Date.now() - requestStartedAt,
+    };
+    let finishError = null;
+    for (let attempt = 0; attempt < FINISH_RPC_MAX_ATTEMPTS; attempt += 1) {
+      const result = await supabase.rpc(READING_GENERATION_RPC.FINISH, finishArgs);
+      finishError = result.error;
+      if (!finishError) break;
     }
 
-    const { error: attemptUpdateError } = await supabase
-      .from("reading_generation_attempts")
-      .update({
-        ...toAttemptUpdatePayload(attemptMetadata),
-        status: "succeeded",
-        provider: OPENROUTER_PROVIDER,
-        model: generated.usedModel,
-        duration_ms: Date.now() - requestStartedAt,
-        failure_stage: null,
-        error_code: null,
-        error_message: null,
-      })
-      .eq("id", startedAttempt.attemptId);
-
-    if (attemptUpdateError) {
-      console.error("[generate-reading-text] failed to update attempt", {
+    if (finishError) {
+      console.error(LOG_FINISH_FAILED, {
         appUserId: settings.appUserId,
         attemptId: startedAttempt.attemptId,
-        error: attemptUpdateError.message,
+        error: finishError.message,
       });
+      fail(500, "ACTIVE_TEXT_SAVE_FAILED", "Failed to save generated text.");
     }
 
     return successResponse(
@@ -488,7 +627,7 @@ Deno.serve(async (req: Request) => {
   } catch (error) {
     if (startedAttempt) {
       const code =
-        error instanceof AppError ? error.code : "TEXT_GENERATION_FAILED";
+        error instanceof AppError ? error.code : TEXT_GENERATION_FAILED_CODE;
       const message =
         error instanceof Error ? error.message : "Unknown generation error.";
       const failureStage = getFailureStage(error);
@@ -502,7 +641,8 @@ Deno.serve(async (req: Request) => {
           error_code: code,
           error_message: sanitizeDiagnosticMessage(message),
         })
-        .eq("id", startedAttempt.attemptId);
+        .eq("id", startedAttempt.attemptId)
+        .eq(READING_GENERATION_COLUMN.STATUS, ATTEMPT_STATUS_STARTED);
 
       if (updateError) {
         console.error("[generate-reading-text] failed to mark attempt failed", {
@@ -543,7 +683,7 @@ Deno.serve(async (req: Request) => {
     console.error("[generate-reading-text] failed", { requestId, message });
     return errorResponse(
       502,
-      "TEXT_GENERATION_FAILED",
+      TEXT_GENERATION_FAILED_CODE,
       AI_ERROR_MESSAGE,
       requestId,
       diagnostics,

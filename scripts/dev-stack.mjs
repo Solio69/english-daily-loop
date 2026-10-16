@@ -25,6 +25,7 @@ import { waitForTunnelUrl } from "./dev/tunnels.mjs";
 import {
   DEV_TELEGRAM_BOT_DISPLAY_NAME,
   TELEGRAM_BOT_PROFILE,
+  TelegramBotConfigurationError,
   buildTelegramWebhookUrl,
   configureTelegramBot,
 } from "./telegram/bot-config.mjs";
@@ -415,7 +416,13 @@ async function main() {
 }
 
 main().catch((error) => {
-  process.stderr.write(`\nFailed to start local stack: ${error.message}\n`);
+  const telegramErrorDetails =
+    error instanceof TelegramBotConfigurationError
+      ? ` (${error.code}${error.providerStatus === null ? "" : `, HTTP ${error.providerStatus}`}${error.providerErrorCode === null ? "" : `, Telegram ${error.providerErrorCode}`}${error.providerReason === null ? "" : `, reason ${error.providerReason}`})`
+      : "";
+  process.stderr.write(
+    `\nFailed to start local stack: ${error.message}${telegramErrorDetails}\n`,
+  );
   if (!shuttingDown) {
     shuttingDown = true;
     process.stderr.write("Stopping processes from the failed startup...\n");

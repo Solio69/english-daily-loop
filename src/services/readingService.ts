@@ -1,4 +1,10 @@
-import { invokeFunction } from "./functionClient";
+import {
+  createRequestId,
+  getTelegramInitData,
+  invokeFunction,
+  invokeFunctionWithInitData,
+} from "./functionClient";
+import { retryUnknownGenerationOutcome } from "./readingGenerationRetry";
 import {
   CompleteReadingTextResult,
   GenerateReadingTextResult,
@@ -20,6 +26,26 @@ type GenerateReadingTextPayload = {
   remainingAttempts: number;
 };
 
+const GENERATION_FUNCTION = "generate-reading-text";
+const GENERATION_FALLBACK_MESSAGE = "Не удалось обратиться к AI-сервису.";
+
+const invokeReadingGeneration = async (): Promise<GenerateReadingTextPayload> => {
+  const initData = getTelegramInitData();
+  const requestId = createRequestId();
+
+  return retryUnknownGenerationOutcome(
+    requestId,
+    (stableRequestId) =>
+      invokeFunctionWithInitData<GenerateReadingTextPayload>(
+        GENERATION_FUNCTION,
+        initData,
+        {},
+        GENERATION_FALLBACK_MESSAGE,
+        stableRequestId,
+      ),
+  );
+};
+
 export const getReadingState = async (): Promise<ReadingState> =>
   invokeFunction<ReadingState>(
     "get-reading-state",
@@ -29,11 +55,7 @@ export const getReadingState = async (): Promise<ReadingState> =>
 
 export const generateReadingText =
   async (): Promise<GenerateReadingTextResult> => {
-    const payload = await invokeFunction<GenerateReadingTextPayload>(
-      "generate-reading-text",
-      {},
-      "Не удалось обратиться к AI-сервису.",
-    );
+    const payload = await invokeReadingGeneration();
 
     return {
       text: {

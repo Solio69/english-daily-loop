@@ -293,22 +293,25 @@ test("late success from a replaced text does not update current UI state", async
 });
 
 test("reading position schema and generation reset stay explicit", async () => {
-  const [migration, generation, saveFunction, readingScreen] =
+  const [migration, generationMigration, saveFunction, readingScreen] =
     await Promise.all([
-    readFile(
-      "supabase/migrations/20260724120000_add_active_reading_position.sql",
-      "utf8",
-    ),
-    readFile("supabase/functions/generate-reading-text/index.ts", "utf8"),
-    readFile("supabase/functions/save-reading-position/index.ts", "utf8"),
-    readFile("src/screens/ReadingScreen.tsx", "utf8"),
-  ]);
+      readFile(
+        "supabase/migrations/20260724120000_add_active_reading_position.sql",
+        "utf8",
+      ),
+      readFile(
+        "supabase/migrations/20261016120000_idempotent_reading_generation.sql",
+        "utf8",
+      ),
+      readFile("supabase/functions/save-reading-position/index.ts", "utf8"),
+      readFile("src/screens/ReadingScreen.tsx", "utf8"),
+    ]);
 
   assert.match(
     migration,
     /last_read_paragraph_index is null\s+or last_read_paragraph_index >= 0/i,
   );
-  assert.match(generation, /last_read_paragraph_index:\s*null/);
+  assert.match(generationMigration, /last_read_paragraph_index = null/i);
   assert.match(
     saveFunction,
     /\.eq\("user_id", appUser\.id\)[\s\S]*\.eq\("reading_text_id", readingTextId\)/,
