@@ -1,5 +1,5 @@
 import { ArrowUp } from "lucide-react";
-import React, { useEffect, useEffectEvent, useState } from "react";
+import React, { useEffect, useEffectEvent, useRef, useState } from "react";
 import { Button } from "../components/Button";
 import { InlineStatusCard } from "../components/InlineStatusCard";
 import { LoadingState } from "../components/LoadingState";
@@ -57,6 +57,7 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
 }) => {
   const [isStateLoading, setIsStateLoading] = useState(true);
   const [loading, setLoading] = useState(false);
+  const generationInFlight = useRef(false);
   const [text, setText] = useState<ReadingText | null>(null);
   const [dailyLimit, setDailyLimit] = useState(10);
   const [remainingAttempts, setRemainingAttempts] = useState(0);
@@ -136,7 +137,8 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
   }, []);
 
   const handleGenerate = async () => {
-    if (remainingAttempts <= 0) return;
+    if (generationInFlight.current || remainingAttempts <= 0) return;
+    generationInFlight.current = true;
 
     setLoading(true);
     setSavedWords(new Set());
@@ -150,6 +152,7 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
       setText(result.text);
       setDailyLimit(result.dailyLimit);
       setRemainingAttempts(result.remainingAttempts);
+      setErrorText(null);
       emitReadingStatusChange(
         hasCompletedReadingToday ? "completed" : "in_progress",
       );
@@ -177,6 +180,7 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
         // Keep the latest visible state if refresh fails after generation error.
       }
     } finally {
+      generationInFlight.current = false;
       setLoading(false);
     }
   };

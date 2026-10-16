@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   approveVocabularyCards,
   approveVocabularyCard,
@@ -40,6 +40,7 @@ export const useVocabularyMaterials = (
     useState<VocabularyWordsPage | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isPreparingCards, setIsPreparingCards] = useState(false);
+  const isPreparingCardsRef = useRef(false);
   const [approvingWordId, setApprovingWordId] = useState<string | null>(null);
   const [isApprovingAllCards, setIsApprovingAllCards] = useState(false);
   const [expandedWordId, setExpandedWordId] = useState<string | null>(null);
@@ -115,7 +116,8 @@ export const useVocabularyMaterials = (
   }, [isEnabled]);
 
   const prepareCards = async () => {
-    if (isPreparingCards || isApprovingAllCards) return;
+    if (isPreparingCardsRef.current || isApprovingAllCards) return;
+    isPreparingCardsRef.current = true;
 
     setIsPreparingCards(true);
     setError(null);
@@ -146,6 +148,8 @@ export const useVocabularyMaterials = (
           title: "Не удалось подготовить карточки",
           message: "Попробуй еще раз позже.",
         });
+      } else {
+        setPrepareError(null);
       }
     } catch (error) {
       try {
@@ -167,6 +171,7 @@ export const useVocabularyMaterials = (
         message: "Попробуй еще раз позже.",
       });
     } finally {
+      isPreparingCardsRef.current = false;
       setIsPreparingCards(false);
     }
   };
