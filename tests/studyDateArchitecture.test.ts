@@ -155,17 +155,21 @@ test("generation replaces active text only after a valid AI result", () => {
     "generate-reading-text",
     "index.ts",
   );
+  const migration = readProjectFile(
+    "supabase",
+    "migrations",
+    "20261016120000_idempotent_reading_generation.sql",
+  );
   const generationIndex = source.indexOf(
     "await generateReadingTextWithOpenRouter",
   );
-  const upsertIndex = source.indexOf('.from("user_active_reading_texts")');
+  const finishIndex = source.indexOf("supabase.rpc(READING_GENERATION_RPC.FINISH");
 
   assert.ok(generationIndex >= 0);
-  assert.ok(upsertIndex > generationIndex);
-  assert.doesNotMatch(
-    source.slice(0, upsertIndex),
-    /\.from\("user_active_reading_texts"\)[\s\S]*?\.delete\(/,
-  );
+  assert.ok(finishIndex > generationIndex);
+  assert.match(migration, /insert into public\.user_active_reading_texts/i);
+  assert.match(migration, /status = 'succeeded'/i);
+  assert.doesNotMatch(source, /\.from\("user_active_reading_texts"\)[\s\S]*?\.upsert\(/);
 });
 
 test("mutation responses keep post-processing on the database study date", () => {

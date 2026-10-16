@@ -111,6 +111,7 @@
 - На пользовательских, reading-state, completion/history и subscription таблицах включен RLS; frontend не пишет в защищенные таблицы напрямую, операции проходят через Edge Functions с `SUPABASE_SERVICE_ROLE_KEY`.
 - Миграция `supabase/migrations/20260430120000_harden_public_api_permissions.sql` явно закрывает прямой доступ `anon`/`authenticated` к защищенным таблицам, закрывает legacy RPC `get_random_reading_text` для клиента и оставляет server-only доступ через `service_role`.
 - Миграция `supabase/migrations/20260430173000_add_ai_generation_observability.sql` добавляет безопасные metadata-поля AI-попыток в `public.reading_generation_attempts`: prompt version, model chain, target/validation ranges, output word count, fallback flag, duration и failure stage.
+- Миграция `supabase/migrations/20261016120000_idempotent_reading_generation.sql` связывает попытку с request ID, запрещает повторное списание одного запроса и атомарно фиксирует активный текст вместе с успешной попыткой.
 - Миграция `supabase/migrations/20260430190000_schedule_ai_attempt_cleanup.sql` включает `pg_cron` и создает scheduled cleanup job `cleanup_ai_generation_attempts` для удаления AI attempt metadata старше `90` дней.
 - Миграция `supabase/migrations/20260528120000_add_vocabulary_card_generation_attempts.sql` добавляет `public.vocabulary_card_generation_attempts`, RPC `claim_vocabulary_card_generation_attempt(...)` и scheduled cleanup job `cleanup_vocabulary_card_generation_attempts` для удаления attempt metadata подготовки карточек старше `90` дней.
 - Миграция `supabase/migrations/20260618120000_add_vocabulary_review_flow.sql` добавляет статусы и поля повторения, таблицу дневных completion-marker и RPC `review_vocabulary_word(...)`.
@@ -131,7 +132,9 @@
 - Миграция `supabase/migrations/20260513120000_drop_daily_exercise_minutes_from_user_settings.sql` удаляет поле `daily_exercise_minutes` из `public.user_settings`.
 - Миграция `supabase/migrations/20260427165000_enable_rls_for_users_and_settings.sql` включает RLS для `public.users` и `public.user_settings`.
 - Серверные транзакционные операции вынесены в Postgres RPC:
-  - `public.claim_reading_generation_attempt(...)` — атомарная проверка лимита и списание попытки генерации
+  - `public.claim_reading_generation_attempt(...)` — прежняя server-only проверка лимита, сохранённая для совместимости
+  - `public.claim_reading_generation_request(...)` — атомарная проверка лимита и списание только одного раза для одного request ID
+  - `public.finish_reading_generation_request(...)` — атомарное сохранение active text и успешного статуса попытки; повтор того же завершения безопасен
   - `public.get_moscow_study_date(...)` — server-only расчет учебной даты с границей `05:00 Europe/Moscow`; timestamp-чувствительные mutation RPC используют его с единым DB timestamp.
   - `public.complete_daily_reading_text(...)` — завершение единственного active text независимо от даты генерации, атомарная фиксация DB timestamp и соответствующей учебной даты, удаление active text и онбординг-флаг
   - `public.activate_mvp_subscription(...)` — активация MVP-подписки с advisory lock по пользователю.
@@ -189,11 +192,11 @@
   - серверная валидация `Telegram initData`
   - поиск пользователя по `telegram_user_id`
   - чтение `english_level` и `daily_reading_minutes` из `user_settings`
-  - атомарная проверка дневного лимита и списание попытки через RPC `claim_reading_generation_attempt`
+  - атомарная проверка дневного лимита и списание попытки через RPC `claim_reading_generation_request`; повтор с тем же request ID возвращает результат без нового списания
   - prompt/output слой находится в `supabase/functions/generate-reading-text/ai-pipeline.ts`
   - общий OpenRouter client/model allowlist находится в `supabase/functions/_shared/openrouter.ts`
   - общие AI text helpers находятся в `supabase/functions/_shared/ai-text.ts`
-  - текущий prompt version: `reading-text-v1`
+  - текущий prompt version: `reading-text-v2`
   - OpenRouter model chain проходит server-side allowlist до списания попытки
   - генерация через OpenRouter `models` parameter с allowlist-цепочкой free-моделей
   - запрос требует `response_format = json_object` и ограничивает reasoning через `reasoning = { effort: "low", exclude: true }`; пустой provider response исключает фактически ответившую модель и запускает следующий маршрут
@@ -203,7 +206,7 @@
   - output validation проверяет JSON, title/body, `estimatedMinutes`, `level`, длину с допуском примерно `±20%` и базовые content-safety patterns
   - observability AI-попыток хранится в `reading_generation_attempts` как metadata без полного prompt, raw provider response, полного generated text, Telegram `initData`, secrets и stack trace
   - timeout одного запроса к OpenRouter: `25` секунд, общий budget генерации текста: `90` секунд
-  - сохранение последнего успешного непрочитанного текста в `user_active_reading_texts` с `reading_date` текущей учебной даты и явным reset позиции в `null`; предыдущий active text заменяется только после валидного AI-ответа
+  - сохранение последнего успешного непрочитанного текста в `user_active_reading_texts` с `reading_date` текущей учебной даты и явным reset позиции в `null`; предыдущий active text заменяется только после валидного AI-ответа в одной транзакции со статусом попытки
   - единый контракт ответа (`ok/data` или `ok/error`).
 - Состояние экрана чтения реализовано через Edge Function `supabase/functions/get-reading-state/index.ts`:
   - серверная валидация `Telegram initData`
@@ -281,7 +284,7 @@
 - `src/services/userService.ts` сохраняет настройки через `save-user-settings`; прямых записей в `users` и `user_settings` с клиента нет.
 - На фронте подписка вынесена в `src/services/subscriptionService.ts` и `src/screens/SubscriptionScreen.tsx`, но пользовательский вход скрыт через `src/constants/subscriptionFeatures.ts`; клиент вызывает только `activate-subscription`, прямых записей подписки в БД с фронта нет.
 - Логика чтения вынесена в сервисный слой (`src/services/readingService.ts`), UI-компонент не содержит прямых запросов к БД.
-- `readingService` вызывает `get-reading-state`, `generate-reading-text` и `complete-reading-text`; текущий UI генерации не использует прямой RPC fallback `get_random_reading_text`.
+- `readingService` вызывает `get-reading-state`, `generate-reading-text` и `complete-reading-text`; при неизвестном исходе генерации он повторяет вызов с тем же request ID, а экран сверяет активный текст перед показом ошибки. Текущий UI не использует прямой RPC fallback `get_random_reading_text`.
 - Экран `Текст` реализован как контейнер `src/screens/ReadingScreen.tsx` плюс презентационные компоненты `src/components/reading/*`; idle, active text, loading, error и completed состояния используют mobile-first glass UI.
 - Парсинг отображаемого текста и нормализация кликабельных слов вынесены в `src/utils/readingText.ts`; `wordIndex` используется flow сохранения словаря и должен оставаться стабильным для selectable words.
 - `materialsService` вызывает `get-reading-history`; экран `Мои материалы` показывает завершенные тексты с табами `Тексты` и `Словарь`, где доступны подготовка и просмотр карточек словаря.

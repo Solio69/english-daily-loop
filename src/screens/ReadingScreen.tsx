@@ -139,6 +139,7 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
   const handleGenerate = async () => {
     if (generationInFlight.current || remainingAttempts <= 0) return;
     generationInFlight.current = true;
+    const previousTextId = text?.id ?? null;
 
     setLoading(true);
     setSavedWords(new Set());
@@ -161,10 +162,12 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
         error instanceof Error
           ? error.message
           : "Не удалось загрузить текст. Попробуй еще раз.";
-      setErrorText(message);
+      let recoveredNewText = false;
 
       try {
         const state = await getReadingState();
+        recoveredNewText =
+          state.activeText !== null && state.activeText.id !== previousTextId;
         setText(state.activeText);
         setSavedWords(new Set(state.activeText?.savedWordIndexes ?? []));
         setPendingSavedWords(
@@ -179,6 +182,7 @@ export const ReadingScreen: React.FC<ReadingScreenProps> = ({
       } catch {
         // Keep the latest visible state if refresh fails after generation error.
       }
+      setErrorText(recoveredNewText ? null : message);
     } finally {
       generationInFlight.current = false;
       setLoading(false);

@@ -18,6 +18,14 @@ export const CORS_HEADERS = {
 export const DEFAULT_INTERNAL_ERROR_MESSAGE =
   "Внутренняя ошибка сервера. Попробуй еще раз позже.";
 
+export const HTTP_STATUS = {
+  OK: 200,
+  CONFLICT: 409,
+  INTERNAL_SERVER_ERROR: 500,
+  BAD_GATEWAY: 502,
+  GATEWAY_TIMEOUT: 504,
+} as const;
+
 const MAX_AUTH_AGE_SECONDS = 24 * 60 * 60;
 const textEncoder = new TextEncoder();
 

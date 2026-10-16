@@ -9,7 +9,7 @@ import {
 
 const REQUEST_ID_PREFIX = "req_";
 
-const createRequestId = (): string => {
+export const createRequestId = (): string => {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return `${REQUEST_ID_PREFIX}${crypto.randomUUID()}`;
   }
@@ -45,8 +45,9 @@ export const invokeFunctionWithInitData = async <TData>(
   initData: string,
   body: Record<string, unknown>,
   fallbackMessage: string,
+  existingRequestId?: string,
 ): Promise<TData> => {
-  const requestId = createRequestId();
+  const requestId = existingRequestId ?? createRequestId();
   clientLogger.info("edge_request_started", { functionName, requestId });
   const { data, error } = await supabase.functions.invoke(functionName, {
     body: { initData, ...body },

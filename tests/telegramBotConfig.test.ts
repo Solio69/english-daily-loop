@@ -16,6 +16,7 @@ import {
   buildTelegramBotConfiguration,
   buildTelegramWebhookUrl,
   configureTelegramBot,
+  createTelegramBotApi,
   deleteTelegramWebhook,
   sanitizeWebhookInfo,
   validateTelegramWebhookSecret,
@@ -150,6 +151,7 @@ test("checks getMe before applying bot mutations", async () => {
 
 test("configures the expected bot in a deterministic order", async () => {
   const requests: Array<{ operation: string; payload: unknown }> = [];
+  const outdatedProfileValue = "outdated";
   const fetchImpl: typeof fetch = async (input, init) => {
     const operation = String(input).split("/").at(-1) ?? "";
     requests.push({
@@ -160,6 +162,21 @@ test("configures the expected bot in a deterministic order", async () => {
       return Response.json({
         ok: true,
         result: { username: "expected_dev_bot" },
+      });
+    }
+    if (operation === "getMyName") {
+      return Response.json({ ok: true, result: { name: outdatedProfileValue } });
+    }
+    if (operation === "getMyShortDescription") {
+      return Response.json({
+        ok: true,
+        result: { short_description: outdatedProfileValue },
+      });
+    }
+    if (operation === "getMyDescription") {
+      return Response.json({
+        ok: true,
+        result: { description: outdatedProfileValue },
       });
     }
     if (operation === "getWebhookInfo") {
@@ -187,15 +204,18 @@ test("configures the expected bot in a deterministic order", async () => {
   });
 
   assert.equal(result.botUsername, "@expected_dev_bot");
-  assert.deepEqual(requests[1]?.payload, {
+  assert.deepEqual(requests.find(({ operation }) => operation === "setMyName")?.payload, {
     name: "DEV: English Daily Loop",
   });
   assert.deepEqual(
     requests.map(({ operation }) => operation),
     [
       "getMe",
+      "getMyName",
       "setMyName",
+      "getMyShortDescription",
       "setMyShortDescription",
+      "getMyDescription",
       "setMyDescription",
       "setMyCommands",
       "setChatMenuButton",
@@ -204,6 +224,46 @@ test("configures the expected bot in a deterministic order", async () => {
     ],
   );
   assert.equal(result.webhookInfo.pendingUpdateCount, 0);
+});
+
+test("does not write bot profile fields that already match", async () => {
+  const operations: string[] = [];
+  const fetchImpl: typeof fetch = async (input) => {
+    const operation = String(input).split("/").at(-1) ?? "";
+    operations.push(operation);
+    const results: Record<string, unknown> = {
+      getMe: { username: "expected_dev_bot" },
+      getMyName: { name: DEV_TELEGRAM_BOT_DISPLAY_NAME },
+      getMyShortDescription: {
+        short_description: TELEGRAM_BOT_PROFILE.shortDescription,
+      },
+      getMyDescription: { description: TELEGRAM_BOT_PROFILE.description },
+      getWebhookInfo: { url: "https://api.example/functions/v1/telegram-bot-webhook" },
+    };
+    return Response.json({ ok: true, result: results[operation] ?? true });
+  };
+
+  await configureTelegramBot({
+    token: "sensitive-token",
+    expectedBotUsername: "@expected_dev_bot",
+    displayName: DEV_TELEGRAM_BOT_DISPLAY_NAME,
+    frontendUrl: "https://frontend.example",
+    webhookUrl: "https://api.example/functions/v1/telegram-bot-webhook",
+    webhookSecret,
+    fetchImpl,
+  });
+
+  const expectedOperations = [
+    "getMe",
+    "getMyName",
+    "getMyShortDescription",
+    "getMyDescription",
+    "setMyCommands",
+    "setChatMenuButton",
+    "setWebhook",
+    "getWebhookInfo",
+  ];
+  assert.deepEqual(operations, expectedOperations);
 });
 
 test("deletes only the expected bot webhook and sanitizes status", async () => {
@@ -251,5 +311,34 @@ test("sanitizes malformed webhook status", () => {
     pendingUpdateCount: 0,
     allowedUpdates: [],
     hasLastError: false,
+  });
+});
+
+test("reports a safe webhook rejection category without exposing the response", async () => {
+  const rejectedWebhook = {
+    operation: "setWebhook",
+    token: "sensitive-token",
+    status: 400,
+    reason: "HOST_RESOLUTION",
+    sensitiveDetail: "https://temporary-tunnel.trycloudflare.com token-secret",
+  } as const;
+  const api = createTelegramBotApi({
+    token: rejectedWebhook.token,
+    fetchImpl: async () =>
+      Response.json(
+        {
+          ok: false,
+          error_code: rejectedWebhook.status,
+          description: `Bad Request: bad webhook: Failed to resolve host: ${rejectedWebhook.sensitiveDetail}`,
+        },
+        { status: rejectedWebhook.status },
+      ),
+  });
+
+  await assert.rejects(api.call(rejectedWebhook.operation), (error: unknown) => {
+    assert.ok(error instanceof TelegramBotConfigurationError);
+    assert.equal(error.providerReason, rejectedWebhook.reason);
+    assert.doesNotMatch(JSON.stringify(error), /temporary-tunnel|token-secret/);
+    return true;
   });
 });
