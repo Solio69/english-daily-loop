@@ -21,6 +21,7 @@
     "test:legacy": "tsx --test tests/*.test.ts",
     "test:unit": "vitest run",
     "test": "tsx --test tests/*.test.ts && vitest run",
+    "test:all": "npm run test && npm run test:e2e && npm run test:edge",
     "test:e2e": "playwright test",
     "test:edge": "node scripts/quality/run-deno.mjs",
     "release:check": "tsx scripts/release-check.ts",

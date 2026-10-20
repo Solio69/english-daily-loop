@@ -5,7 +5,10 @@ import {
   DEFAULT_PRIMARY_MODEL,
   DEFAULT_READING_MODEL_CHAIN,
   DEFAULT_TERTIARY_MODEL,
+  OPENROUTER_MODEL_ENV,
+  OPENROUTER_MODEL_SEPARATOR,
   OpenRouterError,
+  getConfiguredOpenRouterModelChain,
   getOpenRouterModelChain,
   requestOpenRouter,
 } from '../supabase/functions/_shared/openrouter.ts'
@@ -13,19 +16,46 @@ import { generateReadingTextWithOpenRouter } from '../supabase/functions/generat
 import { HTTP_STATUS } from './fixtures/http.ts'
 import { OPENROUTER_MOCKS, OPENROUTER_RESPONSES } from './mocks/openrouter.ts'
 
-test('default OpenRouter base model chain contains three current unique models', () => {
-  assert.deepEqual(
-    getOpenRouterModelChain(
-      DEFAULT_PRIMARY_MODEL,
-      DEFAULT_FALLBACK_MODEL,
-      DEFAULT_TERTIARY_MODEL,
-    ),
-    OPENROUTER_MOCKS.baseModels,
+test('both AI features use the full model chain before positional overrides', () => {
+  const configuredChain = OPENROUTER_MOCKS.readingModels.join(
+    OPENROUTER_MODEL_SEPARATOR,
   )
+  const env = new Map<string, string>([
+    [OPENROUTER_MODEL_ENV.chain, configuredChain],
+    [OPENROUTER_MODEL_ENV.primary, OPENROUTER_MOCKS.obsoleteModelOverride],
+  ])
+
+  assert.deepEqual(
+    getConfiguredOpenRouterModelChain((name) => env.get(name) ?? null),
+    OPENROUTER_MOCKS.readingModels,
+  )
+  assert.deepEqual(
+    getConfiguredOpenRouterModelChain(() => null),
+    OPENROUTER_MOCKS.readingModels,
+  )
+})
+
+test('default OpenRouter base model chain contains three current unique models', () => {
+  const models = getOpenRouterModelChain(
+    DEFAULT_PRIMARY_MODEL,
+    DEFAULT_FALLBACK_MODEL,
+    DEFAULT_TERTIARY_MODEL,
+  )
+  assert.deepEqual(models, OPENROUTER_MOCKS.baseModels)
+  assert.equal(models.length, OPENROUTER_MOCKS.modelLimit)
+  assert.ok(
+    models.every((model) => model.endsWith(OPENROUTER_MOCKS.freeModelSuffix)),
+  )
+  assert.equal(new Set(models).size, models.length)
 
   assert.throws(
     () => getOpenRouterModelChain(OPENROUTER_MOCKS.unsupportedModel),
     OPENROUTER_MOCKS.unsupportedModelPattern,
+  )
+  assert.throws(
+    () =>
+      getOpenRouterModelChain(...models, OPENROUTER_MOCKS.alternateFreeModel),
+    OPENROUTER_MOCKS.modelLimitPattern,
   )
 })
 
@@ -41,7 +71,7 @@ test('reading generation retries with fallback after empty provider content', as
   const originalConsoleError = console.error
   const requestBodies: Array<{
     models: string[]
-    reasoning?: { effort?: string; exclude?: boolean }
+    reasoning?: { enabled?: boolean }
     response_format?: { type?: string }
   }> = []
 
@@ -106,7 +136,7 @@ test('reading generation retries with fallback after empty provider content', as
 test('OpenRouter provider errors keep safe diagnostics', async () => {
   const originalFetch = globalThis.fetch
   const requestBodies: Array<{
-    reasoning?: { effort?: string; exclude?: boolean }
+    reasoning?: { enabled?: boolean }
     response_format?: { type?: string }
   }> = []
 

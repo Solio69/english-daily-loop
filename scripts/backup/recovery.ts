@@ -46,6 +46,8 @@ const PENDING_VOCABULARY_WORD_DELETION_MIGRATION =
   "20260813120000";
 const ATOMIC_VOCABULARY_CARD_PERSISTENCE_MIGRATION =
   "20260813150000";
+const IDEMPOTENT_READING_GENERATION_MIGRATION =
+  "20261016120000";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -94,7 +96,25 @@ const requiredServerFunctionsForMigration = (
         isMigrationAtLeast(
           migrationVersion,
           ATOMIC_VOCABULARY_CARD_PERSISTENCE_MIGRATION,
+        )) &&
+      (![
+        "claim_reading_generation_request",
+        "finish_reading_generation_request",
+      ].includes(functionName) ||
+        isMigrationAtLeast(
+          migrationVersion,
+          IDEMPOTENT_READING_GENERATION_MIGRATION,
         )),
+  );
+
+const requiredIndexesForMigration = (migrationVersion: string): readonly string[] =>
+  REQUIRED_INDEXES.filter(
+    (indexName) =>
+      indexName !== "idx_reading_generation_attempts_user_request" ||
+      isMigrationAtLeast(
+        migrationVersion,
+        IDEMPOTENT_READING_GENERATION_MIGRATION,
+      ),
   );
 
 export const parseRecoveryDatabaseReport = (
@@ -263,6 +283,24 @@ export const validateRecoveryDatabaseReport = (
     );
   }
 
+  if (
+    isMigrationAtLeast(
+      manifest.latestMigrationVersion,
+      IDEMPOTENT_READING_GENERATION_MIGRATION,
+    )
+  ) {
+    for (const name of ["request_id", "reading_text_id"]) {
+      if (
+        !report.columns.some(
+          ({ table, name: columnName }) =>
+            table === "reading_generation_attempts" && columnName === name,
+        )
+      ) {
+        errors.push(`Не восстановлена column public.reading_generation_attempts.${name}.`);
+      }
+    }
+  }
+
   const supportTelegramIdColumn = report.columns.find(
     ({ table, name }) =>
       table === "support_reports" &&
@@ -351,7 +389,10 @@ export const validateRecoveryDatabaseReport = (
     }
   }
 
-  const missingIndexes = missingValues(REQUIRED_INDEXES, report.indexes);
+  const missingIndexes = missingValues(
+    requiredIndexesForMigration(manifest.latestMigrationVersion),
+    report.indexes,
+  );
   if (missingIndexes.length > 0) {
     errors.push(`Не восстановлены indexes: ${missingIndexes.join(", ")}.`);
   }

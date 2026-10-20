@@ -8,19 +8,20 @@ import {
   HTTP_STATUS,
 } from '../fixtures/http.ts'
 
+const EXPECTED_FREE_MODELS = [
+  'nvidia/nemotron-3-super-120b-a12b:free',
+  'dots-studio/dots-3-note-preview:free',
+  'nvidia/nemotron-3.5-super-vl:free',
+] as const
+
 export const OPENROUTER_MOCKS = {
-  baseModels: [
-    'openai/gpt-oss-20b:free',
-    'qwen/qwen3-next-80b-a3b-instruct:free',
-    'google/gemma-4-26b-a4b-it:free',
-  ],
-  readingModels: [
-    'qwen/qwen3-next-80b-a3b-instruct:free',
-    'nvidia/nemotron-nano-9b-v2:free',
-    'google/gemma-4-31b-it:free',
-    'google/gemma-4-26b-a4b-it:free',
-    'openai/gpt-oss-20b:free',
-  ],
+  baseModels: EXPECTED_FREE_MODELS,
+  readingModels: EXPECTED_FREE_MODELS,
+  obsoleteModelOverride: 'openai/gpt-oss-20b:free',
+  alternateFreeModel: 'google/gemma-4-26b-a4b-it:free',
+  freeModelSuffix: ':free',
+  modelLimit: 3,
+  modelLimitPattern: /exceeds 3 models/,
   unsupportedModel: 'qwen/qwen3.6-plus:free',
   unsupportedModelPattern: /Unsupported OpenRouter model/,
   responseHeaders: { [HTTP_HEADER.contentType]: HTTP_CONTENT_TYPE.json },
@@ -68,7 +69,7 @@ export const OPENROUTER_MOCKS = {
     temperature: 0.1,
     timeoutMs: 1000,
   },
-  expectedReasoning: { effort: 'low', exclude: true },
+  expectedReasoning: { enabled: false },
   responseFormatType: 'json_object',
   providerStage: 'provider_response',
   safeProviderMessage: 'AI-сервис временно недоступен. Попробуй еще раз позже.',

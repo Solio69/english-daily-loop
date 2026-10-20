@@ -16,12 +16,14 @@ import {
   buildTelegramBotConfiguration,
   buildTelegramWebhookUrl,
   configureTelegramBot,
+  createTelegramBotApi,
   deleteTelegramWebhook,
   sanitizeWebhookInfo,
   validateTelegramWebhookSecret,
 } from '../scripts/telegram/bot-config.mjs'
 
 import {
+  TELEGRAM_BOT_CONFIG_MATCHING_PROFILE_RESPONSES,
   TELEGRAM_BOT_CONFIG_RESPONSES,
   TELEGRAM_BOT_CONFIG_MOCKS,
 } from './mocks/telegramBotConfig.ts'
@@ -202,6 +204,19 @@ test('configures the expected bot in a deterministic order', async () => {
     if (operation === TELEGRAM_BOT_CONFIG_MOCKS.operation.getMe) {
       return Response.json(TELEGRAM_BOT_CONFIG_RESPONSES.expectedBot)
     }
+    if (operation === TELEGRAM_BOT_CONFIG_MOCKS.operation.getMyName) {
+      return Response.json(TELEGRAM_BOT_CONFIG_RESPONSES.outdatedName)
+    }
+    if (
+      operation === TELEGRAM_BOT_CONFIG_MOCKS.operation.getMyShortDescription
+    ) {
+      return Response.json(
+        TELEGRAM_BOT_CONFIG_RESPONSES.outdatedShortDescription,
+      )
+    }
+    if (operation === TELEGRAM_BOT_CONFIG_MOCKS.operation.getMyDescription) {
+      return Response.json(TELEGRAM_BOT_CONFIG_RESPONSES.outdatedDescription)
+    }
     if (operation === TELEGRAM_BOT_CONFIG_MOCKS.operation.getWebhookInfo) {
       return Response.json(TELEGRAM_BOT_CONFIG_RESPONSES.webhookInfo)
     }
@@ -224,27 +239,49 @@ test('configures the expected bot in a deterministic order', async () => {
     TELEGRAM_BOT_CONFIG_MOCKS.expectedBotUsername,
   )
   assert.deepEqual(
-    requests[TELEGRAM_BOT_CONFIG_MOCKS.nameOperationIndex]?.payload,
+    requests[TELEGRAM_BOT_CONFIG_MOCKS.configuredNameOperationIndex]?.payload,
     {
       name: TELEGRAM_BOT_CONFIG_MOCKS.devDisplayName,
     },
   )
   assert.deepEqual(
     requests.map(({ operation }) => operation),
-    [
-      TELEGRAM_BOT_CONFIG_MOCKS.operation.getMe,
-      TELEGRAM_BOT_CONFIG_MOCKS.operation.setMyName,
-      TELEGRAM_BOT_CONFIG_MOCKS.operation.setMyShortDescription,
-      TELEGRAM_BOT_CONFIG_MOCKS.operation.setMyDescription,
-      TELEGRAM_BOT_CONFIG_MOCKS.operation.setMyCommands,
-      TELEGRAM_BOT_CONFIG_MOCKS.operation.setChatMenuButton,
-      TELEGRAM_BOT_CONFIG_MOCKS.operation.setWebhook,
-      TELEGRAM_BOT_CONFIG_MOCKS.operation.getWebhookInfo,
-    ],
+    TELEGRAM_BOT_CONFIG_MOCKS.configuredOperations,
   )
   assert.equal(
     result.webhookInfo.pendingUpdateCount,
     TELEGRAM_BOT_CONFIG_MOCKS.initialPendingUpdates,
+  )
+})
+
+test('does not write bot profile fields that already match', async () => {
+  const operations: string[] = []
+  const fetchImpl: typeof fetch = async (input) => {
+    const operation =
+      String(input)
+        .split(TELEGRAM_BOT_CONFIG_MOCKS.urlSeparator)
+        .at(TELEGRAM_BOT_CONFIG_MOCKS.lastSegment) ??
+      TELEGRAM_BOT_CONFIG_MOCKS.emptyText
+    operations.push(operation)
+    return Response.json(
+      TELEGRAM_BOT_CONFIG_MATCHING_PROFILE_RESPONSES[operation] ??
+        TELEGRAM_BOT_CONFIG_RESPONSES.success,
+    )
+  }
+
+  await configureTelegramBot({
+    token: TELEGRAM_BOT_CONFIG_MOCKS.sensitiveToken,
+    expectedBotUsername: TELEGRAM_BOT_CONFIG_MOCKS.expectedBotUsername,
+    displayName: DEV_TELEGRAM_BOT_DISPLAY_NAME,
+    frontendUrl: TELEGRAM_BOT_CONFIG_MOCKS.frontendUrl,
+    webhookUrl: TELEGRAM_BOT_CONFIG_MOCKS.webhookUrl,
+    webhookSecret: TELEGRAM_BOT_CONFIG_MOCKS.webhookSecret,
+    fetchImpl,
+  })
+
+  assert.deepEqual(
+    operations,
+    TELEGRAM_BOT_CONFIG_MOCKS.matchingProfileOperations,
   )
 })
 
@@ -295,4 +332,28 @@ test('sanitizes malformed webhook status', () => {
     allowedUpdates: [],
     hasLastError: false,
   })
+})
+
+test('reports a safe webhook rejection category without exposing the response', async () => {
+  const rejectedWebhook = TELEGRAM_BOT_CONFIG_MOCKS.webhookRejection
+  const api = createTelegramBotApi({
+    token: TELEGRAM_BOT_CONFIG_MOCKS.sensitiveToken,
+    fetchImpl: async () =>
+      Response.json(TELEGRAM_BOT_CONFIG_RESPONSES.rejectedWebhook, {
+        status: rejectedWebhook.status,
+      }),
+  })
+
+  await assert.rejects(
+    api.call(rejectedWebhook.operation),
+    (error: unknown) => {
+      assert.ok(error instanceof TelegramBotConfigurationError)
+      assert.equal(error.providerReason, rejectedWebhook.reason)
+      assert.doesNotMatch(
+        JSON.stringify(error),
+        rejectedWebhook.sensitivePattern,
+      )
+      return true
+    },
+  )
 })

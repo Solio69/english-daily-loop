@@ -47,7 +47,7 @@ dist
 | `TELEGRAM_BOT_WEBHOOK_SECRET` | yes | secret | Random 32–256 character secret used to authenticate Telegram webhook requests through `X-Telegram-Bot-Api-Secret-Token`. |
 | `DEV_TOOLS_ENABLED` | yes | secret/config | Server-side gate for `dev-tools` actions. Keep `"false"` unless admin dev tools are intentionally allowed in production. |
 | `SUBSCRIPTION_FLOW_ENABLED` | yes | secret/config | Server-side gate for hidden subscription activation flow. Keep `"false"` while payments are disabled. |
-| `OPENROUTER_MODEL_CHAIN` | no | secret/config | Full allowlisted model chain for reading text generation. |
+| `OPENROUTER_MODEL_CHAIN` | no | secret/config | Full allowlisted model chain shared by reading text and vocabulary card generation; takes precedence over positional model settings. |
 | `OPENROUTER_MODEL_PRIMARY` | no | secret/config | Optional additional model when full chain is not set. |
 | `OPENROUTER_MODEL_FALLBACK` | no | secret/config | Optional additional model when full chain is not set. |
 | `OPENROUTER_MODEL_TERTIARY` | no | secret/config | Optional additional model when full chain is not set. |
