@@ -1,137 +1,70 @@
-import { createServiceClient, getAppUserByTelegramId, type ServiceClient } from "../_shared/app.ts";
-import { getMoscowStudyDate } from "../_shared/moscow-study-date.ts";
-import { getPostReadingCompletionMetrics } from "../_shared/reading-completion-metrics.ts";
+import { createServiceClient, getAppUserByTelegramId } from '../_shared/app.ts'
 import {
   AppError,
   DEFAULT_INTERNAL_ERROR_MESSAGE,
   assertPostRequest,
   errorResponse,
-  fail,
   getRequiredEnv,
   getRequestId,
   getTelegramUserFromBody,
   handleCorsPreflight,
   parseJsonBody,
   successResponse,
-} from "../_shared/server.ts";
+} from '../_shared/server.ts'
+import {
+  COMPLETION_LOG_PREFIX,
+  createReadingCompletionRepository,
+} from './completion-repository.ts'
+import { completeReadingText } from './completion-service.ts'
 
-type CompleteDailyReadingTextResult =
-  | {
-      ok: true;
-      completedDate: string;
-      firstTextCompletedAt: string;
-    }
-  | {
-      ok: false;
-      code: string;
-      message: string;
-    };
+const REQUIRED_ENV = [
+  'SUPABASE_URL',
+  'SUPABASE_SERVICE_ROLE_KEY',
+  'TELEGRAM_BOT_TOKEN',
+] as const
 
-const completeDailyReadingText = async (
-  supabase: ServiceClient,
-  userId: string,
-  completedDate: string,
-): Promise<Extract<CompleteDailyReadingTextResult, { ok: true }>> => {
-  const { data, error } = await supabase.rpc("complete_daily_reading_text", {
-    p_user_id: userId,
-    p_completed_date: completedDate,
-  });
+export const handleCompleteReadingText = async (
+  req: Request,
+): Promise<Response> => {
+  const corsResponse = handleCorsPreflight(req)
+  if (corsResponse) return corsResponse
 
-  if (error) {
-    console.error("[complete-reading-text] failed to complete text transaction", {
-      appUserId: userId,
-      completedDate,
-      error: error.message,
-    });
-    fail(500, "READING_COMPLETION_TRANSACTION_FAILED", "Failed to complete reading text.");
-  }
-
-  const result = data as CompleteDailyReadingTextResult | null;
-  if (!result) {
-    fail(500, "READING_COMPLETION_TRANSACTION_FAILED", "Empty completion result.");
-  }
-
-  if (!result.ok) {
-    fail(
-      result.code === "NO_ACTIVE_READING_TEXT" ? 409 : 500,
-      result.code,
-      result.message,
-    );
-  }
-
-  return result;
-};
-
-Deno.serve(async (req: Request) => {
-  const corsResponse = handleCorsPreflight(req);
-  if (corsResponse) {
-    return corsResponse;
-  }
-
-  const requestId = getRequestId(req);
-
+  const requestId = getRequestId(req)
   try {
-    assertPostRequest(req);
-
-    const env = getRequiredEnv([
-      "SUPABASE_URL",
-      "SUPABASE_SERVICE_ROLE_KEY",
-      "TELEGRAM_BOT_TOKEN",
-    ]);
-
-    const body = await parseJsonBody<{ initData?: unknown }>(req);
-    const tgUser = await getTelegramUserFromBody(
-      body,
-      env.TELEGRAM_BOT_TOKEN,
-    );
-
-    const supabase = createServiceClient(env);
-
+    assertPostRequest(req)
+    const env = getRequiredEnv([...REQUIRED_ENV])
+    const body = await parseJsonBody<{ initData?: unknown }>(req)
+    const tgUser = await getTelegramUserFromBody(body, env.TELEGRAM_BOT_TOKEN)
+    const supabase = createServiceClient(env)
     const appUser = await getAppUserByTelegramId(
       supabase,
       tgUser.id,
-      "[complete-reading-text]",
+      COMPLETION_LOG_PREFIX,
       requestId,
-    );
-    const studyDate = getMoscowStudyDate();
-    const completion = await completeDailyReadingText(
-      supabase,
-      appUser.id,
-      studyDate,
-    );
-
-    const { streakDays, completedReadingTextCount } =
-      await getPostReadingCompletionMetrics(
-        supabase,
-        appUser.id,
-        completion.completedDate,
-        "[complete-reading-text]",
-      );
-
-    return successResponse(200, {
-      completedDate: completion.completedDate,
-      firstTextCompletedAt: completion.firstTextCompletedAt,
-      isReadingCompletedToday: true,
-      streakDays,
-      completedReadingTextCount,
-    });
+    )
+    const data = await completeReadingText({
+      userId: appUser.id,
+      repository: createReadingCompletionRepository(supabase),
+    })
+    return successResponse(200, data)
   } catch (error) {
     if (error instanceof AppError) {
-      console.error("[complete-reading-text] request failed", {
+      console.error(COMPLETION_LOG_PREFIX + ' request failed', {
         status: error.status,
         code: error.code,
         message: error.message,
-      });
-      return errorResponse(error.status, error.code, error.message);
+      })
+      return errorResponse(error.status, error.code, error.message)
     }
-
     const message =
-      error instanceof Error ? error.message : "Unknown completion error.";
-    console.error("[complete-reading-text] failed", { message });
+      error instanceof Error ? error.message : 'Unknown completion error.'
+    console.error(COMPLETION_LOG_PREFIX + ' failed', { message })
     return errorResponse(
       500,
-      "READING_COMPLETION_FAILED",
+      'READING_COMPLETION_FAILED',
       DEFAULT_INTERNAL_ERROR_MESSAGE,
-    );
+    )
   }
-});
+}
+
+Deno.serve(handleCompleteReadingText)

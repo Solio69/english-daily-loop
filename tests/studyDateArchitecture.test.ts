@@ -182,7 +182,7 @@ test('mutation responses keep post-processing on the database study date', () =>
     'supabase',
     'functions',
     'complete-reading-text',
-    'index.ts',
+    'completion-repository.ts',
   )
   const reviewSource = readProjectFile(
     'supabase',
@@ -193,7 +193,7 @@ test('mutation responses keep post-processing on the database study date', () =>
 
   assert.match(
     completionSource,
-    /getPostReadingCompletionMetrics\(\s*supabase,\s*appUser\.id,\s*completion\.completedDate,/,
+    /getPostReadingCompletionMetrics\(\s*supabase,\s*userId,\s*completedDate,/,
   )
   assert.match(reviewSource, /reviewDate:\s*result\.reviewDate/)
 })
