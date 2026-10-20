@@ -14,6 +14,7 @@ import {
   successResponse,
 } from "../_shared/server.ts";
 import { getSubscriptionSummary } from "../_shared/access.ts";
+import { assertSubscriptionFlowEnabled } from "../_shared/subscription-flow.ts";
 
 type PlanType = "monthly" | "yearly";
 
@@ -87,13 +88,7 @@ Deno.serve(async (req: Request) => {
   try {
     assertPostRequest(req);
 
-    if (getOptionalEnv("SUBSCRIPTION_FLOW_ENABLED") !== "true") {
-      fail(
-        403,
-        "SUBSCRIPTION_FLOW_DISABLED",
-        "Subscription flow is disabled.",
-      );
-    }
+    assertSubscriptionFlowEnabled(getOptionalEnv("SUBSCRIPTION_FLOW_ENABLED"));
 
     const env = getRequiredEnv([
       "SUPABASE_URL",

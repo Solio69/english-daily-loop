@@ -1,49 +1,40 @@
-import React, {
-  Suspense,
-  lazy,
-  useCallback,
-  useRef,
-  useState,
-} from "react";
-import { ExternalLink } from "lucide-react";
-import { Button } from "../components/Button";
-import { LoadingState } from "../components/LoadingState";
-import { ScreenHeader } from "../components/ScreenHeader";
-import { AppVersionCard } from "../components/settings/AppVersionCard";
-import { ReleaseNotesModal } from "../components/settings/ReleaseNotesModal";
-import { SupportReportCard } from "../components/settings/SupportReportCard";
-import { currentRelease } from "../constants/currentRelease";
+import React, { Suspense, lazy, useCallback, useRef, useState } from 'react'
+import { ExternalLink } from 'lucide-react'
+import { Button } from '../components/Button'
+import { LoadingState } from '../components/LoadingState'
+import { ScreenHeader } from '../components/ScreenHeader'
+import { AppVersionCard } from '../components/settings/AppVersionCard'
+import { ReleaseNotesModal } from '../components/settings/ReleaseNotesModal'
+import { SupportReportCard } from '../components/settings/SupportReportCard'
+import { currentRelease } from '../constants/currentRelease'
 import type {
   DevToolAction,
   DevToolActionOptions,
-} from "../services/devToolsService";
-import { AppUser, SaveUserSettingsInput, UserSettings } from "../types/user";
-import {
-  getTelegramProfileUrl,
-  openTelegramLink,
-} from "../utils/telegramLinks";
+} from '../services/devToolsService'
+import { AppUser, SaveUserSettingsInput, UserSettings } from '../types/user'
+import { getTelegramProfileUrl, openTelegramLink } from '../utils/telegramLinks'
 
 const DevToolsPanel = lazy(() =>
-  import("../components/DevToolsPanel").then((module) => ({
+  import('../components/DevToolsPanel').then((module) => ({
     default: module.DevToolsPanel,
   })),
-);
+)
 
 type SettingsScreenProps = {
-  onBack: () => void;
-  onSave: (settings: SaveUserSettingsInput) => Promise<void>;
-  initialSettings?: UserSettings | null;
-  isSaving?: boolean;
-  isFirstSetup?: boolean;
-  showDevTools?: boolean;
-  runningDevToolAction?: DevToolAction | null;
+  onBack: () => void
+  onSave: (settings: SaveUserSettingsInput) => Promise<void>
+  initialSettings?: UserSettings | null
+  isSaving?: boolean
+  isFirstSetup?: boolean
+  showDevTools?: boolean
+  runningDevToolAction?: DevToolAction | null
   onRunDevToolAction?: (
     action: DevToolAction,
     options?: DevToolActionOptions,
-  ) => void;
-  appUser?: AppUser | null;
-  currentScreen: string;
-};
+  ) => void
+  appUser?: AppUser | null
+  currentScreen: string
+}
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   onBack,
@@ -57,48 +48,43 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   appUser = null,
   currentScreen,
 }) => {
-  const shouldUseStickySave = !isFirstSetup;
+  const shouldUseStickySave = !isFirstSetup
   const optionButtonClass =
-    "min-h-11 rounded-[16px] px-3 font-heading text-sm font-semibold transition duration-200 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]";
+    'min-h-11 rounded-[16px] px-3 font-heading text-sm font-semibold transition duration-200 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]'
   const inactiveOptionClass =
-    "glass-control text-[var(--text-secondary)] hover:border-[var(--border-strong)]";
+    'glass-control text-[var(--text-secondary)] hover:border-[var(--border-strong)]'
   const activeOptionClass =
-    "border border-[var(--accent-warm)] bg-[var(--accent-warm-soft)] text-[var(--accent-warm)] shadow-warm-glow";
-  const LEVEL_OPTIONS: UserSettings["englishLevel"][] = [
-    "A1",
-    "A2",
-    "B1",
-    "B2",
-  ];
-  const READING_TIME_OPTIONS = [3, 5, 10, 15];
-  const [level, setLevel] = useState<UserSettings["englishLevel"]>(
-    initialSettings?.englishLevel ?? "A1",
-  );
+    'border border-[var(--accent-warm)] bg-[var(--accent-warm-soft)] text-[var(--accent-warm)] shadow-warm-glow'
+  const LEVEL_OPTIONS: UserSettings['englishLevel'][] = ['A1', 'A2', 'B1', 'B2']
+  const READING_TIME_OPTIONS = [3, 5, 10, 15]
+  const [level, setLevel] = useState<UserSettings['englishLevel']>(
+    initialSettings?.englishLevel ?? 'A1',
+  )
   const [readingTime, setReadingTime] = useState(
     initialSettings?.dailyReadingMinutes ?? 3,
-  );
-  const [isReleaseNotesOpen, setIsReleaseNotesOpen] = useState(false);
-  const appVersionCardRef = useRef<HTMLButtonElement>(null);
+  )
+  const [isReleaseNotesOpen, setIsReleaseNotesOpen] = useState(false)
+  const appVersionCardRef = useRef<HTMLButtonElement>(null)
   const feedbackTelegramUrl = getTelegramProfileUrl(
     import.meta.env.VITE_FEEDBACK_TELEGRAM_USERNAME,
-  );
+  )
 
   const closeReleaseNotes = useCallback(() => {
-    setIsReleaseNotesOpen(false);
-    window.requestAnimationFrame(() => appVersionCardRef.current?.focus());
-  }, []);
+    setIsReleaseNotesOpen(false)
+    window.requestAnimationFrame(() => appVersionCardRef.current?.focus())
+  }, [])
 
   const handleSave = async () => {
     await onSave({
       englishLevel: level,
       dailyReadingMinutes: readingTime,
-    });
-  };
+    })
+  }
 
   return (
     <div
       className={`mx-auto flex min-h-[100dvh] w-full max-w-[430px] flex-col px-3.5 pt-3 min-[390px]:px-4 min-[480px]:max-w-[390px] min-[480px]:px-3 ${
-        shouldUseStickySave ? "pb-28" : "pb-4"
+        shouldUseStickySave ? 'pb-28' : 'pb-4'
       }`}
     >
       <ScreenHeader title="Настройки" onBack={onBack} disabled={isSaving} />
@@ -142,11 +128,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 type="button"
                 key={option}
                 onClick={() => setLevel(option)}
+                aria-pressed={level === option}
                 disabled={isSaving}
                 className={`${optionButtonClass} ${
-                  level === option
-                    ? activeOptionClass
-                    : inactiveOptionClass
+                  level === option ? activeOptionClass : inactiveOptionClass
                 }`}
               >
                 {option}
@@ -165,6 +150,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 type="button"
                 key={value}
                 onClick={() => setReadingTime(value)}
+                aria-pressed={readingTime === value}
                 disabled={isSaving}
                 className={`${optionButtonClass} ${
                   readingTime === value
@@ -209,12 +195,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       </div>
 
       <div className="mt-auto pt-6">
-        <Button
-          onClick={handleSave}
-          className="w-full"
-          disabled={isSaving}
-        >
-          {isSaving ? "Сохраняем..." : "Сохранить"}
+        <Button onClick={handleSave} className="w-full" disabled={isSaving}>
+          {isSaving ? 'Сохраняем...' : 'Сохранить'}
         </Button>
       </div>
 
@@ -225,5 +207,5 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         />
       ) : null}
     </div>
-  );
-};
+  )
+}

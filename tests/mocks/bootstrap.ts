@@ -3,6 +3,7 @@ import {
   HTTP_CORS_ORIGIN_ANY,
   HTTP_HEADER,
 } from '../fixtures/http.ts'
+import { VOCABULARY_E2E, VOCABULARY_STATE } from './vocabularyClient.ts'
 
 export const BOOTSTRAP_MOCKS = {
   baseURL: 'http://127.0.0.1:4173',
@@ -14,6 +15,8 @@ export const BOOTSTRAP_MOCKS = {
   telegramScriptOrigin: 'https://telegram.org',
   telegramScriptPath: '/js/telegram-web-app.js',
   authPath: '/functions/v1/auth-telegram',
+  saveSettingsPath: '/functions/v1/save-user-settings',
+  vocabularyStatePath: VOCABULARY_E2E.paths.vocabularyState,
   homePath: '/',
   emptyBody: '',
   corsHeaders: {
@@ -27,6 +30,13 @@ export const BOOTSTRAP_MOCKS = {
   homeHeading: 'Тест!',
   settingsButton: 'Открыть настройки',
   loadingText: 'Загружаем профиль...',
+  retryButton: 'Повторить вход',
+  retryRequestCount: 2,
+  pressed: 'true',
+  levelOption: 'B1',
+  minutesOption: '10м',
+  saveButton: 'Сохранить',
+  hiddenSubscriptionButton: 'Купить',
   authError: {
     ok: false,
     error: {
@@ -63,3 +73,21 @@ export const MOCK_SUCCESSFUL_AUTH = {
     completedReadingTextCount: 0,
   },
 }
+
+export const MOCK_SAVED_SETTINGS = {
+  ok: true,
+  data: {
+    user: {
+      ...MOCK_SUCCESSFUL_AUTH.data.user,
+      settingsCompletedAt: '2026-10-20T08:00:00.000Z',
+    },
+    settings: { englishLevel: 'B1', dailyReadingMinutes: 10 },
+    subscription: MOCK_SUCCESSFUL_AUTH.data.subscription,
+    homeProgress: MOCK_SUCCESSFUL_AUTH.data.homeProgress,
+  },
+} as const
+
+export const MOCK_VOCABULARY_STATE_RESPONSE = {
+  ok: true,
+  data: VOCABULARY_STATE,
+} as const

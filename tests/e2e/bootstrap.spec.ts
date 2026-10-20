@@ -5,19 +5,30 @@ import {
   HTTP_STATUS,
 } from '../fixtures/http.ts'
 
-import { BOOTSTRAP_MOCKS, MOCK_SUCCESSFUL_AUTH } from '../mocks/bootstrap.ts'
+import {
+  BOOTSTRAP_MOCKS,
+  MOCK_SAVED_SETTINGS,
+  MOCK_SUCCESSFUL_AUTH,
+  MOCK_VOCABULARY_STATE_RESPONSE,
+} from '../mocks/bootstrap.ts'
 
 const installMocks = async ({
   page,
   authResponse,
   authStatus,
+  recoveryResponse,
+  settingsResponse,
 }: {
   page: Page
   authResponse: unknown
   authStatus: number
+  recoveryResponse?: unknown
+  settingsResponse?: unknown
 }) => {
   const unexpectedRequests: string[] = []
   const authBodies: unknown[] = []
+  const settingsBodies: unknown[] = []
+  let firstAuthRequest = true
 
   await page.addInitScript(
     ({ initData, colorScheme, telegramGlobal }) => {
@@ -72,11 +83,54 @@ const installMocks = async ({
         return
       }
       authBodies.push(request.postDataJSON())
+      const shouldFail = firstAuthRequest || !recoveryResponse
+      firstAuthRequest = false
       await route.fulfill({
-        status: authStatus,
+        status: shouldFail ? authStatus : HTTP_STATUS.ok,
         contentType: HTTP_CONTENT_TYPE.json,
         headers: BOOTSTRAP_MOCKS.authCorsHeaders,
-        body: JSON.stringify(authResponse),
+        body: JSON.stringify(shouldFail ? authResponse : recoveryResponse),
+      })
+      return
+    }
+    if (
+      settingsResponse &&
+      url.origin === BOOTSTRAP_MOCKS.apiURL &&
+      url.pathname === BOOTSTRAP_MOCKS.saveSettingsPath
+    ) {
+      if (request.method() === HTTP_METHOD.options) {
+        await route.fulfill({
+          status: HTTP_STATUS.noContent,
+          headers: BOOTSTRAP_MOCKS.corsHeaders,
+        })
+        return
+      }
+      settingsBodies.push(request.postDataJSON())
+      await route.fulfill({
+        status: HTTP_STATUS.ok,
+        contentType: HTTP_CONTENT_TYPE.json,
+        headers: BOOTSTRAP_MOCKS.authCorsHeaders,
+        body: JSON.stringify(settingsResponse),
+      })
+      return
+    }
+    if (
+      settingsResponse &&
+      url.origin === BOOTSTRAP_MOCKS.apiURL &&
+      url.pathname === BOOTSTRAP_MOCKS.vocabularyStatePath
+    ) {
+      if (request.method() === HTTP_METHOD.options) {
+        await route.fulfill({
+          status: HTTP_STATUS.noContent,
+          headers: BOOTSTRAP_MOCKS.corsHeaders,
+        })
+        return
+      }
+      await route.fulfill({
+        status: HTTP_STATUS.ok,
+        contentType: HTTP_CONTENT_TYPE.json,
+        headers: BOOTSTRAP_MOCKS.authCorsHeaders,
+        body: JSON.stringify(MOCK_VOCABULARY_STATE_RESPONSE),
       })
       return
     }
@@ -85,7 +139,7 @@ const installMocks = async ({
     await route.abort()
   })
 
-  return { unexpectedRequests, authBodies }
+  return { unexpectedRequests, authBodies, settingsBodies }
 }
 
 test('Telegram bootstrap opens the home screen with a mocked API', async ({
@@ -134,6 +188,91 @@ test('auth failure shows an actionable error without contacting a real backend',
   await expect(page.getByText(BOOTSTRAP_MOCKS.loadingText)).not.toBeVisible()
   expect(requests.authBodies).toContainEqual({
     initData: BOOTSTRAP_MOCKS.fakeInitData,
+  })
+  expect(requests.unexpectedRequests).toEqual([])
+})
+
+test('auth retry opens the app only after a successful response', async ({
+  page,
+}) => {
+  const requests = await installMocks({
+    page,
+    authResponse: BOOTSTRAP_MOCKS.authError,
+    authStatus: HTTP_STATUS.unauthorized,
+    recoveryResponse: MOCK_SUCCESSFUL_AUTH,
+  })
+
+  await page.goto(BOOTSTRAP_MOCKS.homePath)
+  await expect(
+    page.getByText(BOOTSTRAP_MOCKS.authError.error.message),
+  ).toBeVisible()
+  await expect(
+    page.getByRole(BOOTSTRAP_MOCKS.headingRole, {
+      name: BOOTSTRAP_MOCKS.homeHeading,
+    }),
+  ).not.toBeVisible()
+
+  await page
+    .getByRole(BOOTSTRAP_MOCKS.buttonRole, {
+      name: BOOTSTRAP_MOCKS.retryButton,
+    })
+    .click()
+
+  await expect(
+    page.getByRole(BOOTSTRAP_MOCKS.headingRole, {
+      name: BOOTSTRAP_MOCKS.homeHeading,
+    }),
+  ).toBeVisible()
+  expect(requests.authBodies).toHaveLength(BOOTSTRAP_MOCKS.retryRequestCount)
+  expect(requests.unexpectedRequests).toEqual([])
+})
+
+test('first setup saves settings and keeps subscription entry hidden', async ({
+  page,
+}) => {
+  const requests = await installMocks({
+    page,
+    authResponse: MOCK_SUCCESSFUL_AUTH,
+    authStatus: HTTP_STATUS.ok,
+    settingsResponse: MOCK_SAVED_SETTINGS,
+  })
+
+  await page.goto(BOOTSTRAP_MOCKS.homePath)
+  await page
+    .getByRole(BOOTSTRAP_MOCKS.buttonRole, {
+      name: BOOTSTRAP_MOCKS.settingsButton,
+    })
+    .first()
+    .click()
+  const level = page.getByRole(BOOTSTRAP_MOCKS.buttonRole, {
+    name: BOOTSTRAP_MOCKS.levelOption,
+  })
+  const minutes = page.getByRole(BOOTSTRAP_MOCKS.buttonRole, {
+    name: BOOTSTRAP_MOCKS.minutesOption,
+  })
+  await level.click()
+  await minutes.click()
+  await expect(level).toHaveAttribute('aria-pressed', BOOTSTRAP_MOCKS.pressed)
+  await expect(minutes).toHaveAttribute('aria-pressed', BOOTSTRAP_MOCKS.pressed)
+  await page
+    .getByRole(BOOTSTRAP_MOCKS.buttonRole, {
+      name: BOOTSTRAP_MOCKS.saveButton,
+    })
+    .click()
+
+  await expect(
+    page.getByRole(BOOTSTRAP_MOCKS.headingRole, {
+      name: BOOTSTRAP_MOCKS.homeHeading,
+    }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole(BOOTSTRAP_MOCKS.buttonRole, {
+      name: BOOTSTRAP_MOCKS.hiddenSubscriptionButton,
+    }),
+  ).not.toBeVisible()
+  expect(requests.settingsBodies).toContainEqual({
+    initData: BOOTSTRAP_MOCKS.fakeInitData,
+    settings: MOCK_SAVED_SETTINGS.data.settings,
   })
   expect(requests.unexpectedRequests).toEqual([])
 })

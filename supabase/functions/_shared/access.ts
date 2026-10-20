@@ -143,6 +143,18 @@ export const getAccessContext = async (
       getUserRole(supabase, userId, logPrefix),
       getSubscriptionRows(supabase, userId, logPrefix),
     ]);
+  return resolveAccessContext({ role, activeSubscription, scheduledSubscription });
+};
+
+export const resolveAccessContext = ({
+  role,
+  activeSubscription,
+  scheduledSubscription,
+}: {
+  role: AppRole;
+  activeSubscription: SubscriptionRow | null;
+  scheduledSubscription: SubscriptionRow | null;
+}): AccessContext => {
   const hasInternalAccess = isInternalAccessRole(role);
   const hasPaidAccess = hasInternalAccess || Boolean(activeSubscription);
 

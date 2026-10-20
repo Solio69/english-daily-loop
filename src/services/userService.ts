@@ -1,231 +1,94 @@
-﻿import { invokeFunctionWithInitData } from "./functionClient";
-import { SubscriptionSummary } from "../types/subscription";
-import { HomeProgress } from "../types/homeProgress";
-import {
-  AppRole,
+import { invokeFunctionWithInitData } from './functionClient'
+import { requireAuthProfile, requireSavedSettings } from './userContracts'
+import type {
   AppUser,
   SaveUserSettingsInput,
-  UserSettings,
-} from "../types/user";
-import { DEFAULT_FREE_SUBSCRIPTION_SUMMARY } from "../constants/subscriptionFallbacks";
+  SavedUserSettings,
+} from '../types/user'
 
-// TODO: Local debugging helper for Telegram auth traces.
 const AUTH_DEBUG_ENABLED =
-  import.meta.env.DEV || import.meta.env.VITE_DEBUG_AUTH === "true";
+  import.meta.env.DEV || import.meta.env.VITE_DEBUG_AUTH === 'true'
+const MISSING_INIT_DATA_MESSAGE =
+  'Telegram initData не найден. Открой приложение внутри Telegram.'
+const AUTH_FAILURE_MESSAGE = 'Не удалось авторизоваться через Telegram.'
+const SETTINGS_FAILURE_MESSAGE = 'Не удалось сохранить настройки.'
 
-type UserRow = {
-  id: string;
-  role: AppRole;
-  first_name: string | null;
-  settings_completed_at: string | null;
-  first_text_completed_at: string | null;
-};
-
-type AuthenticatedUserRow = UserRow & {
-  streak_days: number;
-  completed_reading_text_count: number | null;
-  subscription: SubscriptionSummary;
-  homeProgress: HomeProgress;
-  settings: UserSettings | null;
-};
-
-type AuthTelegramFunctionData = {
-  user: {
-    id: string;
-    role: AppRole;
-    firstName: string | null;
-    settingsCompletedAt: string | null;
-    firstTextCompletedAt: string | null;
-  };
-  settings: UserSettings | null;
-  streakDays: number;
-  completedReadingTextCount?: number | null;
-  subscription: SubscriptionSummary;
-  homeProgress: HomeProgress;
-};
-
-type SaveUserSettingsFunctionData = {
-  user: {
-    id: string;
-    role: AppRole;
-    firstName: string | null;
-    settingsCompletedAt: string | null;
-    firstTextCompletedAt: string | null;
-  };
-  settings: UserSettings;
-  subscription: SubscriptionSummary;
-  homeProgress: HomeProgress;
-};
-
-const DEFAULT_HOME_PROGRESS: HomeProgress = {
-  lesson: {
-    status: "not_started",
-    currentStep: "reading",
-  },
-  reading: {
-    status: "not_started",
-  },
-  review: {
-    status: "completed",
-    dueCount: 0,
-    reviewedTodayCount: 0,
-  },
-};
-
-const authLog = (message: string, details?: unknown): void => {
-  if (!AUTH_DEBUG_ENABLED) return;
+const authLog = ({
+  message,
+  details,
+}: {
+  message: string
+  details?: unknown
+}): void => {
+  if (!AUTH_DEBUG_ENABLED) return
   if (details !== undefined) {
-    console.info(`[EDL auth] ${message}`, details);
-    return;
+    console.info(`[EDL auth] ${message}`, details)
+    return
   }
-  console.info(`[EDL auth] ${message}`);
-};
+  console.info(`[EDL auth] ${message}`)
+}
 
-const mapUser = (
-  user: UserRow,
-  settings: UserSettings | null = null,
-  subscription: SubscriptionSummary = DEFAULT_FREE_SUBSCRIPTION_SUMMARY,
-  homeProgress: HomeProgress = DEFAULT_HOME_PROGRESS,
-  streakDays = 0,
-  completedReadingTextCount: number | null = null,
-): AppUser => {
-  const normalizedHomeProgress: HomeProgress = {
-    ...DEFAULT_HOME_PROGRESS,
-    ...homeProgress,
-    lesson: homeProgress.lesson ?? DEFAULT_HOME_PROGRESS.lesson,
-    reading: homeProgress.reading ?? DEFAULT_HOME_PROGRESS.reading,
-    review: homeProgress.review ?? DEFAULT_HOME_PROGRESS.review,
-  };
-
-  return {
-    id: user.id,
-    role: user.role,
-    firstName: user.first_name,
-    streakDays,
-    completedReadingTextCount,
-    settingsCompletedAt: user.settings_completed_at,
-    firstTextCompletedAt: user.first_text_completed_at,
-    settings,
-    subscription,
-    homeProgress: normalizedHomeProgress,
-  };
-};
-
-const getTelegramInitData = (): string | null => {
-  const initData = window.Telegram?.WebApp?.initData?.trim();
-  authLog("Telegram initData check", {
-    hasTelegramObject: Boolean(window.Telegram?.WebApp),
-    hasInitData: Boolean(initData),
-    initDataLength: initData?.length ?? 0,
-  });
-  return initData || null;
-};
-
-const getAuthenticatedUser = async (
-  initData: string,
-): Promise<AuthenticatedUserRow> => {
-  authLog("Calling auth-telegram function", {
-    source: "telegram",
-  });
-  const payload = await invokeFunctionWithInitData<AuthTelegramFunctionData>(
-    "auth-telegram",
-    initData,
-    {},
-    "Не удалось авторизоваться через Telegram.",
-  );
-
-  authLog("auth-telegram success", {
-    appUserId: payload.user.id,
-  });
-
-  return {
-    id: payload.user.id,
-    role: payload.user.role ?? "user",
-    first_name: payload.user.firstName,
-    streak_days: payload.streakDays,
-    completed_reading_text_count: payload.completedReadingTextCount ?? null,
-    settings_completed_at: payload.user.settingsCompletedAt,
-    first_text_completed_at: payload.user.firstTextCompletedAt,
-    settings: payload.settings,
-    subscription: payload.subscription,
-    homeProgress: payload.homeProgress,
-  };
-};
+const getTelegramInitData = (): string => {
+  const initData = window.Telegram?.WebApp?.initData?.trim()
+  authLog({
+    message: 'Telegram initData check',
+    details: {
+      hasTelegramObject: Boolean(window.Telegram?.WebApp),
+      hasInitData: Boolean(initData),
+      initDataLength: initData?.length ?? 0,
+    },
+  })
+  if (!initData) throw new Error(MISSING_INIT_DATA_MESSAGE)
+  return initData
+}
 
 export const getCurrentAppUser = async (): Promise<AppUser> => {
-  const initData = getTelegramInitData();
-  const source = initData ? "telegram" : "no_auth_source";
-  authLog("Selecting user source", { source });
-  if (!initData) {
-    throw new Error(
-      "Telegram initData не найден. Открой приложение внутри Telegram.",
-    );
+  const initData = getTelegramInitData()
+  const response = requireAuthProfile(
+    await invokeFunctionWithInitData<unknown>(
+      'auth-telegram',
+      initData,
+      {},
+      AUTH_FAILURE_MESSAGE,
+    ),
+  )
+
+  authLog({
+    message: 'Bootstrapped app user',
+    details: {
+      appUserId: response.user.id,
+      hasSettings: Boolean(response.settings),
+      subscriptionTier: response.subscription.tier,
+      readingStatus: response.homeProgress.reading.status,
+      reviewStatus: response.homeProgress.review.status,
+    },
+  })
+
+  return {
+    ...response.user,
+    settings: response.settings,
+    subscription: response.subscription,
+    homeProgress: response.homeProgress,
+    streakDays: response.streakDays,
+    completedReadingTextCount: response.completedReadingTextCount,
   }
-  const user = await getAuthenticatedUser(initData);
-  const settings = user.settings;
-  const subscription =
-    (user as Partial<AuthenticatedUserRow>).subscription ??
-    DEFAULT_FREE_SUBSCRIPTION_SUMMARY;
-  const homeProgress =
-    (user as Partial<AuthenticatedUserRow>).homeProgress ??
-    DEFAULT_HOME_PROGRESS;
-  const streakDays = (user as Partial<AuthenticatedUserRow>).streak_days ?? 0;
-  authLog("Bootstrapped app user", {
-    appUserId: user.id,
-    hasSettings: Boolean(settings),
-    subscriptionTier: subscription.tier,
-    readingStatus: homeProgress.reading.status,
-    reviewStatus: homeProgress.review.status,
-    streakDays,
-    completedReadingTextCount: user.completed_reading_text_count,
-  });
-  return mapUser(
-    user,
-    settings,
-    subscription,
-    homeProgress,
-    streakDays,
-    user.completed_reading_text_count,
-  );
-};
+}
 
 export const saveCurrentUserSettings = async (
-  userId: string,
   input: SaveUserSettingsInput,
-  subscription: SubscriptionSummary,
-  homeProgress: HomeProgress,
-  streakDays: number,
-  completedReadingTextCount: number | null,
-): Promise<AppUser> => {
-  authLog("Saving user settings", { userId, input });
-  const initData = getTelegramInitData();
-  if (!initData) {
-    throw new Error(
-      "Telegram initData не найден. Открой приложение внутри Telegram.",
-    );
-  }
-  const payload = await invokeFunctionWithInitData<SaveUserSettingsFunctionData>(
-    "save-user-settings",
-    initData,
-    { settings: input },
-    "Не удалось сохранить настройки.",
-  );
-
-  const userRow: UserRow = {
-    id: payload.user.id,
-    role: payload.user.role ?? "user",
-    first_name: payload.user.firstName,
-    settings_completed_at: payload.user.settingsCompletedAt,
-    first_text_completed_at: payload.user.firstTextCompletedAt,
-  };
-
-  authLog("Settings saved successfully", { userId: userRow.id });
-  return mapUser(
-    userRow,
-    payload.settings,
-    payload.subscription ?? subscription,
-    payload.homeProgress ?? homeProgress,
-    streakDays,
-    completedReadingTextCount,
-  );
-};
+): Promise<SavedUserSettings> => {
+  const initData = getTelegramInitData()
+  const response = requireSavedSettings(
+    await invokeFunctionWithInitData<unknown>(
+      'save-user-settings',
+      initData,
+      { settings: input },
+      SETTINGS_FAILURE_MESSAGE,
+    ),
+  )
+  authLog({
+    message: 'Settings saved successfully',
+    details: { userId: response.user.id },
+  })
+  return response
+}
