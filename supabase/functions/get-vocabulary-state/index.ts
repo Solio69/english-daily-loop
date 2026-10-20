@@ -1,126 +1,65 @@
+import { createServiceClient, getAppUserByTelegramId } from '../_shared/app.ts'
 import {
   AppError,
   DEFAULT_INTERNAL_ERROR_MESSAGE,
   assertPostRequest,
   errorResponse,
-  fail,
   getRequiredEnv,
   getRequestId,
   getTelegramUserFromBody,
   handleCorsPreflight,
+  HTTP_STATUS,
   parseJsonBody,
   successResponse,
-} from "../_shared/server.ts";
-import {
-  createServiceClient,
-  getAppUserByTelegramId,
-} from "../_shared/app.ts";
-import { getMoscowStudyDate } from "../_shared/moscow-study-date.ts";
-import {
-  getVocabularyCardGenerationState,
-} from "../_shared/vocabulary-card-generation.ts";
+} from '../_shared/server.ts'
+import { loadVocabularyState } from './vocabulary-state-repository.ts'
 
-const LOG_PREFIX = "[get-vocabulary-state]";
+const LOG_PREFIX = '[get-vocabulary-state]'
+const REQUIRED_ENV = [
+  'SUPABASE_URL',
+  'SUPABASE_SERVICE_ROLE_KEY',
+  'TELEGRAM_BOT_TOKEN',
+] as const
 
-Deno.serve(async (req: Request) => {
-  const corsResponse = handleCorsPreflight(req);
-  if (corsResponse) {
-    return corsResponse;
-  }
+export const handleGetVocabularyState = async (
+  req: Request,
+): Promise<Response> => {
+  const corsResponse = handleCorsPreflight(req)
+  if (corsResponse) return corsResponse
 
-  const requestId = getRequestId(req);
-
+  const requestId = getRequestId(req)
   try {
-    assertPostRequest(req);
-
-    const env = getRequiredEnv([
-      "SUPABASE_URL",
-      "SUPABASE_SERVICE_ROLE_KEY",
-      "TELEGRAM_BOT_TOKEN",
-    ]);
-    const body = await parseJsonBody<{ initData?: unknown }>(req);
-    const tgUser = await getTelegramUserFromBody(
-      body,
-      env.TELEGRAM_BOT_TOKEN,
-    );
-
-    const supabase = createServiceClient(env);
+    assertPostRequest(req)
+    const env = getRequiredEnv([...REQUIRED_ENV])
+    const body = await parseJsonBody<{ initData?: unknown }>(req)
+    const tgUser = await getTelegramUserFromBody(body, env.TELEGRAM_BOT_TOKEN)
+    const supabase = createServiceClient(env)
     const appUser = await getAppUserByTelegramId(
       supabase,
       tgUser.id,
       LOG_PREFIX,
       requestId,
-    );
-    const studyDate = getMoscowStudyDate();
-    const [
-      { count: pendingCount, error: pendingError },
-      { count: needsApprovalCount, error: needsApprovalError },
-      { count: readyCount, error: readyError },
-      { count: totalCount, error: totalError },
-      cardGeneration,
-    ] = await Promise.all([
-      supabase
-        .from("user_vocabulary_words")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", appUser.id)
-        .eq("card_status", "pending"),
-      supabase
-        .from("user_vocabulary_words")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", appUser.id)
-        .eq("card_status", "needs_approval"),
-      supabase
-        .from("user_vocabulary_words")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", appUser.id)
-        .eq("card_status", "ready"),
-      supabase
-        .from("user_vocabulary_words")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", appUser.id),
-      getVocabularyCardGenerationState(
-        supabase,
-        appUser.id,
-        studyDate,
-        LOG_PREFIX,
-      ),
-    ]);
-
-    if (pendingError || needsApprovalError || readyError || totalError) {
-      console.error("[get-vocabulary-state] failed to count vocabulary words", {
-        appUserId: appUser.id,
-        pendingError: pendingError?.message,
-        needsApprovalError: needsApprovalError?.message,
-        readyError: readyError?.message,
-        totalError: totalError?.message,
-      });
-      fail(500, "VOCABULARY_STATE_LOAD_FAILED", "Failed to load vocabulary state.");
-    }
-
-    return successResponse(200, {
-      pendingCount: pendingCount ?? 0,
-      needsApprovalCount: needsApprovalCount ?? 0,
-      readyCount: readyCount ?? 0,
-      totalCount: totalCount ?? 0,
-      cardGeneration,
-    });
+    )
+    const data = await loadVocabularyState({ supabase, userId: appUser.id })
+    return successResponse(HTTP_STATUS.OK, data)
   } catch (error) {
     if (error instanceof AppError) {
-      console.error("[get-vocabulary-state] request failed", {
+      console.error(LOG_PREFIX + ' request failed', {
         status: error.status,
         code: error.code,
         message: error.message,
-      });
-      return errorResponse(error.status, error.code, error.message);
+      })
+      return errorResponse(error.status, error.code, error.message)
     }
-
     const message =
-      error instanceof Error ? error.message : "Unknown vocabulary state error.";
-    console.error("[get-vocabulary-state] failed", { message });
+      error instanceof Error ? error.message : 'Unknown vocabulary state error.'
+    console.error(LOG_PREFIX + ' failed', { message })
     return errorResponse(
-      500,
-      "VOCABULARY_STATE_FAILED",
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      'VOCABULARY_STATE_FAILED',
       DEFAULT_INTERNAL_ERROR_MESSAGE,
-    );
+    )
   }
-});
+}
+
+Deno.serve(handleGetVocabularyState)

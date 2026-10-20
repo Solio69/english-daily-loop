@@ -1,3 +1,5 @@
+import { createServiceClient, getAppUserByTelegramId } from '../_shared/app.ts'
+import { getConfiguredOpenRouterModelChain } from '../_shared/openrouter.ts'
 import {
   AppError,
   DEFAULT_INTERNAL_ERROR_MESSAGE,
@@ -11,483 +13,83 @@ import {
   handleCorsPreflight,
   parseJsonBody,
   successResponse,
-} from "../_shared/server.ts";
-import { buildSafeAiDiagnostics } from "../_shared/ai-diagnostics.ts";
-import { getConfiguredOpenRouterModelChain } from "../_shared/openrouter.ts";
-import {
-  createServiceClient,
-  getAppUserByTelegramId,
-  getUserEnglishLevel,
-  type ServiceClient,
-} from "../_shared/app.ts";
-import { getMoscowStudyDate } from "../_shared/moscow-study-date.ts";
-import {
-  VOCABULARY_CARD_PROMPT_VERSION,
-  VocabularyAiError,
-  generateVocabularyCardsBatch,
-  type VocabularyCardBatchItem,
-} from "./ai-pipeline.ts";
-import { saveGeneratedCard } from "./card-persistence.ts";
-import {
-  claimVocabularyCardGenerationAttempt,
-  getDailyVocabularyCardGenerationLimit,
-  getVocabularyCardGenerationState,
-  markVocabularyCardAttemptFailed,
-  markVocabularyCardAttemptSucceeded,
-  updateVocabularyCardAttemptMetadata,
-  type VocabularyCardAttemptCounts,
-  type VocabularyCardGenerationState,
-} from "../_shared/vocabulary-card-generation.ts";
+  HTTP_STATUS,
+} from '../_shared/server.ts'
+import { createPreparationRepository } from './preparation-repository.ts'
+import { prepareVocabularyCards } from './preparation-service.ts'
 
-type PendingWordRow = {
-  id: string;
-  word: string;
-};
+const LOG_PREFIX = '[prepare-vocabulary-cards]'
+const REQUIRED_ENV = [
+  'SUPABASE_URL',
+  'SUPABASE_SERVICE_ROLE_KEY',
+  'TELEGRAM_BOT_TOKEN',
+  'OPENROUTER_API_KEY',
+] as const
 
-const BATCH_SIZE = 5;
-const LOG_PREFIX = "[prepare-vocabulary-cards]";
+export const handlePrepareVocabularyCards = async (
+  req: Request,
+): Promise<Response> => {
+  const corsResponse = handleCorsPreflight(req)
+  if (corsResponse) return corsResponse
 
-const buildVocabularyAiDiagnostics = ({
-  requestId,
-  error,
-  models,
-  words,
-  englishLevel,
-  durationMs,
-  counts,
-}: {
-  requestId: string;
-  error: unknown;
-  models: string[];
-  words: PendingWordRow[];
-  englishLevel: string;
-  durationMs: number;
-  counts: VocabularyCardAttemptCounts | null;
-}) => buildSafeAiDiagnostics({
-  functionName: "prepare-vocabulary-cards",
-  requestId,
-  promptVersion: VOCABULARY_CARD_PROMPT_VERSION,
-  modelChain: models,
-  stage:
-    error instanceof VocabularyAiError ? error.stage : "output_validation",
-  durationMs,
-  metadata:
-    error instanceof VocabularyAiError
-      ? {
-          model: error.model,
-          finishReason: error.finishReason,
-          completionTokens: error.completionTokens,
-          reasoningTokens: error.reasoningTokens,
-          providerStatus: error.providerStatus,
-          providerErrorCode: error.providerErrorCode,
-        }
-      : null,
-  details: {
-    englishLevel,
-    requestedCount: words.length,
-    preparedCount: counts?.preparedCount ?? 0,
-    failedCount: counts?.failedCount ?? words.length,
-  },
-});
-
-const getRemainingPendingCount = async (
-  supabase: ServiceClient,
-  userId: string,
-): Promise<number> => {
-  const { count, error } = await supabase
-    .from("user_vocabulary_words")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", userId)
-    .eq("card_status", "pending");
-
-  if (error) {
-    console.error("[prepare-vocabulary-cards] failed to count remaining words", {
-      appUserId: userId,
-      error: error.message,
-    });
-    fail(500, "VOCABULARY_COUNT_FAILED", "Failed to count pending words.");
-  }
-
-  return count ?? 0;
-};
-
-const getNeedsApprovalCount = async (
-  supabase: ServiceClient,
-  userId: string,
-): Promise<number> => {
-  const { count, error } = await supabase
-    .from("user_vocabulary_words")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", userId)
-    .eq("card_status", "needs_approval");
-
-  if (error) {
-    console.error("[prepare-vocabulary-cards] failed to count approval words", {
-      appUserId: userId,
-      error: error.message,
-    });
-    fail(500, "VOCABULARY_COUNT_FAILED", "Failed to count approval words.");
-  }
-
-  return count ?? 0;
-};
-
-const buildPrepareResult = ({
-  counts,
-  remainingPendingCount,
-  needsApprovalCount,
-  generationState,
-}: {
-  counts: Omit<VocabularyCardAttemptCounts, "requestedCount">;
-  remainingPendingCount: number;
-  needsApprovalCount: number;
-  generationState: VocabularyCardGenerationState;
-}) => ({
-  preparedCount: counts.preparedCount,
-  failedCount: counts.failedCount,
-  mergedCount: counts.mergedCount,
-  reactivatedCount: counts.reactivatedCount,
-  remainingPendingCount,
-  needsApprovalCount,
-  dailyLimit: generationState.dailyLimit,
-  usedAttempts: generationState.usedAttempts,
-  remainingAttempts: generationState.remainingAttempts,
-});
-
-Deno.serve(async (req: Request) => {
-  const corsResponse = handleCorsPreflight(req);
-  if (corsResponse) {
-    return corsResponse;
-  }
-
-  const requestStartedAt = Date.now();
-  const requestId = getRequestId(req);
-  let startedAttempt:
-    | { supabase: ServiceClient; attemptId: string; userId: string }
-    | null = null;
-  let attemptStats: VocabularyCardAttemptCounts | null = null;
-
+  const requestStartedAt = Date.now()
+  const requestId = getRequestId(req)
   try {
-    assertPostRequest(req);
-
-    const env = getRequiredEnv([
-      "SUPABASE_URL",
-      "SUPABASE_SERVICE_ROLE_KEY",
-      "TELEGRAM_BOT_TOKEN",
-      "OPENROUTER_API_KEY",
-    ]);
-    let models: string[];
+    assertPostRequest(req)
+    const env = getRequiredEnv([...REQUIRED_ENV])
+    let models: string[]
     try {
-      models = getConfiguredOpenRouterModelChain(getOptionalEnv);
+      models = getConfiguredOpenRouterModelChain(getOptionalEnv)
     } catch (error) {
-      console.error("[prepare-vocabulary-cards] invalid model configuration", {
-        error: error instanceof Error ? error.message : "Unknown model error.",
-      });
+      console.error(LOG_PREFIX + ' invalid model configuration', {
+        error: error instanceof Error ? error.message : 'Unknown model error.',
+      })
       fail(
-        500,
-        "AI_MODEL_CONFIG_INVALID",
-        "Server AI model config is not allowed.",
-      );
+        HTTP_STATUS.INTERNAL_SERVER_ERROR,
+        'AI_MODEL_CONFIG_INVALID',
+        'Server AI model config is not allowed.',
+      )
     }
-
-    const body = await parseJsonBody<{ initData?: unknown }>(req);
-    const tgUser = await getTelegramUserFromBody(
-      body,
-      env.TELEGRAM_BOT_TOKEN,
-    );
-
-    const supabase = createServiceClient(env);
+    const body = await parseJsonBody<{ initData?: unknown }>(req)
+    const tgUser = await getTelegramUserFromBody(body, env.TELEGRAM_BOT_TOKEN)
+    const supabase = createServiceClient(env)
     const appUser = await getAppUserByTelegramId(
       supabase,
       tgUser.id,
-      "[prepare-vocabulary-cards]",
-      requestId,
-    );
-    const englishLevel = await getUserEnglishLevel(
-      supabase,
-      appUser.id,
-      "[prepare-vocabulary-cards]",
-    );
-
-    const { data: pendingRows, error: pendingError } = await supabase
-      .from("user_vocabulary_words")
-      .select("id, word")
-      .eq("user_id", appUser.id)
-      .eq("card_status", "pending")
-      .order("created_at", { ascending: true })
-      .limit(BATCH_SIZE);
-
-    if (pendingError) {
-      console.error("[prepare-vocabulary-cards] failed to load pending words", {
-        appUserId: appUser.id,
-        error: pendingError.message,
-      });
-      fail(500, "PENDING_WORDS_LOAD_FAILED", "Failed to load pending words.");
-    }
-
-    const words = (pendingRows ?? []) as PendingWordRow[];
-    const studyDate = getMoscowStudyDate();
-    const dailyLimit = await getDailyVocabularyCardGenerationLimit(
-      supabase,
-      appUser.id,
       LOG_PREFIX,
-    );
-
-    if (words.length === 0) {
-      const generationState = await getVocabularyCardGenerationState(
-        supabase,
-        appUser.id,
-        studyDate,
-        LOG_PREFIX,
-      );
-
-      return successResponse(200, buildPrepareResult({
-        counts: {
-          preparedCount: 0,
-          failedCount: 0,
-          mergedCount: 0,
-          reactivatedCount: 0,
-        },
-        remainingPendingCount: 0,
-        needsApprovalCount: 0,
-        generationState,
-      }), requestId);
-    }
-
-    const claimedAttempt = await claimVocabularyCardGenerationAttempt(
-      supabase,
-      appUser.id,
-      studyDate,
-      dailyLimit,
-      words.length,
-      LOG_PREFIX,
-    );
-    const generationState: VocabularyCardGenerationState = {
-      dailyLimit,
-      usedAttempts: claimedAttempt.usedAttempts,
-      remainingAttempts: claimedAttempt.remainingAttempts,
-    };
-    startedAttempt = {
-      supabase,
-      attemptId: claimedAttempt.attemptId,
-      userId: appUser.id,
-    };
-    attemptStats = {
-      requestedCount: words.length,
-      preparedCount: 0,
-      failedCount: words.length,
-      mergedCount: 0,
-      reactivatedCount: 0,
-    };
-
-    await updateVocabularyCardAttemptMetadata({
-      supabase,
-      attemptId: startedAttempt.attemptId,
-      userId: appUser.id,
-      promptVersion: VOCABULARY_CARD_PROMPT_VERSION,
-      modelChain: models,
-      logPrefix: LOG_PREFIX,
-    });
-
-    let cardsById = new Map<string, VocabularyCardBatchItem>();
-    let usedModel: string | null = null;
-    try {
-      const generated = await generateVocabularyCardsBatch({
-        apiKey: env.OPENROUTER_API_KEY,
-        models,
-        words,
-        level: englishLevel,
-      });
-      cardsById = new Map(generated.cards.map((card) => [card.id, card]));
-      usedModel = generated.usedModel;
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unknown vocabulary card error.";
-      console.error("[prepare-vocabulary-cards] batch generation failed", {
-        requestId,
-        appUserId: appUser.id,
-        wordIds: words.map((word) => word.id),
-        error: message,
-      });
-
-      const failedCount = words.length;
-      attemptStats.failedCount = failedCount;
-
-      await markVocabularyCardAttemptFailed({
-        supabase,
-        attemptId: startedAttempt.attemptId,
-        userId: appUser.id,
-        promptVersion: VOCABULARY_CARD_PROMPT_VERSION,
-        modelChain: models,
-        counts: attemptStats,
-        durationMs: Date.now() - requestStartedAt,
-        errorCode: "VOCABULARY_CARDS_GENERATION_FAILED",
-        errorMessage: message,
-        logPrefix: LOG_PREFIX,
-      });
-
-      const remainingPendingCount = await getRemainingPendingCount(
-        supabase,
-        appUser.id,
-      );
-      const needsApprovalCount = await getNeedsApprovalCount(supabase, appUser.id);
-      const diagnostics = buildVocabularyAiDiagnostics({
-        requestId,
-        error,
-        models,
-        words,
-        englishLevel,
-        durationMs: Date.now() - requestStartedAt,
-        counts: attemptStats,
-      });
-
-      return successResponse(
-        200,
-        {
-          ...buildPrepareResult({
-            counts: {
-              preparedCount: 0,
-              failedCount,
-              mergedCount: 0,
-              reactivatedCount: 0,
-            },
-            remainingPendingCount,
-            needsApprovalCount,
-            generationState,
-          }),
-          diagnostics,
-        },
-        requestId,
-      );
-    }
-
-    let preparedCount = 0;
-    let failedCount = 0;
-    let cancelledCount = 0;
-    let mergedCount = 0;
-    let reactivatedCount = 0;
-
-    for (const word of words) {
-      const card = cardsById.get(word.id);
-      if (!card) {
-        failedCount += 1;
-        continue;
-      }
-
-      const saveResult = await saveGeneratedCard(
-        supabase,
-        appUser.id,
-        word.id,
-        card,
-      );
-
-      if (saveResult.cancelled) {
-        cancelledCount += 1;
-        continue;
-      }
-
-      if (!saveResult.prepared) {
-        failedCount += 1;
-        continue;
-      }
-
-      preparedCount += 1;
-      if (saveResult.merged) mergedCount += 1;
-      if (saveResult.reactivated) reactivatedCount += 1;
-    }
-
-    attemptStats.preparedCount = preparedCount;
-    attemptStats.failedCount = failedCount;
-    attemptStats.mergedCount = mergedCount;
-    attemptStats.reactivatedCount = reactivatedCount;
-
-    const remainingPendingCount = await getRemainingPendingCount(
-      supabase,
-      appUser.id,
-    );
-    const needsApprovalCount = await getNeedsApprovalCount(supabase, appUser.id);
-
-    await markVocabularyCardAttemptSucceeded({
-      supabase,
-      attemptId: startedAttempt.attemptId,
-      userId: appUser.id,
-      model: usedModel,
-      promptVersion: VOCABULARY_CARD_PROMPT_VERSION,
-      modelChain: models,
-      counts: attemptStats,
-      durationMs: Date.now() - requestStartedAt,
-      logPrefix: LOG_PREFIX,
-    });
-
-    console.info("[prepare-vocabulary-cards] batch preparation completed", {
-      appUserId: appUser.id,
-      attemptId: startedAttempt.attemptId,
-      requestedCount: words.length,
-      generatedValidCount: cardsById.size,
-      preparedCount,
-      failedCount,
-      cancelledCount,
-      mergedCount,
-      reactivatedCount,
-      remainingPendingCount,
-      needsApprovalCount,
-      dailyLimit,
-      usedAttempts: generationState.usedAttempts,
-      remainingAttempts: generationState.remainingAttempts,
-    });
-
-    return successResponse(
-      200,
-      buildPrepareResult({
-        counts: {
-          preparedCount,
-          failedCount,
-          mergedCount,
-          reactivatedCount,
-        },
-        remainingPendingCount,
-        needsApprovalCount,
-        generationState,
-      }),
       requestId,
-    );
+    )
+    const data = await prepareVocabularyCards({
+      repository: createPreparationRepository(supabase),
+      userId: appUser.id,
+      apiKey: env.OPENROUTER_API_KEY,
+      models,
+      requestId,
+      requestStartedAt,
+    })
+    return successResponse(HTTP_STATUS.OK, data, requestId)
   } catch (error) {
-    if (startedAttempt) {
-      const code =
-        error instanceof AppError ? error.code : "VOCABULARY_PREPARE_FAILED";
-      const message =
-        error instanceof Error ? error.message : "Unknown vocabulary prepare error.";
-      await markVocabularyCardAttemptFailed({
-        supabase: startedAttempt.supabase,
-        attemptId: startedAttempt.attemptId,
-        userId: startedAttempt.userId,
-        promptVersion: VOCABULARY_CARD_PROMPT_VERSION,
-        counts: attemptStats ?? undefined,
-        durationMs: Date.now() - requestStartedAt,
-        errorCode: code,
-        errorMessage: message,
-        logPrefix: LOG_PREFIX,
-      });
-    }
-
     if (error instanceof AppError) {
-      console.error("[prepare-vocabulary-cards] request failed", {
+      console.error(LOG_PREFIX + ' request failed', {
         requestId,
         status: error.status,
         code: error.code,
         message: error.message,
-      });
-      return errorResponse(error.status, error.code, error.message, requestId);
+      })
+      return errorResponse(error.status, error.code, error.message, requestId)
     }
-
     const message =
-      error instanceof Error ? error.message : "Unknown vocabulary prepare error.";
-    console.error("[prepare-vocabulary-cards] failed", { requestId, message });
+      error instanceof Error
+        ? error.message
+        : 'Unknown vocabulary prepare error.'
+    console.error(LOG_PREFIX + ' failed', { requestId, message })
     return errorResponse(
-      500,
-      "VOCABULARY_PREPARE_FAILED",
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      'VOCABULARY_PREPARE_FAILED',
       DEFAULT_INTERNAL_ERROR_MESSAGE,
       requestId,
-    );
+    )
   }
-});
+}
+
+Deno.serve(handlePrepareVocabularyCards)

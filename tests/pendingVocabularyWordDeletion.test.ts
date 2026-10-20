@@ -63,11 +63,11 @@ const cardPersistence = readProjectFile(
   'prepare-vocabulary-cards',
   'card-persistence.ts',
 )
-const prepareFunction = readProjectFile(
+const preparationService = readProjectFile(
   'supabase',
   'functions',
   'prepare-vocabulary-cards',
-  'index.ts',
+  'preparation-service.ts',
 )
 const devConfig = readProjectFile('scripts', 'dev', 'config.mjs')
 
@@ -184,14 +184,17 @@ test('generated card persistence is atomic and service-role only', () => {
     persistenceMigration,
     /grant execute on function public\.persist_generated_vocabulary_card\([\s\S]*to service_role;/i,
   )
-  assert.match(cardPersistence, /\.rpc\(\s*"persist_generated_vocabulary_card"/)
+  assert.match(
+    cardPersistence,
+    /\.rpc\(\s*['"]persist_generated_vocabulary_card['"]/,
+  )
   assert.doesNotMatch(
     cardPersistence,
     /\.from\("user_vocabulary_(?:words|word_sources)"\)/,
   )
   assert.match(
-    prepareFunction,
-    /if \(saveResult\.cancelled\)[\s\S]*cancelledCount \+= 1;[\s\S]*continue;/,
+    preparationService,
+    /if \(saveResult\.cancelled\)[\s\S]*cancelledCount \+= ONE[\s\S]*continue/,
   )
-  assert.match(prepareFunction, /cancelledCount,/)
+  assert.match(preparationService, /cancelledCount,/)
 })
