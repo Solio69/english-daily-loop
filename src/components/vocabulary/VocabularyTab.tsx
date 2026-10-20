@@ -1,24 +1,25 @@
-import React from "react";
-import { InlineStatusCard } from "../InlineStatusCard";
-import { LoadingState } from "../LoadingState";
-import { useVocabularyMaterials } from "../../hooks/useVocabularyMaterials";
-import { SHOW_VOCABULARY_CARD_APPROVAL_FLOW } from "../../constants/vocabularyFeatures";
-import { VocabularyApproveAllAction } from "./VocabularyApproveAllAction";
-import { VocabularyApproveAllCardsModal } from "./VocabularyApproveAllCardsModal";
-import { VocabularySummaryCard } from "./VocabularySummaryCard";
-import { VocabularyWordCard } from "./VocabularyWordCard";
+import React from 'react'
+import { InlineStatusCard } from '../InlineStatusCard'
+import { LoadingState } from '../LoadingState'
+import { useVocabularyMaterials } from '../../hooks/useVocabularyMaterials'
+import { SHOW_VOCABULARY_CARD_APPROVAL_FLOW } from '../../constants/vocabularyFeatures'
+import { VocabularyApproveAllAction } from './VocabularyApproveAllAction'
+import { VocabularyApproveAllCardsModal } from './VocabularyApproveAllCardsModal'
+import { VocabularyReadyWords } from './VocabularyReadyWords'
+import { VocabularySummaryCard } from './VocabularySummaryCard'
+import { VocabularyWordCard } from './VocabularyWordCard'
 
 type VocabularyTabProps = {
-  isActive: boolean;
-  onVocabularyReviewStateChange?: () => Promise<unknown>;
-};
+  isActive: boolean
+  onVocabularyReviewStateChange?: () => Promise<unknown>
+}
 
 export const VocabularyTab: React.FC<VocabularyTabProps> = ({
   isActive,
   onVocabularyReviewStateChange,
 }) => {
   const [isApproveAllModalOpen, setIsApproveAllModalOpen] =
-    React.useState(false);
+    React.useState(false)
   const {
     vocabularyState,
     vocabularyWords,
@@ -34,21 +35,19 @@ export const VocabularyTab: React.FC<VocabularyTabProps> = ({
     prepareCards,
     approveCard,
     approveAllCards,
-  } = useVocabularyMaterials(isActive, onVocabularyReviewStateChange);
+  } = useVocabularyMaterials(isActive, onVocabularyReviewStateChange)
 
-  const needsApprovalCount = vocabularyWords?.needsApproval.length ?? 0;
-  const isApprovalFlowVisible = SHOW_VOCABULARY_CARD_APPROVAL_FLOW;
+  const needsApprovalCount = vocabularyWords?.needsApproval.length ?? 0
+  const isApprovalFlowVisible = SHOW_VOCABULARY_CARD_APPROVAL_FLOW
 
   const handleConfirmApproveAll = async () => {
-    setIsApproveAllModalOpen(false);
-    await approveAllCards();
-  };
+    setIsApproveAllModalOpen(false)
+    await approveAllCards()
+  }
 
   return (
     <section className="space-y-3">
-      {isLoading && (
-        <LoadingState message="Загружаем словарь..." />
-      )}
+      {isLoading && <LoadingState message="Загружаем словарь..." />}
 
       {error && (
         <InlineStatusCard
@@ -67,8 +66,7 @@ export const VocabularyTab: React.FC<VocabularyTabProps> = ({
             onPrepareCards={prepareCards}
           />
 
-          {isApprovalFlowVisible &&
-          vocabularyWords.needsApproval.length > 0 ? (
+          {isApprovalFlowVisible && vocabularyWords.needsApproval.length > 0 ? (
             <section className="space-y-2">
               <h2 className="font-heading text-sm font-semibold text-[var(--text-secondary)]">
                 Требуют подтверждения
@@ -96,10 +94,10 @@ export const VocabularyTab: React.FC<VocabularyTabProps> = ({
                     isApprovingAllCards || approvingWordId === word.id
                   }
                   onToggle={() => {
-                    if (isApprovingAllCards) return;
+                    if (isApprovingAllCards) return
                     setExpandedWordId(
                       expandedWordId === word.id ? null : word.id,
-                    );
+                    )
                   }}
                   onApprove={() => approveCard(word.id)}
                   isToggleDisabled={isApprovingAllCards}
@@ -108,26 +106,11 @@ export const VocabularyTab: React.FC<VocabularyTabProps> = ({
             </section>
           ) : null}
 
-          {vocabularyWords.ready.length > 0 && (
-            <section className="space-y-2">
-              <h2 className="font-heading text-sm font-semibold text-[var(--text-secondary)]">
-                Словарь
-              </h2>
-              {vocabularyWords.ready.map((word) => (
-                <VocabularyWordCard
-                  key={word.id}
-                  word={word}
-                  mode="ready"
-                  isExpanded={expandedWordId === word.id}
-                  isApproving={false}
-                  onToggle={() =>
-                    setExpandedWordId(expandedWordId === word.id ? null : word.id)
-                  }
-                  onApprove={() => undefined}
-                />
-              ))}
-            </section>
-          )}
+          <VocabularyReadyWords
+            words={vocabularyWords.ready}
+            expandedWordId={expandedWordId}
+            setExpandedWordId={setExpandedWordId}
+          />
         </>
       )}
 
@@ -140,5 +123,5 @@ export const VocabularyTab: React.FC<VocabularyTabProps> = ({
         />
       ) : null}
     </section>
-  );
-};
+  )
+}
