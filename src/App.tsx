@@ -3,12 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { Layout } from './components/Layout'
 import { LoadingState } from './components/LoadingState'
 import { ProfileLoadError } from './components/ProfileLoadError'
 import { Toast } from './components/Toast'
-import type { BottomNavItemId } from './components/BottomNav'
 import { SHOW_SUBSCRIPTION_FLOW } from './constants/subscriptionFeatures'
 import { HomeScreen } from './screens/HomeScreen'
 import { MaterialsScreen } from './screens/MaterialsScreen'
@@ -17,15 +16,12 @@ import { SettingsScreen } from './screens/SettingsScreen'
 import { SubscriptionScreen } from './screens/SubscriptionScreen'
 import { VocabularyScreen } from './screens/VocabularyScreen'
 import { useAppUserActions } from './hooks/useAppUserActions'
+import { useAppNavigation } from './hooks/useAppNavigation'
+import type { AppScreen } from './hooks/useAppNavigation'
 import { useAppUserProfile } from './hooks/useAppUserProfile'
 import { useScreenNavigation } from './hooks/useScreenNavigation'
 import { useToast } from './hooks/useToast'
 import { clientLogger } from './services/clientLogger'
-import { MaterialsTab } from './types/materials'
-import { getDisabledNavItems } from './utils/navigationAccess'
-
-type ScreenId =
-  'home' | 'reading' | 'vocabulary' | 'materials' | 'settings' | 'subscription'
 
 export default function App() {
   const {
@@ -33,7 +29,7 @@ export default function App() {
     navigateTo,
     navigateBack,
     navigateRoot: navigateHome,
-  } = useScreenNavigation<ScreenId>('home')
+  } = useScreenNavigation<AppScreen>('home')
 
   const { toastText, toastTone, showToast, hideToast } = useToast()
   const {
@@ -48,10 +44,6 @@ export default function App() {
     onReady: navigateHome,
     showToast,
   })
-  const [materialsInitialTab, setMaterialsInitialTab] =
-    useState<MaterialsTab>('vocabulary')
-  const [continueLessonAfterReading, setContinueLessonAfterReading] =
-    useState(false)
   const {
     isSavingSettings,
     activatingPlan,
@@ -77,8 +69,29 @@ export default function App() {
     appUser?.homeProgress.lesson.currentStep ?? 'reading'
   const readingStatus = appUser?.homeProgress.reading.status ?? 'not_started'
   const reviewStatus = appUser?.homeProgress.review.status ?? 'completed'
-  const shouldForceSettings = !isSettingsCompleted
   const showDevTools = appUser?.role === 'admin'
+  const {
+    materialsInitialTab,
+    continueLessonAfterReading,
+    shouldForceSettings,
+    openLesson,
+    openMaterials,
+    openSubscription,
+    handleNavChange,
+    handleReadingBack,
+    handleContinueLessonAfterReading,
+    handleDisabledNavClick,
+    disabledNavItems,
+    showBottomNav,
+    activeNav,
+  } = useAppNavigation({
+    currentScreen,
+    navigateTo,
+    navigateBack,
+    isSettingsCompleted,
+    lessonCurrentStep,
+    showToast,
+  })
 
   useEffect(() => {
     clientLogger.info('screen_opened', {
@@ -86,66 +99,6 @@ export default function App() {
       role: appUser?.role ?? null,
     })
   }, [appUser?.role, currentScreen])
-
-  const openLesson = () => {
-    if (shouldForceSettings) {
-      setContinueLessonAfterReading(false)
-      navigateTo('settings')
-      return
-    }
-
-    const target = lessonCurrentStep === 'vocabulary' ? 'vocabulary' : 'reading'
-    setContinueLessonAfterReading(target === 'reading')
-    navigateTo(target)
-  }
-
-  const openMaterials = (tab: MaterialsTab) => {
-    setContinueLessonAfterReading(false)
-    setMaterialsInitialTab(tab)
-    navigateTo('materials')
-  }
-
-  const openSubscription = () => {
-    if (SHOW_SUBSCRIPTION_FLOW) {
-      navigateTo('subscription')
-    }
-  }
-
-  const handleNavChange = (nextScreen: string) => {
-    setContinueLessonAfterReading(false)
-    const target = nextScreen as ScreenId
-    if (target === 'subscription' && !SHOW_SUBSCRIPTION_FLOW) {
-      navigateTo('home', { root: true })
-      return
-    }
-    if (
-      shouldForceSettings &&
-      target !== 'home' &&
-      target !== 'settings' &&
-      target !== 'subscription'
-    ) {
-      showToast('Открой настройки, чтобы продолжить.', 'onboarding')
-      return
-    }
-    if (target === 'materials') {
-      setMaterialsInitialTab('vocabulary')
-    }
-    navigateTo(target, { root: true })
-  }
-
-  const handleReadingBack = () => {
-    setContinueLessonAfterReading(false)
-    navigateBack()
-  }
-
-  const handleContinueLessonAfterReading = () => {
-    setContinueLessonAfterReading(false)
-    navigateTo('vocabulary', { root: true })
-  }
-
-  const handleDisabledNavClick = () => {
-    showToast('Открой настройки, чтобы продолжить.', 'onboarding')
-  }
 
   if (
     isBootstrapping ||
@@ -253,13 +206,6 @@ export default function App() {
         return renderHomeScreen()
     }
   }
-
-  const disabledNavItems = getDisabledNavItems(isSettingsCompleted)
-  const showBottomNav = currentScreen !== 'settings' || isSettingsCompleted
-  const activeNav: BottomNavItemId =
-    currentScreen === 'settings' || currentScreen === 'subscription'
-      ? 'home'
-      : currentScreen
 
   return (
     <div className="min-h-screen bg-[var(--background)] transition-colors">
