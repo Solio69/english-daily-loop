@@ -33,6 +33,18 @@ const deleteFunction = readProjectFile(
   'delete-pending-vocabulary-word',
   'index.ts',
 )
+const deleteRepository = readProjectFile(
+  'supabase',
+  'functions',
+  'delete-pending-vocabulary-word',
+  'delete-word-repository.ts',
+)
+const deleteContract = readProjectFile(
+  'supabase',
+  'functions',
+  'delete-pending-vocabulary-word',
+  'delete-word-contract.ts',
+)
 const readingStateFunction = readProjectFile(
   'supabase',
   'functions',
@@ -103,11 +115,11 @@ test('pending vocabulary deletion RPC remains service-role only', () => {
 test('delete Edge Function derives ownership and status on the server', () => {
   assert.match(deleteFunction, /getTelegramUserFromBody/)
   assert.match(deleteFunction, /getAppUserByTelegramId/)
-  assert.match(deleteFunction, /\.eq\("user_id", appUser\.id\)/)
-  assert.match(deleteFunction, /delete_pending_vocabulary_word_with_sources/)
-  assert.match(deleteFunction, /p_user_id: params\.userId/)
-  assert.match(deleteFunction, /p_reading_text_id: params\.readingTextId/)
-  assert.match(deleteFunction, /p_word_index: params\.wordIndex/)
+  assert.match(deleteRepository, /\.eq\(USER_ID_COLUMN, userId\)/)
+  assert.match(deleteRepository, /delete_pending_vocabulary_word_with_sources/)
+  assert.match(deleteRepository, /p_user_id: params\.userId/)
+  assert.match(deleteRepository, /p_reading_text_id: params\.readingTextId/)
+  assert.match(deleteRepository, /p_word_index: params\.wordIndex/)
   assert.doesNotMatch(
     deleteFunction,
     /body\?\.(?:word(?!Index)|wordId|userId|cardStatus)/,
@@ -123,10 +135,10 @@ test('local Telegram dev stack serves the delete Edge Function', () => {
 
 test('delete Edge Function accepts only an explicit numeric word index', () => {
   assert.match(
-    deleteFunction,
-    /typeof value !== "number" \|\| !Number\.isInteger\(value\) \|\| value < 0/,
+    deleteContract,
+    /typeof wordIndex !== 'number' \|\|[\s\S]*!Number\.isInteger\(wordIndex\)/,
   )
-  assert.doesNotMatch(deleteFunction, /Number\(value\)/)
+  assert.doesNotMatch(deleteContract, /Number\(wordIndex\)/)
 })
 
 test('reading state keeps saved indexes and adds optional pending indexes', () => {
