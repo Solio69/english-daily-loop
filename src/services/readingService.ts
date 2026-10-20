@@ -3,88 +3,83 @@ import {
   getTelegramInitData,
   invokeFunction,
   invokeFunctionWithInitData,
-} from "./functionClient";
-import { retryUnknownGenerationOutcome } from "./readingGenerationRetry";
+} from './functionClient'
+import { retryUnknownGenerationOutcome } from './readingGenerationRetry'
+import {
+  parseReadingGenerationPayload,
+  parseReadingState,
+  READING_SERVICE_ERRORS,
+} from './readingContracts'
 import {
   CompleteReadingTextResult,
   GenerateReadingTextResult,
   ReadingState,
-  ReadingText,
   SaveReadingPositionResult,
-} from "../types/reading";
+  ReadingGenerationPayload,
+} from '../types/reading'
 
-type GenerateReadingTextPayload = {
-  text: ReadingText;
-  generation: {
-    provider: string;
-    model: string;
-    fallbackUsed: boolean;
-    promptVersion?: string;
-  };
-  dailyLimit: number;
-  usedAttempts: number;
-  remainingAttempts: number;
-};
+const GENERATION_FUNCTION = 'generate-reading-text'
+const AI_SOURCE = 'ai'
 
-const GENERATION_FUNCTION = "generate-reading-text";
-const GENERATION_FALLBACK_MESSAGE = "Не удалось обратиться к AI-сервису.";
+const invokeReadingGeneration = async (): Promise<ReadingGenerationPayload> => {
+  const initData = getTelegramInitData()
+  const requestId = createRequestId()
 
-const invokeReadingGeneration = async (): Promise<GenerateReadingTextPayload> => {
-  const initData = getTelegramInitData();
-  const requestId = createRequestId();
-
-  return retryUnknownGenerationOutcome(
+  const payload = await retryUnknownGenerationOutcome(
     requestId,
     (stableRequestId) =>
-      invokeFunctionWithInitData<GenerateReadingTextPayload>(
+      invokeFunctionWithInitData<unknown>(
         GENERATION_FUNCTION,
         initData,
         {},
-        GENERATION_FALLBACK_MESSAGE,
+        READING_SERVICE_ERRORS.generation,
         stableRequestId,
       ),
-  );
-};
+  )
+  return parseReadingGenerationPayload(payload)
+}
 
 export const getReadingState = async (): Promise<ReadingState> =>
-  invokeFunction<ReadingState>(
-    "get-reading-state",
-    {},
-    "Не удалось загрузить состояние чтения.",
-  );
+  parseReadingState(
+    await invokeFunction<unknown>(
+      'get-reading-state',
+      {},
+      READING_SERVICE_ERRORS.state,
+    ),
+  )
 
 export const generateReadingText =
   async (): Promise<GenerateReadingTextResult> => {
-    const payload = await invokeReadingGeneration();
+    const payload = await invokeReadingGeneration()
 
     return {
       text: {
         ...payload.text,
-        source: "ai",
+        source: AI_SOURCE,
         generation: payload.generation,
       },
       dailyLimit: payload.dailyLimit,
       usedAttempts: payload.usedAttempts,
       remainingAttempts: payload.remainingAttempts,
-    };
-  };
+    }
+  }
 
 export const completeReadingText =
   async (): Promise<CompleteReadingTextResult> =>
     invokeFunction<CompleteReadingTextResult>(
-      "complete-reading-text",
+      'complete-reading-text',
       {},
-      "Не удалось сохранить завершение текста.",
-    );
+      'Не удалось сохранить завершение текста.',
+    )
 
 export const saveReadingPosition = async (
   readingTextId: string,
   paragraphIndex: number | null,
 ): Promise<SaveReadingPositionResult> =>
   invokeFunction<SaveReadingPositionResult>(
-    "save-reading-position",
+    'save-reading-position',
     { readingTextId, paragraphIndex },
     paragraphIndex === null
-      ? "Не удалось сбросить позицию чтения."
-      : "Не удалось сохранить позицию чтения.",
-  );
+      ? 'Не удалось сбросить позицию чтения.'
+      : 'Не удалось сохранить позицию чтения.',
+  )

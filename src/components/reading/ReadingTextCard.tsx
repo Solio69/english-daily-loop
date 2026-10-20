@@ -1,35 +1,35 @@
-import React, { useMemo } from "react";
-import { ReadingText } from "../../types/reading";
-import type { ReadingWordAction } from "../../utils/readingWordAction";
-import { parseReadingText } from "../../utils/readingText";
-import { Button } from "../Button";
+import React, { useMemo } from 'react'
+import { ReadingText } from '../../types/reading'
+import type { ReadingWordAction } from '../../utils/readingWordAction'
+import { parseReadingText } from '../../utils/readingText'
+import { Button } from '../Button'
 
 type WordFeedback = {
-  tone: "success" | "error";
-  message: string;
-} | null;
+  tone: 'success' | 'error'
+  message: string
+} | null
 
 type ReadingTextCardProps = {
-  text: ReadingText;
-  selectedWord: ReadingWordAction | null;
-  savedWords: Set<number>;
-  mutatingWordIndex: number | null;
-  wordFeedback: WordFeedback;
-  onWordClick: (word: string, index: number) => void;
-  onAddWord: () => void;
-  onDeleteWord: () => void;
-  onCancelWord: () => void;
+  text: ReadingText
+  selectedWord: ReadingWordAction | null
+  savedWords: Set<number>
+  mutatingWordIndex: number | null
+  wordFeedback: WordFeedback
+  onWordClick: (word: string, index: number) => void
+  onAddWord: () => void
+  onDeleteWord: () => void
+  onCancelWord: () => void
   onParagraphRef?: (
     paragraphIndex: number,
     element: HTMLParagraphElement | null,
-  ) => void;
-};
+  ) => void
+}
 
-const getModelLabel = (model?: string): string | null => {
-  if (!model) return null;
-  const modelName = model.split("/").pop()?.replace(":free", "");
-  return modelName || model;
-};
+const getModelLabel = (model?: string | null): string | null => {
+  if (!model) return null
+  const modelName = model.split('/').pop()?.replace(':free', '')
+  return modelName || model
+}
 
 export const ReadingTextCard: React.FC<ReadingTextCardProps> = ({
   text,
@@ -43,7 +43,7 @@ export const ReadingTextCard: React.FC<ReadingTextCardProps> = ({
   onCancelWord,
   onParagraphRef,
 }) => {
-  const paragraphs = useMemo(() => parseReadingText(text.body), [text.body]);
+  const paragraphs = useMemo(() => parseReadingText(text.body), [text.body])
 
   return (
     <section className="glass-card space-y-4 rounded-[20px] p-4">
@@ -54,21 +54,21 @@ export const ReadingTextCard: React.FC<ReadingTextCardProps> = ({
         {text.source && (
           <span
             className={`glass-control shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-wide ${
-              text.source === "ai"
-                ? "text-[var(--primary)]"
-                : "text-[var(--accent-warm)]"
+              text.source === 'ai'
+                ? 'text-[var(--primary)]'
+                : 'text-[var(--accent-warm)]'
             }`}
             title={
-              text.source === "ai"
+              text.source === 'ai'
                 ? text.generation?.model
                   ? `AI: ${text.generation.model}`
-                  : "AI"
-                : "DB fallback"
+                  : 'AI'
+                : 'DB fallback'
             }
           >
-            {text.source === "ai"
-              ? `AI${getModelLabel(text.generation?.model) ? ` · ${getModelLabel(text.generation?.model)}` : ""}`
-              : "DB"}
+            {text.source === 'ai'
+              ? `AI${getModelLabel(text.generation?.model) ? ` · ${getModelLabel(text.generation?.model)}` : ''}`
+              : 'DB'}
           </span>
         )}
       </div>
@@ -78,44 +78,45 @@ export const ReadingTextCard: React.FC<ReadingTextCardProps> = ({
           <p
             key={paragraphIndex}
             ref={(element) => {
-              onParagraphRef?.(paragraphIndex, element);
+              onParagraphRef?.(paragraphIndex, element)
             }}
             data-reading-paragraph-index={paragraphIndex}
           >
             {paragraph.parts.map((part, partIndex) => {
-              const wordIndex = part.wordIndex;
-              const normalizedWord = part.normalizedWord;
+              const wordIndex = part.wordIndex
+              const normalizedWord = part.normalizedWord
 
               if (wordIndex === null) {
-                return <React.Fragment key={partIndex}>{part.value}</React.Fragment>;
+                return (
+                  <React.Fragment key={partIndex}>{part.value}</React.Fragment>
+                )
               }
 
-              const isSelectable = Boolean(normalizedWord);
-              const isSelected = selectedWord?.index === wordIndex;
-              const isSaved = savedWords.has(wordIndex);
-              const isMutating = mutatingWordIndex === wordIndex;
+              const isSelectable = Boolean(normalizedWord)
+              const isSelected = selectedWord?.index === wordIndex
+              const isSaved = savedWords.has(wordIndex)
+              const isMutating = mutatingWordIndex === wordIndex
               const isRemoveAction =
-                isSelected && selectedWord?.mode === "remove";
+                isSelected && selectedWord?.mode === 'remove'
 
               return (
                 <React.Fragment key={partIndex}>
                   <span
                     onClick={() =>
-                      isSelectable &&
-                      onWordClick(normalizedWord, wordIndex)
+                      isSelectable && onWordClick(normalizedWord, wordIndex)
                     }
                     className={`rounded px-0.5 transition-colors ${
-                      isSelectable ? "cursor-pointer" : ""
+                      isSelectable ? 'cursor-pointer' : ''
                     } ${
                       isSelected
-                        ? "bg-[var(--primary-soft)] text-[var(--primary)]"
+                        ? 'bg-[var(--primary-soft)] text-[var(--primary)]'
                         : isSaved
-                          ? "bg-[var(--accent-warm-soft)] text-[var(--accent-warm)]"
+                          ? 'bg-[var(--accent-warm-soft)] text-[var(--accent-warm)]'
                           : isMutating
-                            ? "bg-[var(--accent-warm-soft)]"
+                            ? 'bg-[var(--accent-warm-soft)]'
                             : isSelectable
-                              ? "hover:bg-[var(--primary-soft)]"
-                              : ""
+                              ? 'hover:bg-[var(--primary-soft)]'
+                              : ''
                     }`}
                   >
                     {part.value}
@@ -124,15 +125,15 @@ export const ReadingTextCard: React.FC<ReadingTextCardProps> = ({
                     <span className="glass-card my-3 block rounded-[18px] p-3 text-base leading-normal">
                       <span className="block text-center text-sm font-semibold text-[var(--text-primary)]">
                         {isRemoveAction
-                          ? "Удалить слово из очереди на генерацию карточки?"
-                          : "Добавить в словарь?"}
+                          ? 'Удалить слово из очереди на генерацию карточки?'
+                          : 'Добавить в словарь?'}
                       </span>
                       {wordFeedback && (
                         <span
                           className={`mt-2 block rounded-lg border px-2 py-1.5 text-xs leading-4 ${
-                            wordFeedback.tone === "success"
-                              ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]"
-                              : "border-[var(--accent-coral)] bg-[rgba(255,107,97,0.12)] text-[var(--accent-coral)]"
+                            wordFeedback.tone === 'success'
+                              ? 'border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]'
+                              : 'border-[var(--accent-coral)] bg-[rgba(255,107,97,0.12)] text-[var(--accent-coral)]'
                           }`}
                         >
                           {wordFeedback.message}
@@ -140,19 +141,17 @@ export const ReadingTextCard: React.FC<ReadingTextCardProps> = ({
                       )}
                       <span className="mt-3 grid grid-cols-2 gap-2">
                         <Button
-                          onClick={
-                            isRemoveAction ? onDeleteWord : onAddWord
-                          }
+                          onClick={isRemoveAction ? onDeleteWord : onAddWord}
                           disabled={mutatingWordIndex !== null}
                           className="w-full min-w-0 whitespace-nowrap px-2 py-2 text-[13px]"
                         >
                           {isMutating
                             ? isRemoveAction
-                              ? "Удаляем..."
-                              : "Сохраняем..."
+                              ? 'Удаляем...'
+                              : 'Сохраняем...'
                             : isRemoveAction
-                              ? "Удалить"
-                              : "Добавить"}
+                              ? 'Удалить'
+                              : 'Добавить'}
                         </Button>
                         <Button
                           onClick={onCancelWord}
@@ -166,11 +165,11 @@ export const ReadingTextCard: React.FC<ReadingTextCardProps> = ({
                     </span>
                   )}
                 </React.Fragment>
-              );
+              )
             })}
           </p>
         ))}
       </div>
     </section>
-  );
-};
+  )
+}
