@@ -21,6 +21,7 @@ const rootFiles = [
   'vitest.config.ts',
   'playwright.config.ts',
 ]
+const qualityBaselineFile = 'scripts/quality/quality-baseline.json'
 
 const relativePath = (filePath) =>
   path.relative(projectRoot, filePath).replaceAll('\\', '/')
@@ -69,6 +70,7 @@ const checkLint = async () => {
 
 const checkFormat = async () => {
   const candidates = allFiles.filter((file) =>
+    file !== qualityBaselineFile &&
     /\.(?:css|js|json|mjs|ts|tsx|ya?ml)$/.test(file),
   )
   const failures = []
