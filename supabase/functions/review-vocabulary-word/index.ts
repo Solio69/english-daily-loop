@@ -1,155 +1,79 @@
+import { createServiceClient, getAppUserByTelegramId } from '../_shared/app.ts'
 import {
   AppError,
   DEFAULT_INTERNAL_ERROR_MESSAGE,
   assertPostRequest,
   errorResponse,
-  fail,
   getRequiredEnv,
   getRequestId,
   getTelegramUserFromBody,
   handleCorsPreflight,
+  HTTP_STATUS,
   parseJsonBody,
   successResponse,
-} from "../_shared/server.ts";
+} from '../_shared/server.ts'
 import {
-  createServiceClient,
-  getAppUserByTelegramId,
-} from "../_shared/app.ts";
-import { getMoscowStudyDate } from "../_shared/moscow-study-date.ts";
-import { type VocabularyReviewAction } from "../_shared/vocabulary-review.ts";
+  parseReviewWordInput,
+  REVIEW_WORD_CODE,
+} from './review-word-contract.ts'
+import { createReviewWordRepository } from './review-word-repository.ts'
+import { reviewVocabularyWord } from './review-word-service.ts'
 
-const LOG_PREFIX = "[review-vocabulary-word]";
+const LOG_PREFIX = '[review-vocabulary-word]'
+const REQUIRED_ENV = [
+  'SUPABASE_URL',
+  'SUPABASE_SERVICE_ROLE_KEY',
+  'TELEGRAM_BOT_TOKEN',
+] as const
 
-const parseWordId = (value: unknown): string => {
-  const parsed = typeof value === "string" ? value.trim() : "";
-  if (!parsed) {
-    fail(400, "WORD_ID_REQUIRED", "wordId is required.");
-  }
+export const handleReviewVocabularyWord = async (
+  req: Request,
+): Promise<Response> => {
+  const corsResponse = handleCorsPreflight(req)
+  if (corsResponse) return corsResponse
 
-  return parsed;
-};
-
-const parseAction = (value: unknown): VocabularyReviewAction => {
-  if (
-    value === "forgot" ||
-    value === "same_step" ||
-    value === "next_step" ||
-    value === "jump_step"
-  ) {
-    return value;
-  }
-
-  fail(400, "INVALID_REVIEW_ACTION", "Review action is invalid.");
-};
-
-Deno.serve(async (req: Request) => {
-  const corsResponse = handleCorsPreflight(req);
-  if (corsResponse) {
-    return corsResponse;
-  }
-
-  const requestId = getRequestId(req);
-
+  const requestId = getRequestId(req)
   try {
-    assertPostRequest(req);
-
-    const env = getRequiredEnv([
-      "SUPABASE_URL",
-      "SUPABASE_SERVICE_ROLE_KEY",
-      "TELEGRAM_BOT_TOKEN",
-    ]);
+    assertPostRequest(req)
+    const env = getRequiredEnv([...REQUIRED_ENV])
     const body = await parseJsonBody<{
-      initData?: unknown;
-      wordId?: unknown;
-      action?: unknown;
-    }>(req);
-    const tgUser = await getTelegramUserFromBody(
-      body,
-      env.TELEGRAM_BOT_TOKEN,
-    );
-    const wordId = parseWordId(body?.wordId);
-    const action = parseAction(body?.action);
-
-    const supabase = createServiceClient(env);
+      initData?: unknown
+      wordId?: unknown
+      action?: unknown
+    }>(req)
+    const tgUser = await getTelegramUserFromBody(body, env.TELEGRAM_BOT_TOKEN)
+    const input = parseReviewWordInput(body)
+    const supabase = createServiceClient(env)
     const appUser = await getAppUserByTelegramId(
       supabase,
       tgUser.id,
       LOG_PREFIX,
       requestId,
-    );
-    const reviewDate = getMoscowStudyDate();
-    const { data, error } = await supabase.rpc("review_vocabulary_word", {
-      p_user_id: appUser.id,
-      p_word_id: wordId,
-      p_action: action,
-      p_review_date: reviewDate,
-    });
-
-    if (error) {
-      console.error(`${LOG_PREFIX} failed to review word`, {
-        appUserId: appUser.id,
-        wordId,
-        action,
-        error: error.message,
-      });
-      fail(500, "VOCABULARY_REVIEW_FAILED", "Failed to review vocabulary word.");
-    }
-
-    const result = data as
-      | {
-          ok: true;
-          reviewDate: string;
-          wordId: string;
-          word: string;
-          status: string;
-          reviewStep: string | null;
-          nextReviewDate: string | null;
-          learnedAt: string | null;
-          wasRequired: boolean;
-        }
-      | {
-          ok: false;
-          code: string;
-          message: string;
-        }
-      | null;
-
-    if (!result) {
-      fail(500, "VOCABULARY_REVIEW_FAILED", "Failed to review vocabulary word.");
-    }
-
-    if (!result.ok) {
-      const status = result.code === "VOCABULARY_WORD_NOT_FOUND" ? 404 : 409;
-      fail(status, result.code, result.message);
-    }
-
-    return successResponse(200, {
-      reviewDate: result.reviewDate,
-      wordId: result.wordId,
-      word: result.word,
-      status: result.status,
-      reviewStep: result.reviewStep,
-      nextReviewDate: result.nextReviewDate,
-      learnedAt: result.learnedAt,
-      wasRequired: result.wasRequired,
-    });
+    )
+    const data = await reviewVocabularyWord({
+      ...input,
+      userId: appUser.id,
+      repository: createReviewWordRepository(supabase),
+    })
+    return successResponse(HTTP_STATUS.OK, data)
   } catch (error) {
     if (error instanceof AppError) {
-      console.error(`${LOG_PREFIX} request failed`, {
+      console.error(LOG_PREFIX + ' request failed', {
         status: error.status,
         code: error.code,
         message: error.message,
-      });
-      return errorResponse(error.status, error.code, error.message);
+      })
+      return errorResponse(error.status, error.code, error.message)
     }
-
     const message =
-      error instanceof Error ? error.message : "Unknown review word error.";
-    console.error(`${LOG_PREFIX} failed`, { message });
+      error instanceof Error ? error.message : 'Unknown review word error.'
+    console.error(LOG_PREFIX + ' failed', { message })
     return errorResponse(
-      500,
-      "VOCABULARY_REVIEW_FAILED",
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      REVIEW_WORD_CODE.reviewFailed,
       DEFAULT_INTERNAL_ERROR_MESSAGE,
-    );
+    )
   }
-});
+}
+
+Deno.serve(handleReviewVocabularyWord)

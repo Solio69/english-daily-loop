@@ -188,7 +188,7 @@ test('mutation responses keep post-processing on the database study date', () =>
     'supabase',
     'functions',
     'review-vocabulary-word',
-    'index.ts',
+    'review-word-service.ts',
   )
 
   assert.match(
