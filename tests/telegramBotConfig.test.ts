@@ -29,6 +29,10 @@ import {
 } from './mocks/telegramBotConfig.ts'
 
 test('keeps configuration copy aligned with webhook replies', () => {
+  assert.deepEqual(
+    TELEGRAM_BOT_PROFILE,
+    TELEGRAM_BOT_CONFIG_MOCKS.expectedProfile,
+  )
   assert.equal(
     DEV_TELEGRAM_BOT_DISPLAY_NAME,
     TELEGRAM_BOT_CONFIG_MOCKS.devDisplayName,
@@ -55,6 +59,25 @@ test('keeps configuration copy aligned with webhook replies', () => {
     ),
   ) as typeof TELEGRAM_BOT_PROFILE
   assert.deepEqual(productionProfile, TELEGRAM_BOT_PROFILE)
+})
+
+test('production helper uses the reviewed JSON profile and hidden secret prompts', () => {
+  const productionScript = readFileSync(
+    new URL(TELEGRAM_BOT_CONFIG_MOCKS.productionScriptPath, import.meta.url),
+    TELEGRAM_BOT_CONFIG_MOCKS.fileEncoding,
+  )
+  assert.match(
+    productionScript,
+    TELEGRAM_BOT_CONFIG_MOCKS.productionProfileReadPattern,
+  )
+  assert.match(
+    productionScript,
+    TELEGRAM_BOT_CONFIG_MOCKS.hiddenSecretPromptPattern,
+  )
+  assert.match(
+    productionScript,
+    TELEGRAM_BOT_CONFIG_MOCKS.expectedProductionBotPattern,
+  )
 })
 
 test('builds the public Edge Function webhook URL', () => {
@@ -178,6 +201,33 @@ test('checks getMe before applying bot mutations', async () => {
       frontendUrl: TELEGRAM_BOT_CONFIG_MOCKS.frontendUrl,
       webhookUrl: TELEGRAM_BOT_CONFIG_MOCKS.webhookUrl,
       webhookSecret: TELEGRAM_BOT_CONFIG_MOCKS.webhookSecret,
+      fetchImpl,
+    }),
+    (error: unknown) => {
+      assert.ok(error instanceof TelegramBotConfigurationError)
+      assert.equal(error.code, TELEGRAM_BOT_CONFIG_MOCKS.usernameMismatchCode)
+      return true
+    },
+  )
+  assert.deepEqual(operations, [TELEGRAM_BOT_CONFIG_MOCKS.operation.getMe])
+})
+
+test('checks getMe before deleting a webhook', async () => {
+  const operations: string[] = []
+  const fetchImpl: typeof fetch = async (input) => {
+    const operation =
+      String(input)
+        .split(TELEGRAM_BOT_CONFIG_MOCKS.urlSeparator)
+        .at(TELEGRAM_BOT_CONFIG_MOCKS.lastSegment) ??
+      TELEGRAM_BOT_CONFIG_MOCKS.emptyText
+    operations.push(operation)
+    return Response.json(TELEGRAM_BOT_CONFIG_RESPONSES.wrongBot)
+  }
+
+  await assert.rejects(
+    deleteTelegramWebhook({
+      token: TELEGRAM_BOT_CONFIG_MOCKS.sensitiveToken,
+      expectedBotUsername: TELEGRAM_BOT_CONFIG_MOCKS.expectedBotUsername,
       fetchImpl,
     }),
     (error: unknown) => {
@@ -353,6 +403,78 @@ test('reports a safe webhook rejection category without exposing the response', 
         JSON.stringify(error),
         rejectedWebhook.sensitivePattern,
       )
+      return true
+    },
+  )
+})
+
+test('classifies invalid JSON without exposing the provider response', async () => {
+  const api = createTelegramBotApi({
+    token: TELEGRAM_BOT_CONFIG_MOCKS.sensitiveToken,
+    fetchImpl: async () =>
+      new Response(TELEGRAM_BOT_CONFIG_MOCKS.invalidJsonBody),
+  })
+
+  await assert.rejects(
+    api.call(TELEGRAM_BOT_CONFIG_MOCKS.operation.getMe),
+    (error: unknown) => {
+      assert.ok(error instanceof TelegramBotConfigurationError)
+      assert.equal(error.code, TELEGRAM_BOT_CONFIG_MOCKS.invalidResponseCode)
+      assert.doesNotMatch(
+        JSON.stringify(error),
+        new RegExp(TELEGRAM_BOT_CONFIG_MOCKS.invalidJsonBody),
+      )
+      return true
+    },
+  )
+})
+
+test('classifies network failures without exposing the thrown error', async () => {
+  const api = createTelegramBotApi({
+    token: TELEGRAM_BOT_CONFIG_MOCKS.sensitiveToken,
+    fetchImpl: async () => {
+      throw new Error(TELEGRAM_BOT_CONFIG_MOCKS.sensitiveToken)
+    },
+  })
+
+  await assert.rejects(
+    api.call(TELEGRAM_BOT_CONFIG_MOCKS.operation.getMe),
+    (error: unknown) => {
+      assert.ok(error instanceof TelegramBotConfigurationError)
+      assert.equal(error.code, TELEGRAM_BOT_CONFIG_MOCKS.networkErrorCode)
+      assert.doesNotMatch(
+        JSON.stringify(error),
+        new RegExp(TELEGRAM_BOT_CONFIG_MOCKS.sensitiveToken),
+      )
+      return true
+    },
+  )
+})
+
+test('classifies a timed-out Telegram request', async () => {
+  const api = createTelegramBotApi({
+    token: TELEGRAM_BOT_CONFIG_MOCKS.sensitiveToken,
+    timeoutMs: TELEGRAM_BOT_CONFIG_MOCKS.immediateTimeoutMs,
+    fetchImpl: async (_input, init) =>
+      await new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener(
+          TELEGRAM_BOT_CONFIG_MOCKS.abortEventName,
+          () =>
+            reject(
+              new DOMException(
+                TELEGRAM_BOT_CONFIG_MOCKS.abortErrorMessage,
+                TELEGRAM_BOT_CONFIG_MOCKS.abortErrorName,
+              ),
+            ),
+        )
+      }),
+  })
+
+  await assert.rejects(
+    api.call(TELEGRAM_BOT_CONFIG_MOCKS.operation.getMe),
+    (error: unknown) => {
+      assert.ok(error instanceof TelegramBotConfigurationError)
+      assert.equal(error.code, TELEGRAM_BOT_CONFIG_MOCKS.timeoutErrorCode)
       return true
     },
   )
