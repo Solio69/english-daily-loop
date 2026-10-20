@@ -18,16 +18,21 @@ const installMocks = async ({
   authStatus,
   recoveryResponse,
   settingsResponse,
+  devResponse,
+  devStatus = HTTP_STATUS.ok,
 }: {
   page: Page
   authResponse: unknown
   authStatus: number
   recoveryResponse?: unknown
   settingsResponse?: unknown
+  devResponse?: unknown
+  devStatus?: number
 }) => {
   const unexpectedRequests: string[] = []
   const authBodies: unknown[] = []
   const settingsBodies: unknown[] = []
+  const devBodies: unknown[] = []
   let firstAuthRequest = true
 
   await page.addInitScript(
@@ -115,6 +120,27 @@ const installMocks = async ({
       return
     }
     if (
+      devResponse &&
+      url.origin === BOOTSTRAP_MOCKS.apiURL &&
+      url.pathname === BOOTSTRAP_MOCKS.devToolsPath
+    ) {
+      if (request.method() === HTTP_METHOD.options) {
+        await route.fulfill({
+          status: HTTP_STATUS.noContent,
+          headers: BOOTSTRAP_MOCKS.corsHeaders,
+        })
+        return
+      }
+      devBodies.push(request.postDataJSON())
+      await route.fulfill({
+        status: devStatus,
+        contentType: HTTP_CONTENT_TYPE.json,
+        headers: BOOTSTRAP_MOCKS.authCorsHeaders,
+        body: JSON.stringify(devResponse),
+      })
+      return
+    }
+    if (
       settingsResponse &&
       url.origin === BOOTSTRAP_MOCKS.apiURL &&
       url.pathname === BOOTSTRAP_MOCKS.vocabularyStatePath
@@ -139,8 +165,101 @@ const installMocks = async ({
     await route.abort()
   })
 
-  return { unexpectedRequests, authBodies, settingsBodies }
+  return { unexpectedRequests, authBodies, settingsBodies, devBodies }
 }
+
+test('admin can use mocked dev tools and refreshes the profile', async ({
+  page,
+}) => {
+  const adminAuth = {
+    ...MOCK_SUCCESSFUL_AUTH,
+    data: {
+      ...MOCK_SUCCESSFUL_AUTH.data,
+      user: { ...MOCK_SUCCESSFUL_AUTH.data.user, role: 'admin' },
+    },
+  }
+  const requests = await installMocks({
+    page,
+    authResponse: adminAuth,
+    authStatus: HTTP_STATUS.ok,
+    devResponse: {
+      ok: true,
+      data: {
+        action: 'reset_generation_attempts',
+        today: '2026-10-20',
+        changes: { generationAttempts: 2 },
+      },
+    },
+  })
+
+  await page.goto(BOOTSTRAP_MOCKS.homePath)
+  await page
+    .getByRole('button', { name: BOOTSTRAP_MOCKS.settingsButton })
+    .first()
+    .click()
+  await page.getByRole('button', { name: /Dev tools/ }).click()
+  await page.getByRole('button', { name: /Сброс текстов/ }).click()
+
+  await expect(page.getByText('Dev-действие выполнено.')).toBeVisible()
+  await expect.poll(() => requests.authBodies.length).toBe(2)
+  expect(requests.devBodies).toContainEqual({
+    initData: BOOTSTRAP_MOCKS.fakeInitData,
+    action: 'reset_generation_attempts',
+  })
+  expect(requests.unexpectedRequests).toEqual([])
+})
+
+test('ordinary users do not see dev tools in settings', async ({ page }) => {
+  const requests = await installMocks({
+    page,
+    authResponse: MOCK_SUCCESSFUL_AUTH,
+    authStatus: HTTP_STATUS.ok,
+  })
+  await page.goto(BOOTSTRAP_MOCKS.homePath)
+  await page
+    .getByRole('button', { name: BOOTSTRAP_MOCKS.settingsButton })
+    .first()
+    .click()
+  await expect(
+    page.getByRole('button', { name: /Dev tools/ }),
+  ).not.toBeVisible()
+  expect(requests.unexpectedRequests).toEqual([])
+})
+
+test('a denied dev action shows a safe error without refreshing the profile', async ({
+  page,
+}) => {
+  const adminAuth = {
+    ...MOCK_SUCCESSFUL_AUTH,
+    data: {
+      ...MOCK_SUCCESSFUL_AUTH.data,
+      user: { ...MOCK_SUCCESSFUL_AUTH.data.user, role: 'admin' },
+    },
+  }
+  const deniedMessage = 'Dev tools require admin access.'
+  const requests = await installMocks({
+    page,
+    authResponse: adminAuth,
+    authStatus: HTTP_STATUS.ok,
+    devStatus: HTTP_STATUS.forbidden,
+    devResponse: {
+      ok: false,
+      error: { code: 'DEV_TOOLS_ADMIN_REQUIRED', message: deniedMessage },
+    },
+  })
+
+  await page.goto(BOOTSTRAP_MOCKS.homePath)
+  await page
+    .getByRole('button', { name: BOOTSTRAP_MOCKS.settingsButton })
+    .first()
+    .click()
+  await page.getByRole('button', { name: /Dev tools/ }).click()
+  await page.getByRole('button', { name: /Сброс текстов/ }).click()
+
+  await expect(page.getByText(deniedMessage)).toBeVisible()
+  expect(requests.authBodies).toHaveLength(1)
+  expect(requests.unexpectedRequests).toEqual([])
+})
 
 test('Telegram bootstrap opens the home screen with a mocked API', async ({
   page,

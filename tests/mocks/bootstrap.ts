@@ -16,6 +16,7 @@ export const BOOTSTRAP_MOCKS = {
   telegramScriptPath: '/js/telegram-web-app.js',
   authPath: '/functions/v1/auth-telegram',
   saveSettingsPath: '/functions/v1/save-user-settings',
+  devToolsPath: '/functions/v1/dev-tools',
   vocabularyStatePath: VOCABULARY_E2E.paths.vocabularyState,
   homePath: '/',
   emptyBody: '',

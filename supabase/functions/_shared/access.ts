@@ -72,10 +72,7 @@ export const getUserRole = async (
     .maybeSingle();
 
   if (error) {
-    console.error(`${logPrefix} failed to load user role`, {
-      appUserId: userId,
-      error: error.message,
-    });
+    console.error(`${logPrefix} failed to load user role`);
     fail(500, "USER_ROLE_LOAD_FAILED", "Failed to load user access.");
   }
 

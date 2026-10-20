@@ -1,9 +1,6 @@
 import { useCallback, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
-import type {
-  DevToolAction,
-  DevToolActionOptions,
-} from '../services/devToolsService'
+import type { DevToolAction, DevToolActionOptions } from '../types/devTools'
 import { completeReadingText } from '../services/readingService'
 import { activateSubscription } from '../services/subscriptionService'
 import { saveCurrentUserSettings } from '../services/userService'

@@ -7,10 +7,7 @@ import { AppVersionCard } from '../components/settings/AppVersionCard'
 import { ReleaseNotesModal } from '../components/settings/ReleaseNotesModal'
 import { SupportReportCard } from '../components/settings/SupportReportCard'
 import { currentRelease } from '../constants/currentRelease'
-import type {
-  DevToolAction,
-  DevToolActionOptions,
-} from '../services/devToolsService'
+import type { DevToolAction, DevToolActionOptions } from '../types/devTools'
 import { AppUser, SaveUserSettingsInput, UserSettings } from '../types/user'
 import { getTelegramProfileUrl, openTelegramLink } from '../utils/telegramLinks'
 
