@@ -20,6 +20,8 @@ const installMocks = async ({
   settingsResponse,
   devResponse,
   devStatus = HTTP_STATUS.ok,
+  supportResponse,
+  supportStatus = HTTP_STATUS.ok,
 }: {
   page: Page
   authResponse: unknown
@@ -28,11 +30,14 @@ const installMocks = async ({
   settingsResponse?: unknown
   devResponse?: unknown
   devStatus?: number
+  supportResponse?: unknown
+  supportStatus?: number
 }) => {
   const unexpectedRequests: string[] = []
   const authBodies: unknown[] = []
   const settingsBodies: unknown[] = []
   const devBodies: unknown[] = []
+  const supportBodies: unknown[] = []
   let firstAuthRequest = true
 
   await page.addInitScript(
@@ -141,6 +146,27 @@ const installMocks = async ({
       return
     }
     if (
+      supportResponse &&
+      url.origin === BOOTSTRAP_MOCKS.apiURL &&
+      url.pathname === BOOTSTRAP_MOCKS.supportReportPath
+    ) {
+      if (request.method() === HTTP_METHOD.options) {
+        await route.fulfill({
+          status: HTTP_STATUS.noContent,
+          headers: BOOTSTRAP_MOCKS.corsHeaders,
+        })
+        return
+      }
+      supportBodies.push(request.postDataJSON())
+      await route.fulfill({
+        status: supportStatus,
+        contentType: HTTP_CONTENT_TYPE.json,
+        headers: BOOTSTRAP_MOCKS.authCorsHeaders,
+        body: JSON.stringify(supportResponse),
+      })
+      return
+    }
+    if (
       settingsResponse &&
       url.origin === BOOTSTRAP_MOCKS.apiURL &&
       url.pathname === BOOTSTRAP_MOCKS.vocabularyStatePath
@@ -165,8 +191,56 @@ const installMocks = async ({
     await route.abort()
   })
 
-  return { unexpectedRequests, authBodies, settingsBodies, devBodies }
+  return {
+    unexpectedRequests,
+    authBodies,
+    settingsBodies,
+    devBodies,
+    supportBodies,
+  }
 }
+
+test('settings submit a support report and show its confirmation', async ({
+  page,
+}) => {
+  const requests = await installMocks({
+    page,
+    authResponse: MOCK_SUCCESSFUL_AUTH,
+    authStatus: HTTP_STATUS.ok,
+    supportResponse: {
+      ok: true,
+      data: {
+        reportId: BOOTSTRAP_MOCKS.supportReportId,
+        createdAt: BOOTSTRAP_MOCKS.supportCreatedAt,
+      },
+    },
+  })
+  await page.goto(BOOTSTRAP_MOCKS.homePath)
+  await page
+    .getByRole('button', { name: BOOTSTRAP_MOCKS.settingsButton })
+    .first()
+    .click()
+  await page
+    .getByRole('button', {
+      name: BOOTSTRAP_MOCKS.supportOpenButton,
+      exact: true,
+    })
+    .click()
+  await page
+    .getByPlaceholder(BOOTSTRAP_MOCKS.supportPlaceholder)
+    .fill(BOOTSTRAP_MOCKS.supportComment)
+  await page
+    .getByRole('button', { name: BOOTSTRAP_MOCKS.supportSubmitButton })
+    .click()
+
+  await expect(page.getByText(BOOTSTRAP_MOCKS.supportSuccessText)).toBeVisible()
+  expect(requests.supportBodies).toHaveLength(1)
+  expect(requests.supportBodies[0]).toMatchObject({
+    initData: BOOTSTRAP_MOCKS.fakeInitData,
+    comment: BOOTSTRAP_MOCKS.supportComment,
+  })
+  expect(requests.unexpectedRequests).toEqual([])
+})
 
 test('admin can use mocked dev tools and refreshes the profile', async ({
   page,

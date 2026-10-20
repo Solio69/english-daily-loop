@@ -21,7 +21,7 @@ UI блока и модального окна находится в `src/compon
 
 - storage key: `edl.diagnostics.events`
 - лимит: последние `100` событий
-- события добавляются через `src/services/clientLogger.ts`
+- события добавляются через `src/services/clientLogger.ts`; известные секретные шаблоны в строках очищаются до записи в sessionStorage
 - `src/services/functionClient.ts` добавляет `x-request-id` к каждому вызову Edge Function и пишет события `edge_request_started`, `edge_request_succeeded`, `edge_request_failed`
 - `src/services/edgeFunctionErrors.ts` нормализует ошибки Edge Functions, request id и diagnostics для пользовательских сообщений и client events
 - `App` пишет `screen_opened` при смене экрана
@@ -35,10 +35,10 @@ UI блока и модального окна находится в `src/compon
 1. Принимает только `POST`.
 2. Валидирует Telegram `initData` через `TELEGRAM_BOT_TOKEN`.
 3. Находит пользователя по `telegram_user_id`, полученному только из валидного `initData`.
-4. Дальше использует только внутренний `user_id` и проверяет по нему rate limit: не больше `5` отчетов за последний час на пользователя.
-5. Санитизирует `appContext`, `events`, `requestIds` и `aiDiagnostics`, ограничивает размер вложенных объектов и принимает только корректный формат request id.
+4. Дальше использует только внутренний `user_id`; server-only RPC `submit_support_report` под блокировкой пользователя атомарно проверяет скользящий лимит `5` отчетов за последний час и сохраняет запись с одним DB timestamp.
+5. Принимает только документированные поля `appContext`, события и AI-метаданные, очищает известные секретные шаблоны во всех строках и принимает только корректный формат request id. Неизвестные поля и типы событий отбрасываются.
 6. Гарантирует размер diagnostic snapshot не больше `100KB`; при превышении последовательно удаляет самые старые events, AI diagnostics и request ids, затем сокращает app context.
-7. Сохраняет отчет в `public.support_reports` через `SUPABASE_SERVICE_ROLE_KEY`.
+7. Вызывает `submit_support_report` через `SUPABASE_SERVICE_ROLE_KEY`; превышение лимита возвращает `429 SUPPORT_REPORT_RATE_LIMITED`.
 
 Frontend не имеет прямого доступа к `public.support_reports`.
 
@@ -69,7 +69,9 @@ Frontend не имеет прямого доступа к `public.support_report
 - текущий экран
 - счетчики progress
 - request id Edge Function вызовов
-- safe AI diagnostics: function name, prompt version, model chain, failed/current model, stage, target/validation ranges, output word count, duration, sanitized provider/validation error
+- safe AI diagnostics: function name, prompt version, model chain, current model, stage, target/validation ranges, output word count, duration и ограниченный provider error code
+
+Точный whitelist полей и событий описан в `specs/017-f16-support-diagnostics/contracts/support-report.md`. Свободный error text и неизвестные поля не сохраняются. Комментарий пользователя, экран и метаданные проходят server-side redaction известных форматов token, `initData`, Bearer, key/secret/password и прямого Telegram ID. Неизвестный произвольный секрет нельзя распознать гарантированно; предупреждение в форме остаётся.
 
 Общий server helper safe AI diagnostics находится в `supabase/functions/_shared/ai-diagnostics.ts`; доменные Edge Functions добавляют к нему только поля своего сценария.
 
@@ -164,6 +166,7 @@ workflow и `D:\anastasiaStorage\Проекты\English daily loop\_work\release
 
 - Таблица закрыта для `anon` и `authenticated`.
 - Запись выполняется только через Edge Function.
+- RPC `submit_support_report` доступна только `service_role`; проверка лимита и insert выполняются в одной транзакции. Миграцию применяет владелец до запуска нового Edge Function.
 - `requestId` не является секретом; он нужен для корреляции клиентского события, server log и записи в БД.
 - Для корреляции пользователя используются внутренние `appUserId`/`user_id`; прямой Telegram ID не передается во frontend context и прикладные логи.
 - Санитизация есть на клиенте и на сервере, но source of truth по безопасности остается сервер.
