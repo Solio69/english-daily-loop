@@ -1,0 +1,4 @@
+interface:
+  display_name: "English Daily Loop Feature Spec"
+  short_description: "Груминг и спецификация новых фич проекта"
+  default_prompt: "Подготовь компактный обзор фичи English Daily Loop в Obsidian: исследуй состояние, сравни варианты, согласуй результат и передай в полный Spec Kit."

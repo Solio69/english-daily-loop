@@ -1,53 +1,51 @@
-import { useCallback, useState } from "react";
-import type { Dispatch, SetStateAction } from "react";
-import type {
-  DevToolAction,
-  DevToolActionOptions,
-} from "../services/devToolsService";
-import { completeReadingText } from "../services/readingService";
-import { activateSubscription } from "../services/subscriptionService";
-import { saveCurrentUserSettings } from "../services/userService";
+import { useCallback, useState } from 'react'
+import type { Dispatch, SetStateAction } from 'react'
+import type { DevToolAction, DevToolActionOptions } from '../types/devTools'
+import { completeReadingText } from '../services/readingService'
+import { activateSubscription } from '../services/subscriptionService'
+import { saveCurrentUserSettings } from '../services/userService'
 import type {
   LessonCurrentStep,
   LessonHomeStatus,
   ReadingHomeStatus,
   ReviewHomeStatus,
-} from "../types/homeProgress";
-import type { SubscriptionPlanType } from "../types/subscription";
-import type { AppUser, SaveUserSettingsInput } from "../types/user";
-import type { ShowToast } from "./useToast";
+} from '../types/homeProgress'
+import type { SubscriptionPlanType } from '../types/subscription'
+import type { AppUser, SaveUserSettingsInput } from '../types/user'
+import { applySavedSettings } from '../utils/userProfile'
+import type { ShowToast } from './useToast'
 
 type UseAppUserActionsParams = {
-  appUser: AppUser | null;
-  setAppUser: Dispatch<SetStateAction<AppUser | null>>;
-  refreshCurrentUser: () => Promise<AppUser>;
-  navigateHome: () => void;
-  showToast: ShowToast;
-};
+  appUser: AppUser | null
+  setAppUser: Dispatch<SetStateAction<AppUser | null>>
+  refreshCurrentUser: () => Promise<AppUser>
+  navigateHome: () => void
+  showToast: ShowToast
+}
 
 const getLessonProgress = (
   status: ReadingHomeStatus,
   review: ReviewHomeStatus,
 ): { status: LessonHomeStatus; currentStep: LessonCurrentStep } => {
-  if (status !== "completed") {
+  if (status !== 'completed') {
     return {
       status,
-      currentStep: "reading",
-    };
+      currentStep: 'reading',
+    }
   }
 
-  if (review === "completed") {
+  if (review === 'completed') {
     return {
-      status: "completed",
+      status: 'completed',
       currentStep: null,
-    };
+    }
   }
 
   return {
-    status: "in_progress",
-    currentStep: "vocabulary",
-  };
-};
+    status: 'in_progress',
+    currentStep: 'vocabulary',
+  }
+}
 
 export const useAppUserActions = ({
   appUser,
@@ -56,11 +54,11 @@ export const useAppUserActions = ({
   navigateHome,
   showToast,
 }: UseAppUserActionsParams) => {
-  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [isSavingSettings, setIsSavingSettings] = useState(false)
   const [activatingPlan, setActivatingPlan] =
-    useState<SubscriptionPlanType | null>(null);
+    useState<SubscriptionPlanType | null>(null)
   const [runningDevToolAction, setRunningDevToolAction] =
-    useState<DevToolAction | null>(null);
+    useState<DevToolAction | null>(null)
 
   const updateReadingHomeStatus = useCallback(
     (status: ReadingHomeStatus) => {
@@ -78,10 +76,10 @@ export const useAppUserActions = ({
               },
             }
           : currentUser,
-      );
+      )
     },
     [setAppUser],
-  );
+  )
 
   const updateReviewHomeStatus = useCallback(
     (
@@ -108,55 +106,54 @@ export const useAppUserActions = ({
               },
             }
           : currentUser,
-      );
+      )
     },
     [setAppUser],
-  );
+  )
 
   const handleSaveSettings = useCallback(
     async (settings: SaveUserSettingsInput) => {
-      if (!appUser) return;
+      if (!appUser) return
 
-      const wasFirstSetup = !appUser.settingsCompletedAt;
-      setIsSavingSettings(true);
+      const wasFirstSetup = !appUser.settingsCompletedAt
+      setIsSavingSettings(true)
       try {
-        const updatedUser = await saveCurrentUserSettings(
-          appUser.id,
-          settings,
-          appUser.subscription,
-          appUser.homeProgress,
-          appUser.streakDays,
-          appUser.completedReadingTextCount,
-        );
-        setAppUser(updatedUser);
-        navigateHome();
+        const response = await saveCurrentUserSettings(settings)
+        setAppUser((currentUser) =>
+          applySavedSettings({
+            currentUser,
+            requestProfile: appUser,
+            response,
+          }),
+        )
+        navigateHome()
         showToast(
           wasFirstSetup
-            ? "Настройки готовы. Можно начинать первый текст."
-            : "Настройки сохранены.",
-          wasFirstSetup ? "onboarding" : "success",
-        );
+            ? 'Настройки готовы. Можно начинать первый текст.'
+            : 'Настройки сохранены.',
+          wasFirstSetup ? 'onboarding' : 'success',
+        )
       } catch (error) {
         showToast(
           error instanceof Error
             ? error.message
-            : "Не удалось сохранить настройки.",
-          "error",
-        );
+            : 'Не удалось сохранить настройки.',
+          'error',
+        )
       } finally {
-        setIsSavingSettings(false);
+        setIsSavingSettings(false)
       }
     },
     [appUser, navigateHome, setAppUser, showToast],
-  );
+  )
 
   const handleActivateSubscription = useCallback(
     async (planType: SubscriptionPlanType) => {
-      if (!appUser) return;
+      if (!appUser) return
 
-      setActivatingPlan(planType);
+      setActivatingPlan(planType)
       try {
-        const subscription = await activateSubscription(planType);
+        const subscription = await activateSubscription(planType)
         setAppUser((currentUser) =>
           currentUser
             ? {
@@ -164,58 +161,56 @@ export const useAppUserActions = ({
                 subscription,
               }
             : currentUser,
-        );
-        navigateHome();
+        )
+        navigateHome()
         showToast(
-          appUser.subscription.activeSubscription?.planType === "monthly" &&
-            planType === "yearly"
-            ? "Годовая подписка запланирована."
-            : "Подписка активирована.",
-          "success",
-        );
+          appUser.subscription.activeSubscription?.planType === 'monthly' &&
+            planType === 'yearly'
+            ? 'Годовая подписка запланирована.'
+            : 'Подписка активирована.',
+          'success',
+        )
       } catch (error) {
         showToast(
           error instanceof Error
             ? error.message
-            : "Не удалось оформить подписку.",
-          "error",
-        );
+            : 'Не удалось оформить подписку.',
+          'error',
+        )
       } finally {
-        setActivatingPlan(null);
+        setActivatingPlan(null)
       }
     },
     [appUser, navigateHome, setAppUser, showToast],
-  );
+  )
 
   const handleRunDevToolAction = useCallback(
     async (action: DevToolAction, options?: DevToolActionOptions) => {
-      setRunningDevToolAction(action);
+      setRunningDevToolAction(action)
       try {
-        const { runDevToolAction } = await import(
-          "../services/devToolsService"
-        );
-        await runDevToolAction(action, options);
-        await refreshCurrentUser();
-        showToast("Dev-действие выполнено.", "success");
+        const { runDevToolAction } = await import('../services/devToolsService')
+        await runDevToolAction(action, options)
+        await refreshCurrentUser()
+        showToast('Dev-действие выполнено.', 'success')
       } catch (error) {
         showToast(
           error instanceof Error
             ? error.message
-            : "Не удалось выполнить dev-действие.",
-          "error",
-        );
+            : 'Не удалось выполнить dev-действие.',
+          'error',
+        )
       } finally {
-        setRunningDevToolAction(null);
+        setRunningDevToolAction(null)
       }
     },
     [refreshCurrentUser, showToast],
-  );
+  )
 
   const handleCompleteReadingText = useCallback(async () => {
-    if (!appUser) return;
+    if (!appUser) return
 
     try {
-      const result = await completeReadingText();
+      const result = await completeReadingText()
       setAppUser((currentUser) =>
         currentUser
           ? {
@@ -231,30 +226,30 @@ export const useAppUserActions = ({
               homeProgress: {
                 ...currentUser.homeProgress,
                 lesson: getLessonProgress(
-                  "completed",
+                  'completed',
                   currentUser.homeProgress.review.status,
                 ),
-                reading: { status: "completed" },
+                reading: { status: 'completed' },
               },
             }
           : currentUser,
-      );
+      )
       showToast(
         appUser.firstTextCompletedAt
-          ? "Текст на сегодня завершен."
-          : "Отличный старт. Первый текст завершен.",
-        appUser.firstTextCompletedAt ? "success" : "onboarding",
-      );
+          ? 'Текст на сегодня завершен.'
+          : 'Отличный старт. Первый текст завершен.',
+        appUser.firstTextCompletedAt ? 'success' : 'onboarding',
+      )
     } catch (error) {
       showToast(
         error instanceof Error
           ? error.message
-          : "Не удалось сохранить завершение текста.",
-        "error",
-      );
-      throw error;
+          : 'Не удалось сохранить завершение текста.',
+        'error',
+      )
+      throw error
     }
-  }, [appUser, setAppUser, showToast]);
+  }, [appUser, setAppUser, showToast])
 
   return {
     isSavingSettings,
@@ -266,5 +261,5 @@ export const useAppUserActions = ({
     handleCompleteReadingText,
     updateReadingHomeStatus,
     updateReviewHomeStatus,
-  };
-};
+  }
+}

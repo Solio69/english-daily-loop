@@ -18,9 +18,20 @@ type BuildSafeAiDiagnosticsParams = {
   modelChain: string[] | null;
   stage: string;
   durationMs: number;
-  error: unknown;
   metadata?: AiDiagnosticsMetadata | null;
-  details?: Record<string, unknown>;
+  details?: {
+    targetLevel?: string | null;
+    readingMinutes?: number | null;
+    targetWordMin?: number | null;
+    targetWordMax?: number | null;
+    validationWordMin?: number | null;
+    validationWordMax?: number | null;
+    outputWordCount?: number | null;
+    englishLevel?: string | null;
+    requestedCount?: number | null;
+    preparedCount?: number | null;
+    failedCount?: number | null;
+  };
 };
 
 export const sanitizeDiagnosticMessage = (message: string): string =>
@@ -30,9 +41,13 @@ export const sanitizeDiagnosticMessage = (message: string): string =>
     .trim()
     .slice(0, 300);
 
-const normalizeProviderErrorCode = (
-  value: string | number | null | undefined,
-): string | null => (value == null ? null : String(value));
+const boundedCount = (value: number | null | undefined): number | null =>
+  typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 100_000
+    ? value
+    : null;
+
+const boundedDuration = (value: number): number =>
+  Number.isFinite(value) ? Math.min(Math.max(Math.round(value), 0), 120_000) : 0;
 
 export const buildSafeAiDiagnostics = ({
   functionName,
@@ -41,7 +56,6 @@ export const buildSafeAiDiagnostics = ({
   modelChain,
   stage,
   durationMs,
-  error,
   metadata = null,
   details = {},
 }: BuildSafeAiDiagnosticsParams): SafeDiagnostics => ({
@@ -49,17 +63,32 @@ export const buildSafeAiDiagnostics = ({
   requestId,
   promptVersion,
   modelChain,
-  model: metadata?.model ?? null,
+  model: metadata?.model && modelChain?.includes(metadata.model) ? metadata.model : null,
   stage,
-  ...details,
-  durationMs,
-  finishReason: metadata?.finishReason ?? null,
-  completionTokens: metadata?.completionTokens ?? null,
-  reasoningTokens: metadata?.reasoningTokens ?? null,
-  providerStatus: metadata?.providerStatus ?? null,
-  providerErrorCode: normalizeProviderErrorCode(metadata?.providerErrorCode),
-  errorMessage:
-    error instanceof Error
-      ? sanitizeDiagnosticMessage(error.message)
-      : "Unknown AI error.",
+  durationMs: boundedDuration(durationMs),
+  completionTokens: boundedCount(metadata?.completionTokens),
+  reasoningTokens: boundedCount(metadata?.reasoningTokens),
+  providerStatus:
+    typeof metadata?.providerStatus === "number" &&
+    Number.isInteger(metadata.providerStatus) &&
+    metadata.providerStatus >= 100 &&
+    metadata.providerStatus <= 599
+      ? metadata.providerStatus
+      : null,
+  ...(functionName === "generate-reading-text"
+    ? {
+        targetLevel: details.targetLevel === "A1" || details.targetLevel === "A2" || details.targetLevel === "B1" || details.targetLevel === "B2" ? details.targetLevel : null,
+        readingMinutes: boundedCount(details.readingMinutes),
+        targetWordMin: boundedCount(details.targetWordMin),
+        targetWordMax: boundedCount(details.targetWordMax),
+        validationWordMin: boundedCount(details.validationWordMin),
+        validationWordMax: boundedCount(details.validationWordMax),
+        outputWordCount: boundedCount(details.outputWordCount),
+      }
+    : {
+        englishLevel: details.englishLevel === "A1" || details.englishLevel === "A2" || details.englishLevel === "B1" || details.englishLevel === "B2" ? details.englishLevel : null,
+        requestedCount: boundedCount(details.requestedCount),
+        preparedCount: boundedCount(details.preparedCount),
+        failedCount: boundedCount(details.failedCount),
+      }),
 });

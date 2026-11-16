@@ -1,5 +1,5 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import assert from 'node:assert/strict'
+import test from 'node:test'
 import {
   DEFAULT_FALLBACK_MODEL,
   DEFAULT_PRIMARY_MODEL,
@@ -11,206 +11,180 @@ import {
   getConfiguredOpenRouterModelChain,
   getOpenRouterModelChain,
   requestOpenRouter,
-} from "../supabase/functions/_shared/openrouter.ts";
-import { generateReadingTextWithOpenRouter } from "../supabase/functions/generate-reading-text/ai-pipeline.ts";
+} from '../supabase/functions/_shared/openrouter.ts'
+import { generateReadingTextWithOpenRouter } from '../supabase/functions/generate-reading-text/ai-pipeline.ts'
+import { HTTP_STATUS } from './fixtures/http.ts'
+import { OPENROUTER_MOCKS, OPENROUTER_RESPONSES } from './mocks/openrouter.ts'
 
-const ALTERNATE_FREE_MODEL = "google/gemma-4-26b-a4b-it:free";
-const FREE_MODEL_SUFFIX = ":free";
-const EXPECTED_MODEL_LIMIT = 3;
-const OBSOLETE_MODEL_OVERRIDE = "openai/gpt-oss-20b:free";
-
-test("both AI features use the full model chain before positional overrides", () => {
-  const configuredChain = DEFAULT_READING_MODEL_CHAIN.join(OPENROUTER_MODEL_SEPARATOR);
+test('both AI features use the full model chain before positional overrides', () => {
+  const configuredChain = OPENROUTER_MOCKS.readingModels.join(
+    OPENROUTER_MODEL_SEPARATOR,
+  )
   const env = new Map<string, string>([
     [OPENROUTER_MODEL_ENV.chain, configuredChain],
-    [OPENROUTER_MODEL_ENV.primary, OBSOLETE_MODEL_OVERRIDE],
-  ]);
+    [OPENROUTER_MODEL_ENV.primary, OPENROUTER_MOCKS.obsoleteModelOverride],
+  ])
 
   assert.deepEqual(
     getConfiguredOpenRouterModelChain((name) => env.get(name) ?? null),
-    DEFAULT_READING_MODEL_CHAIN,
-  );
+    OPENROUTER_MOCKS.readingModels,
+  )
   assert.deepEqual(
     getConfiguredOpenRouterModelChain(() => null),
-    DEFAULT_READING_MODEL_CHAIN,
-  );
-});
+    OPENROUTER_MOCKS.readingModels,
+  )
+})
 
-test("default OpenRouter base model chain contains three current unique models", () => {
+test('default OpenRouter base model chain contains three current unique models', () => {
   const models = getOpenRouterModelChain(
     DEFAULT_PRIMARY_MODEL,
     DEFAULT_FALLBACK_MODEL,
     DEFAULT_TERTIARY_MODEL,
-  );
-  assert.equal(models.length, EXPECTED_MODEL_LIMIT);
-  assert.ok(models.every((model) => model.endsWith(FREE_MODEL_SUFFIX)));
-  assert.equal(new Set(models).size, models.length);
+  )
+  assert.deepEqual(models, OPENROUTER_MOCKS.baseModels)
+  assert.equal(models.length, OPENROUTER_MOCKS.modelLimit)
+  assert.ok(
+    models.every((model) => model.endsWith(OPENROUTER_MOCKS.freeModelSuffix)),
+  )
+  assert.equal(new Set(models).size, models.length)
 
   assert.throws(
-    () => getOpenRouterModelChain("qwen/qwen3.6-plus:free"),
-    /Unsupported OpenRouter model/,
-  );
+    () => getOpenRouterModelChain(OPENROUTER_MOCKS.unsupportedModel),
+    OPENROUTER_MOCKS.unsupportedModelPattern,
+  )
   assert.throws(
-    () => getOpenRouterModelChain(...models, ALTERNATE_FREE_MODEL),
-    new RegExp(`exceeds ${EXPECTED_MODEL_LIMIT} models`),
-  );
-});
+    () =>
+      getOpenRouterModelChain(...models, OPENROUTER_MOCKS.alternateFreeModel),
+    OPENROUTER_MOCKS.modelLimitPattern,
+  )
+})
 
-test("default reading generation model chain contains current unique models", () => {
+test('default reading generation model chain contains current unique models', () => {
   assert.deepEqual(
     getOpenRouterModelChain(...DEFAULT_READING_MODEL_CHAIN),
-    [
-      DEFAULT_PRIMARY_MODEL,
-      DEFAULT_FALLBACK_MODEL,
-      DEFAULT_TERTIARY_MODEL,
-    ],
-  );
-});
+    OPENROUTER_MOCKS.readingModels,
+  )
+})
 
-test("reading generation retries with fallback after empty provider content", async () => {
-  const originalFetch = globalThis.fetch;
-  const originalConsoleError = console.error;
+test('reading generation retries with fallback after empty provider content', async () => {
+  const originalFetch = globalThis.fetch
+  const originalConsoleError = console.error
   const requestBodies: Array<{
-    models: string[];
-    reasoning?: { enabled?: boolean };
-    response_format?: { type?: string };
-  }> = [];
+    models: string[]
+    reasoning?: { enabled?: boolean }
+    response_format?: { type?: string }
+  }> = []
 
-  console.error = () => undefined;
+  console.error = () => undefined
   globalThis.fetch = (async (_input, init) => {
-    requestBodies.push(JSON.parse(String(init?.body)));
+    requestBodies.push(JSON.parse(String(init?.body)))
 
-    if (requestBodies.length === 1) {
-      return new Response(
-        JSON.stringify({
-          model: DEFAULT_PRIMARY_MODEL,
-          choices: [
-            {
-              finish_reason: "length",
-              message: { content: "" },
-            },
-          ],
-          usage: {
-            completion_tokens: 450,
-            completion_tokens_details: { reasoning_tokens: 450 },
-          },
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
+    if (requestBodies.length === OPENROUTER_MOCKS.requestBodies.firstLength) {
+      return OPENROUTER_RESPONSES.emptyContent()
     }
 
-    return new Response(
-      JSON.stringify({
-        model: DEFAULT_FALLBACK_MODEL,
-        choices: [
-          {
-            finish_reason: "stop",
-            message: {
-              content: JSON.stringify({
-                title: "A Small Story",
-                body: "One calm day begins.",
-                estimatedMinutes: 3,
-                level: "A1",
-              }),
-            },
-          },
-        ],
-      }),
-      { status: 200, headers: { "Content-Type": "application/json" } },
-    );
-  }) as typeof fetch;
+    return OPENROUTER_RESPONSES.fallbackContent()
+  }) as typeof fetch
 
   try {
     const result = await generateReadingTextWithOpenRouter({
-      apiKey: "test-key",
+      apiKey: OPENROUTER_MOCKS.apiKey,
       models: [
         DEFAULT_PRIMARY_MODEL,
         DEFAULT_FALLBACK_MODEL,
         DEFAULT_TERTIARY_MODEL,
       ],
-      targetLevel: "A1",
-      readingMinutes: 3,
-      config: {
-        wordMin: 3,
-        wordMax: 5,
-        validationWordMin: 2,
-        validationWordMax: 6,
-        maxTokens: 450,
-      },
-    });
+      targetLevel: OPENROUTER_MOCKS.targetLevel,
+      readingMinutes: OPENROUTER_MOCKS.readingMinutes,
+      config: OPENROUTER_MOCKS.readingConfig,
+    })
 
-    assert.equal(result.usedModel, DEFAULT_FALLBACK_MODEL);
-    assert.equal(requestBodies.length, 2);
-    assert.deepEqual(requestBodies[0].models, [
-      DEFAULT_PRIMARY_MODEL,
-      DEFAULT_FALLBACK_MODEL,
-      DEFAULT_TERTIARY_MODEL,
-    ]);
-    assert.deepEqual(requestBodies[1].models, [
-      DEFAULT_FALLBACK_MODEL,
-      DEFAULT_TERTIARY_MODEL,
-    ]);
-    assert.deepEqual(requestBodies[0].reasoning, {
-      enabled: false,
-    });
-    assert.deepEqual(requestBodies[1].reasoning, {
-      enabled: false,
-    });
-    assert.equal(requestBodies[0].response_format?.type, "json_object");
-    assert.equal(requestBodies[1].response_format?.type, "json_object");
+    assert.equal(result.usedModel, DEFAULT_FALLBACK_MODEL)
+    assert.equal(requestBodies.length, OPENROUTER_MOCKS.requestBodies.total)
+    assert.deepEqual(
+      requestBodies[OPENROUTER_MOCKS.requestBodies.firstIndex].models,
+      [DEFAULT_PRIMARY_MODEL, DEFAULT_FALLBACK_MODEL, DEFAULT_TERTIARY_MODEL],
+    )
+    assert.deepEqual(
+      requestBodies[OPENROUTER_MOCKS.requestBodies.secondIndex].models,
+      [DEFAULT_FALLBACK_MODEL, DEFAULT_TERTIARY_MODEL],
+    )
+    assert.deepEqual(
+      requestBodies[OPENROUTER_MOCKS.requestBodies.firstIndex].reasoning,
+      OPENROUTER_MOCKS.expectedReasoning,
+    )
+    assert.deepEqual(
+      requestBodies[OPENROUTER_MOCKS.requestBodies.secondIndex].reasoning,
+      OPENROUTER_MOCKS.expectedReasoning,
+    )
+    assert.equal(
+      requestBodies[OPENROUTER_MOCKS.requestBodies.firstIndex].response_format
+        ?.type,
+      OPENROUTER_MOCKS.responseFormatType,
+    )
+    assert.equal(
+      requestBodies[OPENROUTER_MOCKS.requestBodies.secondIndex].response_format
+        ?.type,
+      OPENROUTER_MOCKS.responseFormatType,
+    )
   } finally {
-    globalThis.fetch = originalFetch;
-    console.error = originalConsoleError;
+    globalThis.fetch = originalFetch
+    console.error = originalConsoleError
   }
-});
+})
 
-test("OpenRouter provider errors keep safe diagnostics", async () => {
-  const originalFetch = globalThis.fetch;
+test('OpenRouter provider errors keep safe diagnostics', async () => {
+  const originalFetch = globalThis.fetch
   const requestBodies: Array<{
-    reasoning?: { enabled?: boolean };
-    response_format?: { type?: string };
-  }> = [];
+    reasoning?: { enabled?: boolean }
+    response_format?: { type?: string }
+  }> = []
 
   globalThis.fetch = (async (_input, init) => {
-    requestBodies.push(JSON.parse(String(init?.body)));
+    requestBodies.push(JSON.parse(String(init?.body)))
 
-    return new Response(
-      JSON.stringify({
-        error: {
-          code: "rate_limit_exceeded",
-          message: "Provider returned error",
-        },
-      }),
-      { status: 429, headers: { "Content-Type": "application/json" } },
-    );
-  }) as typeof fetch;
+    return OPENROUTER_RESPONSES.rateLimited()
+  }) as typeof fetch
 
   try {
     await assert.rejects(
       () =>
         requestOpenRouter({
-          apiKey: "test-key",
+          apiKey: OPENROUTER_MOCKS.apiKey,
           models: [DEFAULT_PRIMARY_MODEL],
-          messages: [{ role: "user", content: "Return JSON." }],
-          maxTokens: 100,
-          temperature: 0.1,
-          timeoutMs: 1000,
+          messages: [
+            {
+              role: OPENROUTER_MOCKS.providerRequest.role,
+              content: OPENROUTER_MOCKS.providerRequest.content,
+            },
+          ],
+          maxTokens: OPENROUTER_MOCKS.providerRequest.maxTokens,
+          temperature: OPENROUTER_MOCKS.providerRequest.temperature,
+          timeoutMs: OPENROUTER_MOCKS.providerRequest.timeoutMs,
         }),
       (error) => {
-        assert.ok(error instanceof OpenRouterError);
-        assert.equal(error.stage, "provider_response");
-        assert.equal(error.message, "Provider returned error");
-        assert.equal(error.providerStatus, 429);
-        assert.equal(error.providerErrorCode, "rate_limit_exceeded");
-        return true;
+        assert.ok(error instanceof OpenRouterError)
+        assert.equal(error.stage, OPENROUTER_MOCKS.providerStage)
+        assert.equal(error.message, OPENROUTER_MOCKS.safeProviderMessage)
+        assert.equal(error.providerStatus, HTTP_STATUS.rateLimited)
+        assert.equal(
+          error.providerErrorCode,
+          OPENROUTER_MOCKS.rateLimitResponse.error.code,
+        )
+        return true
       },
-    );
+    )
 
-    assert.deepEqual(requestBodies[0].reasoning, {
-      enabled: false,
-    });
-    assert.equal(requestBodies[0].response_format?.type, "json_object");
+    assert.deepEqual(
+      requestBodies[OPENROUTER_MOCKS.requestBodies.firstIndex].reasoning,
+      OPENROUTER_MOCKS.expectedReasoning,
+    )
+    assert.equal(
+      requestBodies[OPENROUTER_MOCKS.requestBodies.firstIndex].response_format
+        ?.type,
+      OPENROUTER_MOCKS.responseFormatType,
+    )
   } finally {
-    globalThis.fetch = originalFetch;
+    globalThis.fetch = originalFetch
   }
-});
+})

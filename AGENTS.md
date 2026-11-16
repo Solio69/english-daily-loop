@@ -1,4 +1,4 @@
-﻿# AGENTS.md
+# AGENTS.md
 
 ## Назначение
 
@@ -20,44 +20,35 @@
 
 ## Документация для владельца и агентов
 
-- Единый рабочий процесс для владельца проекта и AI-агентов: `docs/agents/WORKFLOW.md`.
-- Актуальная дизайн-система: `docs/agents/DESIGN_SYSTEM.md`.
-- Общие правила подробного ручного тестирования фич и баг-пачек: `docs/agents/references/manual-testing-guide.md`.
-- Подробности локального Telegram-запуска: `docs/agents/LOCAL_TELEGRAM_RUN.md`.
-- Шаблон локального Telegram env: `.env.telegram.example`; inventory production env: `.env.production.example` и `notes/production-env.md`.
-- Production backup, retention и recovery drill: `notes/backup-and-restore.md`.
-- Project-local skill sources лежат в `docs/agents/skills`; они не устанавливаются автоматически в `~/.codex/skills`.
-- Для разбора пользовательских отчетов об ошибках использовать skill source `docs/agents/skills/english-daily-loop-support-triage`.
-- Для pre-code разбора сырых багов и формирования согласуемых баг-пачек использовать skill source `docs/agents/skills/triage-english-daily-loop-bugs`.
-- Для grooming новых фич и создания согласуемых feature draft использовать skill source `docs/agents/skills/english-daily-loop-feature-spec`; канонические draft-файлы создаются в `D:\anastasiaStorage\pet-projects\English daily loop\Фичи`, а подробный ручной checklist является обязательной частью спецификации.
-- Рабочая папка проекта `D:\anastasiaStorage\pet-projects\English daily loop` доступна кодинг-агенту для чтения и редактирования документации.
+- Канонический workflow: D:\anastasiaStorage\Проекты\English daily loop\work\release-1.1-refactor\SDD workflow English Daily Loop.md; правила груминга: D:\anastasiaStorage\Проекты\English daily loop\agents\rules\Груминг задач English Daily Loop.md. Карта, обзоры F01–F17 и документы изменений находятся в work/release-1.1-refactor/; полный пакет Spec Kit — в specs/NNN-slug/.
+- Постоянные принципы: `.specify/memory/constitution.md`; полномочия Git: `GIT_POLICY.md`; восемь операций Spec Kit и три проектных скилла: `.agents/skills/`.
+- Актуальная дизайн-система: `docs/DESIGN_SYSTEM.md`; локальный Telegram-запуск: `docs/LOCAL_TELEGRAM_RUN.md`; руководство ручного тестирования: `.agents/references/manual-testing-guide.md`; правила написания кода: `.agents/rules/CODING_RULES.md`.
+- Шаблон локального Telegram env: `.env.telegram.example`; production env: `.env.production.example` и `notes/production-env.md`; backup/recovery: `notes/backup-and-restore.md`.
+- Исторический процесс до SDD сохранён в `docs/archive/pre-sdd/agents/` для будущего рефакторинга. Архив не задаёт действующие правила. Происхождение набора: `docs/spec-kit-provenance.md`.
+- Карта рефакторинга релиза 1.1 и отдельные обзоры F01–F17 находятся в D:\anastasiaStorage\Проекты\English daily loop\work\release-1.1-refactor\. Карта задаёт очередь и зависимости, но не разрешает реализацию всех фич сразу.
 
 ## Рабочий процесс и допуск к реализации
 
-- Все задачи выполняются по `docs/agents/WORKFLOW.md`; этот документ является источником истины о жизненном цикле задач, статусах и распределении ответственности.
-- Без согласованной спецификации или баг-пачки код не изменяется, кроме случая, когда владелец явно просит выполнить конкретное изменение без отдельной спецификации.
-- Перед изменением кода кодинг-агент полностью читает согласованный документ и сверяет его с актуальными кодом, документацией и Git HEAD.
-- При противоречии, открытом решении, изменении согласованного scope либо затрагивании несогласованных design, data, auth, RLS или grants агент останавливается и запрашивает решение владельца.
-- Ограничения этого файла и `GIT_POLICY.md` имеют приоритет над процедурными инструкциями workflow и project-local skills.
+- Сначала агент исследует текущий код и документы, показывает жизнеспособные варианты реализации с плюсами, минусами, рисками и рекомендацией, обсуждает результат и вопросы. Компактный обзор фичи в Obsidian содержит границы, решение, шаги и приёмку.
+- При начале работы над рефакторингом выбирается одна фича из карты. Для неё используется собственный короткий обзор в `work/`; при груминге проверяются факты в актуальном коде, уточняются решения, инструменты и критерии приёмки. Фичи выделяются по логическим слоям и результату; ориентир до одного часа относится к согласованию с владельцем, а не к времени работы агента. Приёмка проходит отдельно.
+- После явного согласования владельцем основного обзора на выполнение и назначения созданной ею ветки агент самостоятельно проходит constitution, specify, clarify, plan, checklist, tasks, analyze, implement и проверки. Отдельный обязательный допуск после технических документов не нужен. Существенное новое решение возвращается владельцу до затронутой реализации.
+- Технические документы находятся в `specs/NNN-slug/` и выбираются явно, независимо от имени ветки. Analyze только читает; отчёт сохраняется отдельным действием после прохода. Блокирующие замечания закрываются до кода. Скрипты Spec Kit не выполняют Git-команды.
+- Код меняется только после согласования соответствующей фичи либо отдельного явного запроса владельца. Агент сверяет spec/plan/tasks с актуальным HEAD. При противоречии, новом scope или несогласованном изменении поведения, данных, дизайна, auth, RLS, grants он уточняет затронутое решение.
+- В ветке `refactor/release-1.1` после завершения каждой согласованной фичи F01–F04 агент повышает patch-часть версии на единицу и делает ровно один коммит на фичу: технический пакет, код и проверки входят в этот коммит. Номер версии в ветке не означает публикацию; PR, merge и выпуск делает владелец.
+- Ограничения этого файла и `GIT_POLICY.md` имеют приоритет над процедурными инструкциями скиллов. Установки допускаются только после обсуждения конкретных инструментов, назначения и области в основном обзоре. Первый этап SDD не требует установок и не меняет продуктовый код.
 
 ## Правила коммуникации
 
-- По умолчанию объяснять на русском языке.
-- Каждую команду объяснять перед запуском: что она делает и зачем.
-- В режимах настройки и отладки с пользователем давать по одной команде за шаг.
-- После шага ждать вывод/скриншот пользователя и только потом двигаться дальше.
-- Тон: поддерживающий, без оценочности и давления.
-- Предпочитать короткие и практичные инструкции вместо длинной теории.
-- После завершения изменений не давать владельцу инструкции или команды для
-  подготовки и создания Git-коммита: владелец выполняет их самостоятельно.
-  Передавать только одно подходящее английское название коммита в отдельном
-  Markdown code block, чтобы его можно было сразу скопировать.
+- По умолчанию объяснять по-русски, как разработчику, простыми словами. Особенно ясно объяснять серверную логику и базы данных: что делаем и зачем. Подробности раскрывать по запросу.
+- Перед командами, предлагаемыми владельцу в режиме настройки или отладки, объяснять их действие. Давать одну команду за шаг и ждать результат перед следующим зависимым шагом. Не перегружать передачу результата командами, которые не нужны владельцу.
+- Показывать результат, реальные проверки, ограничения и полезные предложения по улучшению с причиной. Если владельцу нужны действия, давать точные команды и условия применения. Английские сообщения коммитов: `fix:`, `feat:`, `refactor:` или `chore:` по фактической части работы.
+- Тон спокойный и предметный, без давления и выдуманных фактов. Не заявлять о выполненном PR, merge или выпуске по факту push.
 
 ## Правила принятия решений
 
 - Не переходить к реализации, пока архитектурный выбор не согласован.
 - Для решений с компромиссами кратко показывать варианты, преимущества, недостатки и риски.
-- Предпочитать маленькие итеративные изменения вместо крупных рефакторингов.
+- Делить реализацию на проверяемые шаги внутри согласованной фичи; граница фичи определяется самостоятельным логическим результатом, а не размером diff.
 - Перед изменениями с неочевидными последствиями явно подтверждать направление.
 
 ## Технический вектор (по умолчанию)
@@ -98,10 +89,9 @@
 
 ## Жесткая Git-политика
 
-- Агенту запрещены любые команды, меняющие историю или состояние репозитория: `git commit`, `git push`, `git merge`, `git rebase`, `git cherry-pick`, `git reset`, `git revert`, `git tag`, `git stash`, `git checkout` (для переключения/отката), `git switch`, `git restore`, `git clean`.
-- Агент может использовать Git только в режиме чтения: `git status`, `git log`, `git diff`, `git show`, `git blame`, `git branch --show-current`, `git rev-parse`.
-- Это строгое правило без исключений, пока пользователь явно не изменит политику в репозитории.
-- Детальная формулировка вынесена в отдельный файл: `GIT_POLICY.md`.
+- Единственный источник подробных полномочий Git: `GIT_POLICY.md`. Владелец создаёт и назначает ветку. Агент её не создаёт и не переключает.
+- В назначенной ветке агент может адресно подготовить свои проверенные файлы в staging, выполнить commit и push по внутренней декомпозиции задачи. Перед каждым commit проверяет обязательные проверки, staged diff и отсутствие чужих изменений; перед push — remote, ветку назначения и исходящие коммиты.
+- Merge, rebase, pull с интеграцией, force push любого вида и переписывание истории запрещены. При отклонённом push агент останавливается, сохраняет локальную работу и сообщает причину. PR, merge и выпуск выполняет только владелец.
 
 ## Текущий статус (для будущих агентов)
 
@@ -122,6 +112,7 @@
 - Миграция `supabase/migrations/20260705130000_promote_vocabulary_needs_approval_cards.sql` переводит существующие `needs_approval`-карточки в текущий `ready` + `not_started` flow повторения.
 - Миграция `supabase/migrations/20260706120000_add_user_app_roles.sql` добавляет `users.app_role` со значениями `admin | tester | user`; новые пользователи по умолчанию получают роль `tester`.
 - Миграция `supabase/migrations/20260707120000_add_support_reports.sql` добавляет `public.support_reports` для пользовательских отчетов об ошибках, закрывает таблицу для `anon`/`authenticated` и создает scheduled cleanup job `cleanup_support_reports` для удаления отчетов старше `30` дней.
+- Файл миграции `supabase/migrations/20261020120000_atomic_support_report_submission.sql` определяет server-only RPC `submit_support_report(...)` для атомарного часового лимита. Миграцию применяет только владелец до запуска обновлённой Edge Function.
 - Миграция `supabase/migrations/20260727120000_prepare_personal_data_minimization.sql` делает совместимый столбец `support_reports.telegram_user_id` nullable; новые отчеты связываются только через внутренний `user_id`, а физическое удаление лишних столбцов отложено до отдельного contract cleanup после production rollout и backup gate.
 - Миграция `supabase/migrations/20260723120000_add_moscow_study_day_and_carry_active_text.sql` добавляет server-only SQL-helper учебной даты с границей `05:00 Europe/Moscow`, снимает date-scope с единственного active text и обновляет reading/review RPC без переписывания исторических данных; timestamp-чувствительные mutation RPC получают дату из того же DB timestamp, который сохраняют.
 - Миграция `supabase/migrations/20260724120000_add_active_reading_position.sql` добавляет nullable-позицию абзаца `last_read_paragraph_index` в единственный active text; `null` означает абсолютный верх страницы.
@@ -142,6 +133,7 @@
   - `public.delete_pending_vocabulary_word_with_sources(...)` — атомарное удаление только pending-слова из актуального active text с возвратом всех удаленных индексов текущего текста; доступно только `service_role`.
   - `public.persist_generated_vocabulary_card(...)` — атомарный claim и persistence AI-карточки с безопасным merge канонической формы; удаление pending-слова и AI persistence сериализуются одним advisory lock.
   - `public.claim_vocabulary_card_generation_attempt(...)` — атомарная проверка лимита и списание попытки подготовки словарных карточек.
+  - `public.submit_support_report(...)` — атомарная проверка лимита `5` отчётов за скользящий час и запись отчёта под блокировкой пользователя; доступна только после применения миграции владельцем.
   - `public.review_vocabulary_word(...)` — атомарный переход по шкале повторения и создание дневного completion-marker на учебную дату того же DB timestamp, который сохраняется в `last_reviewed_at`.
   - `public.get_or_create_vocabulary_review_state(...)` — точный snapshot очереди и фиксация завершения пустого плана с advisory lock по пользователю и дате.
   - `public.dev_complete_vocabulary_reviews_at_step(...)` — local dev-only перенос обязательной очереди повторения на абсолютный шаг с созданием дневного completion-marker.
@@ -241,9 +233,9 @@
   - frontend-панель показывается только при роли `admin`.
 - Пользовательские отчеты об ошибках реализованы через Edge Function `supabase/functions/submit-support-report/index.ts`:
   - серверная валидация `Telegram initData`
-  - rate limit: `5` отчетов на пользователя в час
+  - server-only RPC атомарно ограничивает отправку `5` отчётами за скользящий час на пользователя после применения миграции владельцем
   - максимальный diagnostic snapshot: `100KB`; при превышении сервер отбрасывает старые client events
-  - сохраняет только sanitized данные в `public.support_reports`: комментарий, текущий экран, app context, последние client events, request ids и safe AI diagnostics
+  - сохраняет в `public.support_reports` только разрешённые поля app context, известных client events, request ids и safe AI diagnostics; известные секретные шаблоны в строках очищаются на сервере
   - связывает новый отчет с пользователем только через внутренний `user_id`; Telegram ID не записывается в строку или `app_context`
   - не сохраняет Telegram `initData`, токены, secrets, prompt, raw AI response, полный generated text и stack trace
   - отчеты очищаются через `pg_cron` после `30` дней.
@@ -269,7 +261,7 @@
   - опционально `OPENROUTER_MODEL_FALLBACK`
   - опционально `OPENROUTER_MODEL_TERTIARY`.
 - `OPENROUTER_MODEL_CHAIN` задает полный порядок моделей для генерации текста; `OPENROUTER_MODEL_PRIMARY/FALLBACK/TERTIARY` используются как дополнительные модели после дефолтной цепочки, если `OPENROUTER_MODEL_CHAIN` не задан.
-- Для стабильной DX в редакторе: у функции используется `// @ts-nocheck`, а для Deno-окружения есть `supabase/functions/deno.json` и `supabase/functions/deno-globals.d.ts`.
+- Edge Functions проверяются Deno без `@ts-nocheck`; Supabase JS импортируется напрямую через версионированный `npm:`-адрес в `_shared/app.ts`. Локальные Deno-типы описаны в `supabase/functions/deno-globals.d.ts`, а `pnpm test:edge` проверяет каждую функцию отдельно.
 - На фронте подключен Telegram WebApp SDK (`index.html`) и типы `window.Telegram.WebApp` (`src/types/telegram-webapp.d.ts`).
 - UI-слой использует Tailwind CSS 4 через Vite plugin, дизайн-токены в `src/index.css`, локальные шрифты `@fontsource/inter` и `@fontsource/manrope`, иконки `lucide-react`.
 - Общие UI primitives находятся в `src/components`: `ScreenHeader` для внутренних экранов с back navigation, `LoadingState` для glass-загрузок, `InlineStatusCard` для встроенных статусов и `Button` для CTA/control кнопок.
@@ -348,9 +340,9 @@
 - Отчеты об ошибках, request id и diagnostic snapshot зафиксированы в `notes/support-diagnostics.md`.
 - Версия приложения, последний пользовательский release note и build metadata находятся в `src/constants/currentRelease.ts` и `src/config/releaseMetadata.ts`; полная техническая история релизов хранится в `CHANGELOG.md`.
 - Vite передает во frontend compile-time `appVersion`, `buildId` и `environment`: Vercel Git SHA для deployment либо безопасный fallback `local`, без чтения runtime env и secrets в браузере.
-- Skill source для triage support reports лежит в `docs/agents/skills/english-daily-loop-support-triage`.
-- Skill source для pre-code triage багов и формирования пачек лежит в `docs/agents/skills/triage-english-daily-loop-bugs`.
-- Skill source для grooming новых фич лежит в `docs/agents/skills/english-daily-loop-feature-spec`; draft-файлы фич хранятся во внешней папке `D:\anastasiaStorage\pet-projects\English daily loop\Фичи`.
+- Skill source для triage support reports лежит в `.agents/skills/english-daily-loop-support-triage`.
+- Skill source для pre-code triage багов и формирования пачек лежит в `.agents/skills/triage-english-daily-loop-bugs`.
+- Скилл подготовки фич находится в `.agents/skills/english-daily-loop-feature-spec`; компактные обзоры для согласования находятся в `D:\anastasiaStorage\Проекты\English daily loop\work`, технические документы — в `specs/NNN-slug/`.
 - Ссылка обратной связи из настроек зафиксирована в `notes/feedback-link.md`.
 - Production-схема деплоя зафиксирована в `notes/deployment-platform-decision.md`: frontend на Vercel, backend/data на Supabase Cloud.
 - Production env inventory зафиксирован в `notes/production-env.md`; реальные секреты в репозиторий не записывать.

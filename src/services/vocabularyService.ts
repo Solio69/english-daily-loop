@@ -1,4 +1,12 @@
-import { invokeFunction } from "./functionClient";
+import { invokeFunction } from './functionClient'
+import {
+  isPrepareVocabularyCardsResult,
+  isReviewVocabularyWordResult,
+  isVocabularyReviewState,
+  isVocabularyState,
+  isVocabularyWordsPage,
+  requireVocabularyResponse,
+} from './vocabularyContracts'
 import {
   ApproveVocabularyCardResult,
   ApproveVocabularyCardsResult,
@@ -10,89 +18,104 @@ import {
   VocabularyReviewState,
   VocabularyState,
   VocabularyWordsPage,
-} from "../types/vocabulary";
+} from '../types/vocabulary'
 
 export const saveVocabularyWord = async ({
   readingTextId,
   word,
   wordIndex,
 }: {
-  readingTextId: string;
-  word: string;
-  wordIndex: number;
+  readingTextId: string
+  word: string
+  wordIndex: number
 }): Promise<SaveVocabularyWordResult> =>
   invokeFunction<SaveVocabularyWordResult>(
-    "save-vocabulary-word",
+    'save-vocabulary-word',
     { readingTextId, word, wordIndex },
-    "Не удалось сохранить слово. Попробуй еще раз.",
-  );
+    'Не удалось сохранить слово. Попробуй еще раз.',
+  )
 
 export const deletePendingVocabularyWord = async ({
   readingTextId,
   wordIndex,
 }: {
-  readingTextId: string;
-  wordIndex: number;
+  readingTextId: string
+  wordIndex: number
 }): Promise<DeletePendingVocabularyWordResult> =>
   invokeFunction<DeletePendingVocabularyWordResult>(
-    "delete-pending-vocabulary-word",
+    'delete-pending-vocabulary-word',
     { readingTextId, wordIndex },
-    "Не удалось удалить слово. Попробуй еще раз.",
-  );
+    'Не удалось удалить слово. Попробуй еще раз.',
+  )
 
 export const getVocabularyState = async (): Promise<VocabularyState> =>
-  invokeFunction<VocabularyState>(
-    "get-vocabulary-state",
-    {},
-    "Не удалось загрузить состояние словаря.",
-  );
+  requireVocabularyResponse({
+    value: await invokeFunction<unknown>(
+      'get-vocabulary-state',
+      {},
+      'Не удалось загрузить состояние словаря.',
+    ),
+    guard: isVocabularyState,
+  })
 
 export const prepareVocabularyCards =
   async (): Promise<PrepareVocabularyCardsResult> =>
-    invokeFunction<PrepareVocabularyCardsResult>(
-      "prepare-vocabulary-cards",
-      {},
-      "Не удалось подготовить карточки слов.",
-    );
+    requireVocabularyResponse({
+      value: await invokeFunction<unknown>(
+        'prepare-vocabulary-cards',
+        {},
+        'Не удалось подготовить карточки слов.',
+      ),
+      guard: isPrepareVocabularyCardsResult,
+    })
 
 export const getVocabularyWords = async (): Promise<VocabularyWordsPage> =>
-  invokeFunction<VocabularyWordsPage>(
-    "get-vocabulary-words",
-    {},
-    "Не удалось загрузить карточки словаря.",
-  );
+  requireVocabularyResponse({
+    value: await invokeFunction<unknown>(
+      'get-vocabulary-words',
+      {},
+      'Не удалось загрузить карточки словаря.',
+    ),
+    guard: isVocabularyWordsPage,
+  })
 
 export const getVocabularyReviewState =
   async (): Promise<VocabularyReviewState> =>
-    invokeFunction<VocabularyReviewState>(
-      "get-vocabulary-review-state",
-      {},
-      "Не удалось загрузить повторение слов.",
-    );
+    requireVocabularyResponse({
+      value: await invokeFunction<unknown>(
+        'get-vocabulary-review-state',
+        {},
+        'Не удалось загрузить повторение слов.',
+      ),
+      guard: isVocabularyReviewState,
+    })
 
 export const reviewVocabularyWord = async (
   wordId: string,
   action: VocabularyReviewAction,
 ): Promise<ReviewVocabularyWordResult> =>
-  invokeFunction<ReviewVocabularyWordResult>(
-    "review-vocabulary-word",
-    { wordId, action },
-    "Не удалось сохранить ответ.",
-  );
+  requireVocabularyResponse({
+    value: await invokeFunction<unknown>(
+      'review-vocabulary-word',
+      { wordId, action },
+      'Не удалось сохранить ответ.',
+    ),
+    guard: isReviewVocabularyWordResult,
+  })
 
 export const approveVocabularyCard = async (
   wordId: string,
 ): Promise<ApproveVocabularyCardResult> =>
   invokeFunction<ApproveVocabularyCardResult>(
-    "approve-vocabulary-card",
+    'approve-vocabulary-card',
     { wordId },
-    "Не удалось подтвердить карточку.",
-  );
+    'Не удалось подтвердить карточку.',
+  )
 
 export const approveVocabularyCards =
   async (): Promise<ApproveVocabularyCardsResult> =>
     invokeFunction<ApproveVocabularyCardsResult>(
-      "approve-vocabulary-cards",
+      'approve-vocabulary-cards',
       {},
-      "Не удалось подтвердить карточки.",
-    );
+      'Не удалось подтвердить карточки.',
+    )

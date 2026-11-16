@@ -1,5 +1,6 @@
 /// <reference path="../deno-globals.d.ts" />
 
+import type { ServiceClient } from "./app.ts";
 import { fail } from "./server.ts";
 
 const parseDateToUtc = (value: string): Date => {
@@ -43,7 +44,7 @@ export const calculateReadingCompletionStreak = (
 };
 
 export const getReadingCompletionStreak = async (
-  supabase: { from: (table: string) => any },
+  supabase: ServiceClient,
   userId: string,
   today: string,
   logPrefix: string,

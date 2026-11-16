@@ -1,12 +1,16 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { createReleaseMetadata } from "../src/config/releaseMetadata";
-import { currentRelease } from "../src/constants/currentRelease";
 import { getReleaseBuildMetadata } from "../vite.config";
 
 test("Vite release metadata identifies each supported environment", () => {
+  const packageJson = JSON.parse(
+    readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+  ) as { version: string };
+
   assert.deepEqual(getReleaseBuildMetadata("telegram-dev", {}), {
-    appVersion: currentRelease.version,
+    appVersion: packageJson.version,
     buildId: "local",
     environment: "telegram-dev",
   });

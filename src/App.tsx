@@ -3,34 +3,25 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useEffect, useState } from "react";
-import { Layout } from "./components/Layout";
-import { LoadingState } from "./components/LoadingState";
-import { Toast } from "./components/Toast";
-import type { BottomNavItemId } from "./components/BottomNav";
-import { SHOW_SUBSCRIPTION_FLOW } from "./constants/subscriptionFeatures";
-import { HomeScreen } from "./screens/HomeScreen";
-import { MaterialsScreen } from "./screens/MaterialsScreen";
-import { ReadingScreen } from "./screens/ReadingScreen";
-import { SettingsScreen } from "./screens/SettingsScreen";
-import { SubscriptionScreen } from "./screens/SubscriptionScreen";
-import { VocabularyScreen } from "./screens/VocabularyScreen";
-import { useAppUserActions } from "./hooks/useAppUserActions";
-import { useAppUserProfile } from "./hooks/useAppUserProfile";
-import { useScreenNavigation } from "./hooks/useScreenNavigation";
-import { useToast } from "./hooks/useToast";
-import { clientLogger } from "./services/clientLogger";
-import { MaterialsTab } from "./types/materials";
-import { resolveHomeGreetingSession } from "./utils/homeGreeting";
-import { getDisabledNavItems } from "./utils/navigationAccess";
-
-type ScreenId =
-  | "home"
-  | "reading"
-  | "vocabulary"
-  | "materials"
-  | "settings"
-  | "subscription";
+import { useEffect } from 'react'
+import { Layout } from './components/Layout'
+import { LoadingState } from './components/LoadingState'
+import { ProfileLoadError } from './components/ProfileLoadError'
+import { Toast } from './components/Toast'
+import { SHOW_SUBSCRIPTION_FLOW } from './constants/subscriptionFeatures'
+import { HomeScreen } from './screens/HomeScreen'
+import { MaterialsScreen } from './screens/MaterialsScreen'
+import { ReadingScreen } from './screens/ReadingScreen'
+import { SettingsScreen } from './screens/SettingsScreen'
+import { SubscriptionScreen } from './screens/SubscriptionScreen'
+import { VocabularyScreen } from './screens/VocabularyScreen'
+import { useAppUserActions } from './hooks/useAppUserActions'
+import { useAppNavigation } from './hooks/useAppNavigation'
+import type { AppScreen } from './hooks/useAppNavigation'
+import { useAppUserProfile } from './hooks/useAppUserProfile'
+import { useScreenNavigation } from './hooks/useScreenNavigation'
+import { useToast } from './hooks/useToast'
+import { clientLogger } from './services/clientLogger'
 
 export default function App() {
   const {
@@ -38,20 +29,21 @@ export default function App() {
     navigateTo,
     navigateBack,
     navigateRoot: navigateHome,
-  } = useScreenNavigation<ScreenId>("home");
+  } = useScreenNavigation<AppScreen>('home')
 
-  const { toastText, toastTone, showToast, hideToast } = useToast();
-  const { appUser, setAppUser, isBootstrapping, refreshCurrentUser } =
-    useAppUserProfile({
-      onReady: navigateHome,
-      showToast,
-    });
-  const [materialsInitialTab, setMaterialsInitialTab] =
-    useState<MaterialsTab>("vocabulary");
-  const [continueLessonAfterReading, setContinueLessonAfterReading] =
-    useState(false);
-  const [didSessionStartWithoutSettings, setDidSessionStartWithoutSettings] =
-    useState<boolean | null>(null);
+  const { toastText, toastTone, showToast, hideToast } = useToast()
+  const {
+    appUser,
+    setAppUser,
+    isBootstrapping,
+    authError,
+    didSessionStartWithoutSettings,
+    retryBootstrap,
+    refreshCurrentUser,
+  } = useAppUserProfile({
+    onReady: navigateHome,
+    showToast,
+  })
   const {
     isSavingSettings,
     activatingPlan,
@@ -68,98 +60,60 @@ export default function App() {
     refreshCurrentUser,
     navigateHome,
     showToast,
-  });
+  })
 
-  const isSettingsCompleted = Boolean(appUser?.settingsCompletedAt);
-  const streakDays = appUser?.streakDays ?? 0;
-  const lessonStatus = appUser?.homeProgress.lesson.status ?? "not_started";
+  const isSettingsCompleted = Boolean(appUser?.settingsCompletedAt)
+  const streakDays = appUser?.streakDays ?? 0
+  const lessonStatus = appUser?.homeProgress.lesson.status ?? 'not_started'
   const lessonCurrentStep =
-    appUser?.homeProgress.lesson.currentStep ?? "reading";
-  const readingStatus = appUser?.homeProgress.reading.status ?? "not_started";
-  const reviewStatus = appUser?.homeProgress.review.status ?? "completed";
-  const shouldForceSettings = !isSettingsCompleted;
-  const showDevTools = appUser?.role === "admin";
+    appUser?.homeProgress.lesson.currentStep ?? 'reading'
+  const readingStatus = appUser?.homeProgress.reading.status ?? 'not_started'
+  const reviewStatus = appUser?.homeProgress.review.status ?? 'completed'
+  const showDevTools = appUser?.role === 'admin'
+  const {
+    materialsInitialTab,
+    continueLessonAfterReading,
+    shouldForceSettings,
+    openLesson,
+    openMaterials,
+    openSubscription,
+    handleNavChange,
+    handleReadingBack,
+    handleContinueLessonAfterReading,
+    handleDisabledNavClick,
+    disabledNavItems,
+    showBottomNav,
+    activeNav,
+  } = useAppNavigation({
+    currentScreen,
+    navigateTo,
+    navigateBack,
+    isSettingsCompleted,
+    lessonCurrentStep,
+    showToast,
+  })
 
   useEffect(() => {
-    if (isBootstrapping || !appUser) return;
-
-    setDidSessionStartWithoutSettings((currentValue) =>
-      resolveHomeGreetingSession(currentValue, appUser.settingsCompletedAt),
-    );
-  }, [appUser, isBootstrapping]);
-
-  useEffect(() => {
-    clientLogger.info("screen_opened", {
+    clientLogger.info('screen_opened', {
       currentScreen,
       role: appUser?.role ?? null,
-    });
-  }, [appUser?.role, currentScreen]);
-
-  const openLesson = () => {
-    if (shouldForceSettings) {
-      setContinueLessonAfterReading(false);
-      navigateTo("settings");
-      return;
-    }
-
-    const target = lessonCurrentStep === "vocabulary" ? "vocabulary" : "reading";
-    setContinueLessonAfterReading(target === "reading");
-    navigateTo(target);
-  };
-
-  const openMaterials = (tab: MaterialsTab) => {
-    setContinueLessonAfterReading(false);
-    setMaterialsInitialTab(tab);
-    navigateTo("materials");
-  };
-
-  const openSubscription = () => {
-    if (SHOW_SUBSCRIPTION_FLOW) {
-      navigateTo("subscription");
-    }
-  };
-
-  const handleNavChange = (nextScreen: string) => {
-    setContinueLessonAfterReading(false);
-    const target = nextScreen as ScreenId;
-    if (target === "subscription" && !SHOW_SUBSCRIPTION_FLOW) {
-      navigateTo("home", { root: true });
-      return;
-    }
-    if (
-      shouldForceSettings &&
-      target !== "home" &&
-      target !== "settings" &&
-      target !== "subscription"
-    ) {
-      showToast("Открой настройки, чтобы продолжить.", "onboarding");
-      return;
-    }
-    if (target === "materials") {
-      setMaterialsInitialTab("vocabulary");
-    }
-    navigateTo(target, { root: true });
-  };
-
-  const handleReadingBack = () => {
-    setContinueLessonAfterReading(false);
-    navigateBack();
-  };
-
-  const handleContinueLessonAfterReading = () => {
-    setContinueLessonAfterReading(false);
-    navigateTo("vocabulary", { root: true });
-  };
-
-  const handleDisabledNavClick = () => {
-    showToast("Открой настройки, чтобы продолжить.", "onboarding");
-  };
+    })
+  }, [appUser?.role, currentScreen])
 
   if (
     isBootstrapping ||
     (appUser !== null && didSessionStartWithoutSettings === null)
   ) {
-    return <LoadingState message="Загружаем профиль..." fullScreen />;
+    return <LoadingState message="Загружаем профиль..." fullScreen />
+  }
+
+  if (!appUser) {
+    return (
+      <ProfileLoadError
+        message={authError ?? 'Не удалось загрузить профиль пользователя.'}
+        onRetry={retryBootstrap}
+      />
+    )
   }
 
   const renderHomeScreen = () => (
@@ -167,9 +121,7 @@ export default function App() {
       onNavigate={handleNavChange}
       onOpenLesson={openLesson}
       onOpenMaterials={openMaterials}
-      onOpenSubscription={
-        SHOW_SUBSCRIPTION_FLOW ? openSubscription : undefined
-      }
+      onOpenSubscription={SHOW_SUBSCRIPTION_FLOW ? openSubscription : undefined}
       showSubscriptionEntry={SHOW_SUBSCRIPTION_FLOW}
       userName={appUser?.firstName}
       streakDays={streakDays}
@@ -189,13 +141,13 @@ export default function App() {
       subscription={appUser?.subscription}
       readingMinutes={appUser?.settings?.dailyReadingMinutes ?? null}
     />
-  );
+  )
 
   const renderScreen = () => {
     switch (currentScreen) {
-      case "home":
-        return renderHomeScreen();
-      case "reading":
+      case 'home':
+        return renderHomeScreen()
+      case 'reading':
         return (
           <ReadingScreen
             onBack={handleReadingBack}
@@ -209,24 +161,24 @@ export default function App() {
             userLevel={appUser?.settings?.englishLevel ?? null}
             readingMinutes={appUser?.settings?.dailyReadingMinutes ?? null}
           />
-        );
-      case "vocabulary":
+        )
+      case 'vocabulary':
         return (
           <VocabularyScreen
             onBack={navigateBack}
-            onOpenVocabularyMaterials={() => openMaterials("vocabulary")}
+            onOpenVocabularyMaterials={() => openMaterials('vocabulary')}
             onReviewStatusChange={updateReviewHomeStatus}
           />
-        );
-      case "materials":
+        )
+      case 'materials':
         return (
           <MaterialsScreen
             onBack={navigateBack}
             initialTab={materialsInitialTab}
             onVocabularyReviewStateChange={refreshCurrentUser}
           />
-        );
-      case "settings":
+        )
+      case 'settings':
         return (
           <SettingsScreen
             onBack={navigateBack}
@@ -240,8 +192,8 @@ export default function App() {
             appUser={appUser ?? null}
             currentScreen={currentScreen}
           />
-        );
-      case "subscription":
+        )
+      case 'subscription':
         return SHOW_SUBSCRIPTION_FLOW && appUser ? (
           <SubscriptionScreen
             subscription={appUser.subscription}
@@ -249,18 +201,11 @@ export default function App() {
             onActivate={handleActivateSubscription}
             activatingPlan={activatingPlan}
           />
-        ) : null;
+        ) : null
       default:
-        return renderHomeScreen();
+        return renderHomeScreen()
     }
-  };
-
-  const disabledNavItems = getDisabledNavItems(isSettingsCompleted);
-  const showBottomNav = currentScreen !== "settings" || isSettingsCompleted;
-  const activeNav: BottomNavItemId =
-    currentScreen === "settings" || currentScreen === "subscription"
-      ? "home"
-      : currentScreen;
+  }
 
   return (
     <div className="min-h-screen bg-[var(--background)] transition-colors">
@@ -274,12 +219,8 @@ export default function App() {
         {renderScreen()}
       </Layout>
       {toastText && (
-        <Toast
-          message={toastText}
-          tone={toastTone}
-          onClose={hideToast}
-        />
+        <Toast message={toastText} tone={toastTone} onClose={hideToast} />
       )}
     </div>
-  );
+  )
 }

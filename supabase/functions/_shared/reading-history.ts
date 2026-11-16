@@ -1,7 +1,9 @@
 /// <reference path="../deno-globals.d.ts" />
 
+import type { ServiceClient } from "./app.ts";
+
 export const getCompletedReadingTextCount = async (
-  supabase: { from: (table: string) => any },
+  supabase: ServiceClient,
   userId: string,
   logPrefix: string,
 ): Promise<number | null> => {

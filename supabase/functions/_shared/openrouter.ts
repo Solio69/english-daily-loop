@@ -41,6 +41,7 @@ type RequestOpenRouterParams = {
 
 export class OpenRouterError extends Error {
   stage: OpenRouterFailureStage;
+  retryableContent: boolean;
   model: string | null;
   finishReason: string | null;
   completionTokens: number | null;
@@ -58,19 +59,25 @@ export class OpenRouterError extends Error {
       reasoningTokens?: number | null;
       providerStatus?: number | null;
       providerErrorCode?: string | number | null;
+      retryableContent?: boolean;
     } = {},
   ) {
     super(message);
     this.stage = stage;
+    this.retryableContent = metadata.retryableContent ?? false;
     this.model = metadata.model ?? null;
-    this.finishReason = metadata.finishReason ?? null;
+    this.finishReason = metadata.finishReason === "stop" ||
+        metadata.finishReason === "length" ||
+        metadata.finishReason === "content_filter"
+      ? metadata.finishReason
+      : null;
     this.completionTokens = metadata.completionTokens ?? null;
     this.reasoningTokens = metadata.reasoningTokens ?? null;
     this.providerStatus = metadata.providerStatus ?? null;
-    this.providerErrorCode =
-      metadata.providerErrorCode == null
-        ? null
-        : String(metadata.providerErrorCode);
+    const providerCode = String(metadata.providerErrorCode ?? "");
+    this.providerErrorCode = /^[a-zA-Z0-9_]{1,40}$/.test(providerCode)
+      ? providerCode
+      : null;
   }
 }
 
@@ -238,9 +245,10 @@ export const requestOpenRouter = async ({
         );
       }
 
-      const message =
-        error instanceof Error ? error.message : "Unknown provider request error.";
-      throw new OpenRouterError("provider_request", message);
+      throw new OpenRouterError(
+        "provider_request",
+        "Не удалось связаться с AI-сервисом. Попробуй еще раз позже.",
+      );
     }
 
     let payload: OpenRouterResponse;
@@ -250,17 +258,32 @@ export const requestOpenRouter = async ({
       throw new OpenRouterError(
         "provider_response",
         `OpenRouter returned invalid JSON with status ${response.status}.`,
+        { providerStatus: response.status },
+      );
+    }
+    if (payload === null || typeof payload !== "object" || Array.isArray(payload)) {
+      throw new OpenRouterError(
+        "provider_response",
+        "OpenRouter returned an invalid response object.",
+        { providerStatus: response.status },
       );
     }
 
     if (!response.ok) {
-      const details =
-        payload.error?.message ??
-        `OpenRouter request failed with status ${response.status}.`;
-      throw new OpenRouterError("provider_response", details, {
+      throw new OpenRouterError("provider_response", "AI-сервис временно недоступен. Попробуй еще раз позже.", {
         providerStatus: response.status,
         providerErrorCode: payload.error?.code ?? null,
       });
+    }
+    if (payload.error) {
+      throw new OpenRouterError(
+        "provider_response",
+        "AI-сервис временно недоступен. Попробуй еще раз позже.",
+        {
+          providerStatus: response.status,
+          providerErrorCode: payload.error.code ?? null,
+        },
+      );
     }
 
     const usedModel = payload.model?.trim() || models[0];
@@ -268,7 +291,7 @@ export const requestOpenRouter = async ({
       throw new OpenRouterError(
         "provider_response",
         "OpenRouter returned an unsupported model.",
-        { model: usedModel },
+        { model: null },
       );
     }
 
@@ -286,7 +309,7 @@ export const requestOpenRouter = async ({
       throw new OpenRouterError(
         "provider_response",
         "OpenRouter returned empty content.",
-        responseMetadata,
+        { ...responseMetadata, retryableContent: true },
       );
     }
 

@@ -1,18 +1,19 @@
 /// <reference path="../deno-globals.d.ts" />
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
+// deno-lint-ignore no-import-prefix -- Pin the shared Supabase SDK without per-function import maps.
+import { createClient } from "npm:@supabase/supabase-js@2.101.1";
 import { fail, getSafeErrorDetails } from "./server.ts";
 import { parseEnglishLevel, type EnglishLevel } from "./vocabulary.ts";
-
-export type ServiceClient = ReturnType<typeof createClient>;
 
 export const createServiceClient = (env: {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
-}): ServiceClient =>
+}) =>
   createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false },
   });
+
+export type ServiceClient = ReturnType<typeof createServiceClient>;
 
 export const getAppUserByTelegramId = async (
   supabase: ServiceClient,
@@ -73,7 +74,7 @@ export const getUserEnglishLevel = async (
     (settingsRow as { english_level?: unknown }).english_level,
   );
   if (!englishLevel) {
-    fail(
+    return fail(
       500,
       "INVALID_ENGLISH_LEVEL",
       "User english level has an unsupported value.",

@@ -52,7 +52,7 @@ export const getDailyVocabularyCardGenerationLimit = async (
   userId: string,
   logPrefix: string,
 ): Promise<number> => {
-  return getAccessDailyVocabularyCardGenerationLimit(
+  return await getAccessDailyVocabularyCardGenerationLimit(
     supabase,
     userId,
     logPrefix,
@@ -136,11 +136,11 @@ export const claimVocabularyCardGenerationAttempt = async (
 
   const result = data as ClaimVocabularyCardGenerationAttemptResult | null;
   if (!result) {
-    fail(500, "ATTEMPT_CLAIM_FAILED", "Empty attempt claim result.");
+    return fail(500, "ATTEMPT_CLAIM_FAILED", "Empty attempt claim result.");
   }
 
   if (!result.ok) {
-    fail(
+    return fail(
       result.code === "VOCABULARY_CARD_ATTEMPTS_EXHAUSTED" ? 429 : 500,
       result.code,
       result.message,

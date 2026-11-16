@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { createServiceClient, getAppUserByTelegramId } from "../_shared/app.ts";
 import {
   AppError,

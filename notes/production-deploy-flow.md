@@ -8,11 +8,17 @@
 
 Главная идея: frontend деплоится как Vite static build на Vercel, а backend/data слой живет в Supabase Cloud: Postgres, RLS/grants, RPC, Edge Functions, secrets и logs. На Supabase Free production БД защищается отдельным локальным logical backup по `notes/backup-and-restore.md`.
 
+## Обновление работающего production
+
+Phase 1, 2 и 6 ниже описывают первоначальное создание Supabase/Vercel. При обновлении уже работающей версии эти операции не повторяются. Состав и owner-run порядок выпуска 1.1.17 находятся в [плане 1.1.17](releases/1.1.17.md). Текущий production commit, migration history и pending SQL подтверждаются по фактическим системам до действий с БД; локальная ветка или backup manifest их не заменяют.
+
+Для 1.1.17 владелец прямо решил пропустить новый isolated recovery drill. Это исключение из общего gate ниже; его статус NotRun, восстановимость свежего snapshot и RTO не подтверждены. Остальные требования к snapshot, dry run, postcheck, Edge/frontend порядку и Telegram smoke сохраняются.
+
 ## Official References
 
 - Supabase CLI `db push`: https://supabase.com/docs/reference/cli/supabase-db-push
 - Supabase CLI `functions deploy`: https://supabase.com/docs/reference/cli/supabase-functions-deploy
-- Supabase CLI `secrets set`: https://supabase.com/docs/reference/cli/supabase-secrets-set
+- Supabase Edge Function Secrets: https://supabase.com/docs/guides/functions/secrets
 - Vite on Vercel: https://vercel.com/docs/frameworks/frontend/vite
 - Vercel environment variables: https://vercel.com/docs/environment-variables
 - Vercel system environment variables: https://vercel.com/docs/environment-variables/system-environment-variables
@@ -27,7 +33,7 @@
 - Перед применением миграций на production сначала смотреть dry run.
 - Первый деплой выполняется вручную владельцем проекта, без автоматического CI/CD применения миграций.
 - Исполняемые команды применения production-миграций в этом runbook не приводятся: владелец выполняет их только по отдельно проверенной operational-процедуре.
-- Release PR можно открыть до production-действий, но merge в `main` выполняется только после успешных migration, postcheck, нового snapshot, recovery drill и деплоя Edge Functions. Если Vercel автоматически публикует `main`, merge запускает frontend deployment.
+- Release PR можно открыть до production-действий, но merge в `main` выполняется только после успешных migration, postcheck, нового snapshot и деплоя Edge Functions. Recovery drill также обязателен, кроме явно согласованного и записанного исключения для конкретного выпуска. Если Vercel автоматически публикует `main`, merge запускает frontend deployment.
 - Tag и GitHub Release создаются только после успешного production smoke.
 
 ## Phase 0: Local Preflight
@@ -48,9 +54,9 @@ pnpm backup:status
 - последние изменения закоммичены владельцем проекта;
 - в локальных env-файлах, логах и screenshots нет production secrets;
 - список production env актуален в `notes/production-env.md`;
-- smoke checklist подготовлен до переключения BotFather URL.
+- smoke checklist подготовлен до переключения frontend deployment или изменения BotFather URL.
 - есть свежий завершенный production snapshot; critical-статус backup блокирует действия с риском потери данных;
-- recovery drill уже подтверждал восстановимость текущего формата snapshot;
+- recovery drill подтвердил восстановимость текущего snapshot либо исключение для выпуска явно согласовано, записано как NotRun и риск принят владельцем;
 - `package.json`, `src/constants/currentRelease.ts` и `CHANGELOG.md` содержат одну версию и дату релиза;
 - секция `Unreleased` сохранена для следующих изменений.
 
@@ -101,38 +107,18 @@ npx supabase link --project-ref <project-ref>
 
 ## Phase 4: Configure Supabase Edge Function Secrets
 
-Server-only значения задаются в Supabase secrets, не в Vercel:
+Для уже работающего production владелец сверяет имена существующих секретов и меняет только согласованные значения. Значения вводятся напрямую из менеджера паролей в Supabase Dashboard → Edge Functions → Secrets; не помещать их в аргументы CLI, историю shell, чат или документацию. [Официальный порядок Supabase](https://supabase.com/docs/guides/functions/secrets).
 
-```bash
-npx supabase secrets set OPENROUTER_API_KEY="<production-openrouter-key>"
-```
+Проверить наличие server-only значений:
 
-```bash
-npx supabase secrets set TELEGRAM_BOT_TOKEN="<production-telegram-bot-token>"
-```
+- OPENROUTER_API_KEY — ключ AI-провайдера;
+- TELEGRAM_BOT_TOKEN — токен production-бота;
+- TELEGRAM_BOT_WEBHOOK_SECRET — отдельный секрет webhook, 32–256 символов из допустимого алфавита;
+- DEV_TOOLS_ENABLED — действующий флаг доступности admin-инструментов;
+- SUBSCRIPTION_FLOW_ENABLED — false, пока оплата скрыта;
+- OPENROUTER_MODEL_CHAIN — только если нужна фиксированная согласованная цепочка моделей.
 
-Создать отдельное случайное значение длиной 32–256 символов из `A-Z`, `a-z`, `0-9`, `_`, `-`, сохранить его в password manager и задать как webhook secret:
-
-```bash
-npx supabase secrets set TELEGRAM_BOT_WEBHOOK_SECRET="<production-telegram-webhook-secret>"
-```
-
-```bash
-npx supabase secrets set DEV_TOOLS_ENABLED="true"
-```
-
-```bash
-npx supabase secrets set SUBSCRIPTION_FLOW_ENABLED="false"
-```
-
-Если нужна фиксированная цепочка моделей:
-
-```bash
-npx supabase secrets set OPENROUTER_MODEL_CHAIN="<comma-separated-allowlisted-models>"
-```
-
-Для первого production testing period `DEV_TOOLS_ENABLED="true"` намеренно разрешен, но действия все равно требуют `users.app_role = 'admin'` на сервере.
-
+При замене токена или webhook secret согласовать значение Supabase с owner-run настройкой production-бота через hidden prompts и сразу проверить auth/webhook. Не сбрасывать pending updates для существующего бота без отдельной причины. После сохранения проверить наличие имён секретов и ошибки Edge Functions, не выводя сами значения.
 ## Phase 5: Deploy Supabase Edge Functions
 
 Деплой всех локальных Edge Functions:

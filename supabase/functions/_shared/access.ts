@@ -72,10 +72,7 @@ export const getUserRole = async (
     .maybeSingle();
 
   if (error) {
-    console.error(`${logPrefix} failed to load user role`, {
-      appUserId: userId,
-      error: error.message,
-    });
+    console.error(`${logPrefix} failed to load user role`);
     fail(500, "USER_ROLE_LOAD_FAILED", "Failed to load user access.");
   }
 
@@ -143,6 +140,18 @@ export const getAccessContext = async (
       getUserRole(supabase, userId, logPrefix),
       getSubscriptionRows(supabase, userId, logPrefix),
     ]);
+  return resolveAccessContext({ role, activeSubscription, scheduledSubscription });
+};
+
+export const resolveAccessContext = ({
+  role,
+  activeSubscription,
+  scheduledSubscription,
+}: {
+  role: AppRole;
+  activeSubscription: SubscriptionRow | null;
+  scheduledSubscription: SubscriptionRow | null;
+}): AccessContext => {
   const hasInternalAccess = isInternalAccessRole(role);
   const hasPaidAccess = hasInternalAccess || Boolean(activeSubscription);
 

@@ -12,12 +12,22 @@
     "allowJs": true,
     "jsx": "react-jsx",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "npm:@supabase/supabase-js@2.101.1": [
+        "./node_modules/@supabase/supabase-js"
+      ]
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["src", "tests", "scripts", "vite.config.ts"],
+  "include": [
+    "src",
+    "tests",
+    "scripts",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "playwright.config.ts"
+  ],
   "exclude": [
     // TODO: Edge Functions use Deno runtime and are checked separately from frontend tsc.
     "supabase/functions"

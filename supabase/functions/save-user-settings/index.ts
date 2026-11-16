@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
+import { createServiceClient } from '../_shared/app.ts'
 import {
   AppError,
   DEFAULT_INTERNAL_ERROR_MESSAGE,
@@ -8,200 +7,116 @@ import {
   fail,
   getRequiredEnv,
   getRequestId,
-  getSafeErrorDetails,
   getTelegramUserFromBody,
   handleCorsPreflight,
   parseJsonBody,
   successResponse,
-} from "../_shared/server.ts";
-import { getHomeProgress as getSharedHomeProgress } from "../_shared/home-progress.ts";
-import { getSubscriptionSummary } from "../_shared/access.ts";
+} from '../_shared/server.ts'
+import {
+  getProfileUser,
+  saveProfileSettings,
+} from '../_shared/user-profile-repository.ts'
+import type { ProfileSettingsRow } from '../_shared/user-profile-repository.ts'
+import { getSavedSettingsResponse } from '../_shared/user-profile-response.ts'
 
-type EnglishLevel = "A1" | "A2" | "B1" | "B2";
-type DailyReadingMinutes = 3 | 5 | 10 | 15;
+const LOG_PREFIX = '[save-user-settings]'
+const INVALID_SETTINGS_CODE = 'INVALID_SETTINGS'
+const INVALID_LEVEL_MESSAGE = 'English level is invalid.'
+const INVALID_MINUTES_MESSAGE = 'Daily reading minutes value is invalid.'
 
-type UserRow = {
-  id: string;
-  first_name: string | null;
-  settings_completed_at: string | null;
-  first_text_completed_at: string | null;
-  app_role: "admin" | "tester" | "user";
-};
+const parseEnglishLevel = (value: unknown): ProfileSettingsRow['english_level'] => {
+  const isSupportedLevel =
+    value === 'A1' || value === 'A2' || value === 'B1' || value === 'B2'
+  if (isSupportedLevel) return value
+  return fail(400, INVALID_SETTINGS_CODE, INVALID_LEVEL_MESSAGE)
+}
 
-type UserSettingsRow = {
-  english_level: EnglishLevel;
-  daily_reading_minutes: DailyReadingMinutes;
-};
-
-const parseEnglishLevel = (value: unknown): EnglishLevel => {
-  if (value === "A1" || value === "A2" || value === "B1" || value === "B2") {
-    return value;
-  }
-
-  fail(400, "INVALID_SETTINGS", "English level is invalid.");
-};
-
-const parseDailyReadingMinutes = (value: unknown): DailyReadingMinutes => {
-  if (value === 3 || value === 5 || value === 10 || value === 15) {
-    return value;
-  }
-
-  fail(400, "INVALID_SETTINGS", "Daily reading minutes value is invalid.");
-};
-
-const mapSettings = (row: UserSettingsRow) => ({
-  englishLevel: row.english_level,
-  dailyReadingMinutes: row.daily_reading_minutes,
-});
+const parseDailyReadingMinutes = (
+  value: unknown,
+): ProfileSettingsRow['daily_reading_minutes'] => {
+  const isSupportedMinutes =
+    value === 3 || value === 5 || value === 10 || value === 15
+  if (isSupportedMinutes) return value
+  return fail(400, INVALID_SETTINGS_CODE, INVALID_MINUTES_MESSAGE)
+}
 
 Deno.serve(async (req: Request) => {
-  const corsResponse = handleCorsPreflight(req);
-  if (corsResponse) {
-    return corsResponse;
-  }
+  const corsResponse = handleCorsPreflight(req)
+  if (corsResponse) return corsResponse
 
-  const requestId = getRequestId(req);
+  const requestId = getRequestId(req)
 
   try {
-    assertPostRequest(req);
-
+    assertPostRequest(req)
     const env = getRequiredEnv([
-      "SUPABASE_URL",
-      "SUPABASE_SERVICE_ROLE_KEY",
-      "TELEGRAM_BOT_TOKEN",
-    ]);
-
+      'SUPABASE_URL',
+      'SUPABASE_SERVICE_ROLE_KEY',
+      'TELEGRAM_BOT_TOKEN',
+    ])
     const body = await parseJsonBody<{
-      initData?: unknown;
+      initData?: unknown
       settings?: {
-        englishLevel?: unknown;
-        dailyReadingMinutes?: unknown;
-      };
-    }>(req);
-
-    const settings = body?.settings;
-    if (!settings || typeof settings !== "object") {
-      fail(400, "INVALID_SETTINGS", "Settings payload is required.");
+        englishLevel?: unknown
+        dailyReadingMinutes?: unknown
+      }
+    }>(req)
+    if (!body?.settings || typeof body.settings !== 'object') {
+      fail(400, INVALID_SETTINGS_CODE, 'Settings payload is required.')
     }
 
-    const englishLevel = parseEnglishLevel(settings.englishLevel);
-    const dailyReadingMinutes = parseDailyReadingMinutes(
-      settings.dailyReadingMinutes,
-    );
-    const tgUser = await getTelegramUserFromBody(
+    const settings: ProfileSettingsRow = {
+      english_level: parseEnglishLevel(body.settings.englishLevel),
+      daily_reading_minutes: parseDailyReadingMinutes(
+        body.settings.dailyReadingMinutes,
+      ),
+    }
+    const telegramUser = await getTelegramUserFromBody(
       body,
       env.TELEGRAM_BOT_TOKEN,
-    );
+    )
+    const supabase = createServiceClient(env)
+    const user = await getProfileUser({
+      supabase,
+      telegramUserId: telegramUser.id,
+      requestId,
+      logPrefix: LOG_PREFIX,
+      createIfMissing: false,
+    })
+    const nowIso = new Date().toISOString()
+    const saved = await saveProfileSettings({
+      supabase,
+      user,
+      settings,
+      nowIso,
+      logPrefix: LOG_PREFIX,
+    })
+    const response = await getSavedSettingsResponse({
+      supabase,
+      user: saved.user,
+      settings: saved.settings,
+      nowIso,
+      logPrefix: LOG_PREFIX,
+    })
 
-    const supabase = createClient(
-      env.SUPABASE_URL,
-      env.SUPABASE_SERVICE_ROLE_KEY,
-      {
-        auth: { persistSession: false },
-      },
-    );
-
-    const { data: userRow, error: userError } = await supabase
-      .from("users")
-      .select(
-        "id, first_name, settings_completed_at, first_text_completed_at, app_role",
-      )
-      .eq("telegram_user_id", tgUser.id)
-      .maybeSingle();
-
-    if (userError) {
-      console.error("[save-user-settings] failed to load user", {
-        requestId,
-        stage: "user_lookup",
-        ...getSafeErrorDetails(userError, [tgUser.id]),
-      });
-      fail(500, "USER_FIND_FAILED", "Failed to load user profile.");
-    }
-
-    if (!userRow) {
-      fail(
-        404,
-        "USER_NOT_FOUND",
-        "User profile was not found. Complete Telegram auth first.",
-      );
-    }
-
-    const appUser = userRow as UserRow;
-    const { data: settingsRow, error: upsertError } = await supabase
-      .from("user_settings")
-      .upsert(
-        {
-          user_id: appUser.id,
-          english_level: englishLevel,
-          daily_reading_minutes: dailyReadingMinutes,
-        },
-        { onConflict: "user_id" },
-      )
-      .select("english_level, daily_reading_minutes")
-      .single();
-
-    if (upsertError || !settingsRow) {
-      console.error("[save-user-settings] failed to upsert settings", {
-        appUserId: appUser.id,
-        error: upsertError?.message,
-      });
-      fail(500, "SETTINGS_SAVE_FAILED", "Failed to save user settings.");
-    }
-
-    const nowIso = new Date().toISOString();
-    const { data: updatedUser, error: updateUserError } = await supabase
-      .from("users")
-      .update({ settings_completed_at: nowIso })
-      .eq("id", appUser.id)
-      .is("settings_completed_at", null)
-      .select(
-        "id, first_name, settings_completed_at, first_text_completed_at, app_role",
-      )
-      .maybeSingle();
-
-    if (updateUserError) {
-      console.error("[save-user-settings] failed to update onboarding status", {
-        appUserId: appUser.id,
-        error: updateUserError.message,
-      });
-      fail(500, "ONBOARDING_STATUS_UPDATE_FAILED", "Failed to update onboarding status.");
-    }
-
-    const user = (updatedUser as UserRow | null) ?? appUser;
-    const [subscription, homeProgress] = await Promise.all([
-      getSubscriptionSummary(supabase, appUser.id, "[save-user-settings]"),
-      getSharedHomeProgress(supabase, appUser.id, "[save-user-settings]"),
-    ]);
-
-    return successResponse(200, {
-      user: {
-        id: user.id,
-        firstName: user.first_name,
-        settingsCompletedAt: user.settings_completed_at ?? nowIso,
-        firstTextCompletedAt: user.first_text_completed_at,
-        role: user.app_role,
-      },
-      settings: mapSettings(settingsRow as UserSettingsRow),
-      subscription,
-      homeProgress,
-    });
+    return successResponse(200, response)
   } catch (error) {
     if (error instanceof AppError) {
-      console.error("[save-user-settings] request failed", {
+      console.error(`${LOG_PREFIX} request failed`, {
         status: error.status,
         code: error.code,
         message: error.message,
-      });
-      return errorResponse(error.status, error.code, error.message);
+      })
+      return errorResponse(error.status, error.code, error.message)
     }
 
-    const message =
-      error instanceof Error ? error.message : "Unknown settings save error.";
-    console.error("[save-user-settings] failed", { message });
+    console.error(`${LOG_PREFIX} failed`, {
+      message:
+        error instanceof Error ? error.message : 'Unknown settings save error.',
+    })
     return errorResponse(
       500,
-      "SETTINGS_SAVE_FAILED",
+      'SETTINGS_SAVE_FAILED',
       DEFAULT_INTERNAL_ERROR_MESSAGE,
-    );
+    )
   }
-});
+})

@@ -1,161 +1,65 @@
-// @ts-nocheck
+import { createServiceClient, getAppUserByTelegramId } from '../_shared/app.ts'
 import {
   AppError,
   DEFAULT_INTERNAL_ERROR_MESSAGE,
   assertPostRequest,
   errorResponse,
-  fail,
   getRequiredEnv,
   getRequestId,
   getTelegramUserFromBody,
   handleCorsPreflight,
+  HTTP_STATUS,
   parseJsonBody,
   successResponse,
-} from "../_shared/server.ts";
-import {
-  createServiceClient,
-  getAppUserByTelegramId,
-} from "../_shared/app.ts";
+} from '../_shared/server.ts'
+import { loadVocabularyWords } from './vocabulary-words-repository.ts'
 
-type VocabularyWordRow = {
-  id: string;
-  word: string;
-  translation: string;
-  part_of_speech: string;
-  is_verb: boolean;
-  is_regular_verb: boolean | null;
-  verb_forms: {
-    base?: string;
-    past?: string;
-    pastParticiple?: string;
-  } | null;
-  examples: string[];
-  status: "not_started" | "active" | "learned";
-  card_status: "needs_approval" | "ready";
-  review_step:
-    | "1_day"
-    | "3_days"
-    | "7_days"
-    | "14_days"
-    | "1_month"
-    | "2_months"
-    | "3_months"
-    | "4_months"
-    | "5_months"
-    | "6_months"
-    | null;
-  next_review_date: string | null;
-  last_reviewed_at: string | null;
-  created_at: string;
-  updated_at: string;
-};
+const LOG_PREFIX = '[get-vocabulary-words]'
+const REQUIRED_ENV = [
+  'SUPABASE_URL',
+  'SUPABASE_SERVICE_ROLE_KEY',
+  'TELEGRAM_BOT_TOKEN',
+] as const
 
-const MAX_ITEMS_PER_SECTION = 50;
+export const handleGetVocabularyWords = async (
+  req: Request,
+): Promise<Response> => {
+  const corsResponse = handleCorsPreflight(req)
+  if (corsResponse) return corsResponse
 
-const toVocabularyWord = (row: VocabularyWordRow) => ({
-  id: row.id,
-  word: row.word,
-  translation: row.translation,
-  partOfSpeech: row.part_of_speech,
-  isVerb: row.is_verb,
-  isRegularVerb: row.is_regular_verb,
-  verbForms: row.verb_forms,
-  examples: row.examples,
-  status: row.status,
-  cardStatus: row.card_status,
-  reviewStep: row.review_step,
-  nextReviewDate: row.next_review_date,
-  lastReviewedAt: row.last_reviewed_at,
-  createdAt: row.created_at,
-  updatedAt: row.updated_at,
-});
-
-Deno.serve(async (req: Request) => {
-  const corsResponse = handleCorsPreflight(req);
-  if (corsResponse) {
-    return corsResponse;
-  }
-
-  const requestId = getRequestId(req);
-
+  const requestId = getRequestId(req)
   try {
-    assertPostRequest(req);
-
-    const env = getRequiredEnv([
-      "SUPABASE_URL",
-      "SUPABASE_SERVICE_ROLE_KEY",
-      "TELEGRAM_BOT_TOKEN",
-    ]);
-    const body = await parseJsonBody<{ initData?: unknown }>(req);
-    const tgUser = await getTelegramUserFromBody(
-      body,
-      env.TELEGRAM_BOT_TOKEN,
-    );
-
-    const supabase = createServiceClient(env);
+    assertPostRequest(req)
+    const env = getRequiredEnv([...REQUIRED_ENV])
+    const body = await parseJsonBody<{ initData?: unknown }>(req)
+    const tgUser = await getTelegramUserFromBody(body, env.TELEGRAM_BOT_TOKEN)
+    const supabase = createServiceClient(env)
     const appUser = await getAppUserByTelegramId(
       supabase,
       tgUser.id,
-      "[get-vocabulary-words]",
+      LOG_PREFIX,
       requestId,
-    );
-    const selectColumns =
-      "id, word, translation, part_of_speech, is_verb, is_regular_verb, verb_forms, examples, status, card_status, review_step, next_review_date, last_reviewed_at, created_at, updated_at";
-
-    const [
-      { data: needsApprovalRows, error: needsApprovalError },
-      { data: readyRows, error: readyError },
-    ] = await Promise.all([
-      supabase
-        .from("user_vocabulary_words")
-        .select(selectColumns)
-        .eq("user_id", appUser.id)
-        .eq("card_status", "needs_approval")
-        .order("updated_at", { ascending: false })
-        .order("id", { ascending: false })
-        .limit(MAX_ITEMS_PER_SECTION),
-      supabase
-        .from("user_vocabulary_words")
-        .select(selectColumns)
-        .eq("user_id", appUser.id)
-        .eq("card_status", "ready")
-        .order("updated_at", { ascending: false })
-        .order("id", { ascending: false })
-        .limit(MAX_ITEMS_PER_SECTION),
-    ]);
-
-    if (needsApprovalError || readyError) {
-      console.error("[get-vocabulary-words] failed to load vocabulary words", {
-        appUserId: appUser.id,
-        needsApprovalError: needsApprovalError?.message,
-        readyError: readyError?.message,
-      });
-      fail(500, "VOCABULARY_WORDS_LOAD_FAILED", "Failed to load vocabulary words.");
-    }
-
-    return successResponse(200, {
-      needsApproval: ((needsApprovalRows ?? []) as VocabularyWordRow[]).map(
-        toVocabularyWord,
-      ),
-      ready: ((readyRows ?? []) as VocabularyWordRow[]).map(toVocabularyWord),
-    });
+    )
+    const data = await loadVocabularyWords({ supabase, userId: appUser.id })
+    return successResponse(HTTP_STATUS.OK, data)
   } catch (error) {
     if (error instanceof AppError) {
-      console.error("[get-vocabulary-words] request failed", {
+      console.error(LOG_PREFIX + ' request failed', {
         status: error.status,
         code: error.code,
         message: error.message,
-      });
-      return errorResponse(error.status, error.code, error.message);
+      })
+      return errorResponse(error.status, error.code, error.message)
     }
-
     const message =
-      error instanceof Error ? error.message : "Unknown vocabulary words error.";
-    console.error("[get-vocabulary-words] failed", { message });
+      error instanceof Error ? error.message : 'Unknown vocabulary words error.'
+    console.error(LOG_PREFIX + ' failed', { message })
     return errorResponse(
-      500,
-      "VOCABULARY_WORDS_FAILED",
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      'VOCABULARY_WORDS_FAILED',
       DEFAULT_INTERNAL_ERROR_MESSAGE,
-    );
+    )
   }
-});
+}
+
+Deno.serve(handleGetVocabularyWords)

@@ -1,131 +1,133 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   approveVocabularyCards,
   approveVocabularyCard,
   getVocabularyState,
   getVocabularyWords,
   prepareVocabularyCards,
-} from "../services/vocabularyService";
-import { VocabularyState, VocabularyWordsPage } from "../types/vocabulary";
+} from '../services/vocabularyService'
+import { VocabularyState, VocabularyWordsPage } from '../types/vocabulary'
 
 type VocabularyMaterialsError = {
-  title: string;
-  message: string;
-};
+  title: string
+  message: string
+}
 
 type UseVocabularyMaterialsResult = {
-  vocabularyState: VocabularyState | null;
-  vocabularyWords: VocabularyWordsPage | null;
-  isLoading: boolean;
-  isPreparingCards: boolean;
-  approvingWordId: string | null;
-  isApprovingAllCards: boolean;
-  expandedWordId: string | null;
-  error: VocabularyMaterialsError | null;
-  prepareError: VocabularyMaterialsError | null;
-  approveAllError: VocabularyMaterialsError | null;
-  setExpandedWordId: (wordId: string | null) => void;
-  prepareCards: () => Promise<void>;
-  approveCard: (wordId: string) => Promise<void>;
-  approveAllCards: () => Promise<void>;
-};
+  vocabularyState: VocabularyState | null
+  vocabularyWords: VocabularyWordsPage | null
+  isLoading: boolean
+  isPreparingCards: boolean
+  approvingWordId: string | null
+  isApprovingAllCards: boolean
+  expandedWordId: string | null
+  error: VocabularyMaterialsError | null
+  prepareError: VocabularyMaterialsError | null
+  approveAllError: VocabularyMaterialsError | null
+  setExpandedWordId: (wordId: string | null) => void
+  prepareCards: () => Promise<void>
+  approveCard: (wordId: string) => Promise<void>
+  approveAllCards: () => Promise<void>
+}
+
+const fetchVocabularyData = async () => {
+  const [state, words] = await Promise.all([
+    getVocabularyState(),
+    getVocabularyWords(),
+  ])
+  return { state, words }
+}
 
 export const useVocabularyMaterials = (
   isEnabled: boolean,
   onVocabularyReviewStateChange?: () => Promise<unknown>,
 ): UseVocabularyMaterialsResult => {
   const [vocabularyState, setVocabularyState] =
-    useState<VocabularyState | null>(null);
+    useState<VocabularyState | null>(null)
   const [vocabularyWords, setVocabularyWords] =
-    useState<VocabularyWordsPage | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isPreparingCards, setIsPreparingCards] = useState(false);
-  const isPreparingCardsRef = useRef(false);
-  const [approvingWordId, setApprovingWordId] = useState<string | null>(null);
-  const [isApprovingAllCards, setIsApprovingAllCards] = useState(false);
-  const [expandedWordId, setExpandedWordId] = useState<string | null>(null);
-  const [error, setError] = useState<VocabularyMaterialsError | null>(null);
+    useState<VocabularyWordsPage | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [isPreparingCards, setIsPreparingCards] = useState(false)
+  const isPreparingCardsRef = useRef(false)
+  const [approvingWordId, setApprovingWordId] = useState<string | null>(null)
+  const [isApprovingAllCards, setIsApprovingAllCards] = useState(false)
+  const [expandedWordId, setExpandedWordId] = useState<string | null>(null)
+  const [error, setError] = useState<VocabularyMaterialsError | null>(null)
   const [prepareError, setPrepareError] =
-    useState<VocabularyMaterialsError | null>(null);
+    useState<VocabularyMaterialsError | null>(null)
   const [approveAllError, setApproveAllError] =
-    useState<VocabularyMaterialsError | null>(null);
+    useState<VocabularyMaterialsError | null>(null)
 
   const refreshVocabularyData = useCallback(async () => {
-    const [state, words] = await Promise.all([
-      getVocabularyState(),
-      getVocabularyWords(),
-    ]);
-    setVocabularyState(state);
-    setVocabularyWords(words);
-  }, []);
+    const { state, words } = await fetchVocabularyData()
+    setVocabularyState(state)
+    setVocabularyWords(words)
+  }, [])
 
   const notifyVocabularyReviewStateChange = useCallback(async () => {
     try {
-      await onVocabularyReviewStateChange?.();
+      await onVocabularyReviewStateChange?.()
     } catch (error) {
-      console.error("[useVocabularyMaterials] failed to refresh review state", {
+      console.error('[useVocabularyMaterials] failed to refresh review state', {
         message:
           error instanceof Error
             ? error.message
-            : "Unknown review state refresh error.",
-      });
+            : 'Unknown review state refresh error.',
+      })
     }
-  }, [onVocabularyReviewStateChange]);
+  }, [onVocabularyReviewStateChange])
 
   useEffect(() => {
-    if (!isEnabled) return;
+    if (!isEnabled) return
 
-    let isMounted = true;
+    let isMounted = true
 
     const loadVocabulary = async () => {
-      setIsLoading(true);
-      setError(null);
-      setPrepareError(null);
-      setApproveAllError(null);
+      setIsLoading(true)
+      setError(null)
+      setPrepareError(null)
+      setApproveAllError(null)
 
       try {
-        const [state, words] = await Promise.all([
-          getVocabularyState(),
-          getVocabularyWords(),
-        ]);
-        if (!isMounted) return;
+        const { state, words } = await fetchVocabularyData()
+        if (!isMounted) return
 
-        setVocabularyState(state);
-        setVocabularyWords(words);
+        setVocabularyState(state)
+        setVocabularyWords(words)
       } catch (error) {
-        if (!isMounted) return;
+        if (!isMounted) return
         setError({
-          title: "Не удалось обновить словарь",
+          title: 'Не удалось обновить словарь',
           message:
             error instanceof Error
               ? error.message
-              : "Не удалось загрузить словарь.",
-        });
+              : 'Не удалось загрузить словарь.',
+        })
       } finally {
         if (isMounted) {
-          setIsLoading(false);
+          setIsLoading(false)
         }
       }
-    };
+    }
 
-    loadVocabulary();
+    loadVocabulary()
 
     return () => {
-      isMounted = false;
-    };
-  }, [isEnabled]);
+      isMounted = false
+    }
+  }, [isEnabled])
 
   const prepareCards = async () => {
-    if (isPreparingCardsRef.current || isApprovingAllCards) return;
-    isPreparingCardsRef.current = true;
+    if (isPreparingCardsRef.current || isApprovingAllCards) return
+    isPreparingCardsRef.current = true
 
-    setIsPreparingCards(true);
-    setError(null);
-    setPrepareError(null);
-    setApproveAllError(null);
+    setIsPreparingCards(true)
+    setError(null)
+    setPrepareError(null)
+    setApproveAllError(null)
 
     try {
-      const result = await prepareVocabularyCards();
+      const result = await prepareVocabularyCards()
       setVocabularyState((currentState) =>
         currentState
           ? {
@@ -139,94 +141,94 @@ export const useVocabularyMaterials = (
               },
             }
           : currentState,
-      );
-      await refreshVocabularyData();
-      await notifyVocabularyReviewStateChange();
+      )
+      await refreshVocabularyData()
+      await notifyVocabularyReviewStateChange()
 
       if (result.preparedCount === 0 && result.failedCount > 0) {
         setPrepareError({
-          title: "Не удалось подготовить карточки",
-          message: "Попробуй еще раз позже.",
-        });
+          title: 'Не удалось подготовить карточки',
+          message: 'Попробуй еще раз позже.',
+        })
       } else {
-        setPrepareError(null);
+        setPrepareError(null)
       }
-    } catch (error) {
+    } catch {
       try {
-        await refreshVocabularyData();
+        await refreshVocabularyData()
       } catch (refreshError) {
         setError({
-          title: "Не удалось обновить словарь",
+          title: 'Не удалось обновить словарь',
           message:
             refreshError instanceof Error
               ? refreshError.message
-              : "Не удалось обновить состояние словаря.",
-        });
-        setPrepareError(null);
-        return;
+              : 'Не удалось обновить состояние словаря.',
+        })
+        setPrepareError(null)
+        return
       }
 
       setPrepareError({
-        title: "Не удалось подготовить карточки",
-        message: "Попробуй еще раз позже.",
-      });
+        title: 'Не удалось подготовить карточки',
+        message: 'Попробуй еще раз позже.',
+      })
     } finally {
-      isPreparingCardsRef.current = false;
-      setIsPreparingCards(false);
+      isPreparingCardsRef.current = false
+      setIsPreparingCards(false)
     }
-  };
+  }
 
   const approveCard = async (wordId: string) => {
-    if (approvingWordId || isApprovingAllCards) return;
+    if (approvingWordId || isApprovingAllCards) return
 
-    setApprovingWordId(wordId);
-    setError(null);
-    setPrepareError(null);
-    setApproveAllError(null);
+    setApprovingWordId(wordId)
+    setError(null)
+    setPrepareError(null)
+    setApproveAllError(null)
 
     try {
-      await approveVocabularyCard(wordId);
-      await refreshVocabularyData();
-      await notifyVocabularyReviewStateChange();
-      setExpandedWordId(null);
+      await approveVocabularyCard(wordId)
+      await refreshVocabularyData()
+      await notifyVocabularyReviewStateChange()
+      setExpandedWordId(null)
     } catch (error) {
       setError({
-        title: "Не удалось обновить словарь",
+        title: 'Не удалось обновить словарь',
         message:
           error instanceof Error
             ? error.message
-            : "Не удалось подтвердить карточку.",
-      });
+            : 'Не удалось подтвердить карточку.',
+      })
     } finally {
-      setApprovingWordId(null);
+      setApprovingWordId(null)
     }
-  };
+  }
 
   const approveAllCards = async () => {
-    if (approvingWordId || isApprovingAllCards) return;
+    if (approvingWordId || isApprovingAllCards) return
 
-    setIsApprovingAllCards(true);
-    setError(null);
-    setPrepareError(null);
-    setApproveAllError(null);
+    setIsApprovingAllCards(true)
+    setError(null)
+    setPrepareError(null)
+    setApproveAllError(null)
 
     try {
-      await approveVocabularyCards();
-      await refreshVocabularyData();
-      await notifyVocabularyReviewStateChange();
-      setExpandedWordId(null);
+      await approveVocabularyCards()
+      await refreshVocabularyData()
+      await notifyVocabularyReviewStateChange()
+      setExpandedWordId(null)
     } catch (error) {
       setApproveAllError({
-        title: "Не удалось обновить словарь",
+        title: 'Не удалось обновить словарь',
         message:
           error instanceof Error
             ? error.message
-            : "Не удалось подтвердить карточки.",
-      });
+            : 'Не удалось подтвердить карточки.',
+      })
     } finally {
-      setIsApprovingAllCards(false);
+      setIsApprovingAllCards(false)
     }
-  };
+  }
 
   return {
     vocabularyState,
@@ -243,5 +245,5 @@ export const useVocabularyMaterials = (
     prepareCards,
     approveCard,
     approveAllCards,
-  };
-};
+  }
+}

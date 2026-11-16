@@ -465,6 +465,8 @@ Validation выполняет только `SELECT` и проверяет:
   - `reading_generation_attempts.request_id` и `reading_text_id`, уникальный
     индекс запроса и две server-only RPC для идемпотентной генерации начиная с
     migration `20261016120000`;
+  - server-only RPC `submit_support_report` для атомарного часового лимита
+    начиная с migration `20261020120000`;
 - RLS на 13 protected tables, включая server-only таблицу `reading_texts`;
 - отсутствие table access у `anon` и `authenticated`;
 - полный table access `service_role`;
@@ -474,6 +476,8 @@ Validation выполняет только `SELECT` и проверяет:
   `20260813120000`; более ранние snapshots валидируются без этой RPC;
 - `persist_generated_vocabulary_card` требуется начиная с migration
   `20260813150000`; более ранние snapshots валидируются без этой RPC;
+- `submit_support_report` требуется начиная с migration `20261020120000`;
+  более ранние snapshots валидируются без этой RPC;
 - отсутствие client execute на обычных functions в `public`; PostgreSQL
   event-trigger functions не считаются клиентскими RPC;
 - отсутствие execute у `anon` и `authenticated`;

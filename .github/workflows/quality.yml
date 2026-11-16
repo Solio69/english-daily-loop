@@ -1,0 +1,35 @@
+name: Quality
+
+on:
+  push:
+    branches:
+      - refactor/release-1.1
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm format:check
+      - run: pnpm lint:styles
+      - run: pnpm test
+      - run: pnpm exec playwright install --with-deps --no-shell chromium
+      - run: pnpm test:e2e
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.7
+      - run: pnpm test:edge
+      - run: pnpm build

@@ -1,66 +1,137 @@
-import React, { useState } from "react";
-import { Bug, SendHorizontal, X } from "lucide-react";
-import { submitSupportReport } from "../../services/supportService";
-import type { AppUser } from "../../types/user";
+import React, { useEffect, useRef, useState } from 'react'
+import { Bug, SendHorizontal, X } from 'lucide-react'
+import { submitSupportReport } from '../../services/supportService'
+import type { AppUser } from '../../types/user'
 
 type SupportReportCardProps = {
-  disabled?: boolean;
-  appUser: AppUser | null;
-  currentScreen: string;
-};
+  disabled?: boolean
+  appUser: AppUser | null
+  currentScreen: string
+}
 
 export const SupportReportCard: React.FC<SupportReportCardProps> = ({
   disabled = false,
   appUser,
   currentScreen,
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [comment, setComment] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [reportId, setReportId] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isOpen, setIsOpen] = useState(false)
+  const [comment, setComment] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+  const [reportId, setReportId] = useState<string | null>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const openButtonRef = useRef<HTMLButtonElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const commentRef = useRef<HTMLTextAreaElement>(null)
+
+  const focusOpenButton = () => {
+    window.requestAnimationFrame(() => openButtonRef.current?.focus())
+  }
 
   const openDialog = () => {
-    setMessage(null);
-    setReportId(null);
-    setErrorMessage(null);
-    setIsOpen(true);
-  };
+    setMessage(null)
+    setReportId(null)
+    setErrorMessage(null)
+    setIsOpen(true)
+  }
 
   const closeDialog = () => {
-    if (isSubmitting) return;
-    setIsOpen(false);
-    setErrorMessage(null);
-  };
+    if (isSubmitting) return
+    setIsOpen(false)
+    setErrorMessage(null)
+    focusOpenButton()
+  }
 
-  const handleSubmit = async () => {
-    const trimmedComment = comment.trim();
-    if (!trimmedComment) {
-      setErrorMessage("Опиши, что пошло не так.");
-      return;
+  useEffect(() => {
+    if (!isOpen) return
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const focusTarget = isSubmitting ? dialogRef.current : commentRef.current
+    focusTarget?.focus()
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (!isSubmitting) {
+          event.preventDefault()
+          setIsOpen(false)
+          setErrorMessage(null)
+          window.requestAnimationFrame(() => openButtonRef.current?.focus())
+        }
+        return
+      }
+
+      if (event.key !== 'Tab') return
+
+      const dialog = dialogRef.current
+      if (!dialog) return
+      const focusableElements = Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), textarea:not([disabled])',
+        ),
+      )
+
+      if (focusableElements.length === 0) {
+        event.preventDefault()
+        dialog.focus()
+        return
+      }
+
+      const firstElement = focusableElements[0]
+      const lastElement = focusableElements[focusableElements.length - 1]
+      const activeElement = document.activeElement
+      const focusIsOutsideDialog = !dialog.contains(activeElement)
+
+      if (
+        event.shiftKey &&
+        (activeElement === firstElement || focusIsOutsideDialog)
+      ) {
+        event.preventDefault()
+        lastElement.focus()
+      } else if (
+        !event.shiftKey &&
+        (activeElement === lastElement || focusIsOutsideDialog)
+      ) {
+        event.preventDefault()
+        firstElement.focus()
+      }
     }
 
-    setIsSubmitting(true);
-    setErrorMessage(null);
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = previousOverflow
+    }
+  }, [isOpen, isSubmitting])
+
+  const handleSubmit = async () => {
+    const trimmedComment = comment.trim()
+    if (!trimmedComment) {
+      setErrorMessage('Опиши, что пошло не так.')
+      return
+    }
+
+    setIsSubmitting(true)
+    setErrorMessage(null)
     try {
       const result = await submitSupportReport({
         comment: trimmedComment,
         currentScreen,
         appUser,
-      });
-      setComment("");
-      setReportId(result.reportId);
-      setMessage("Отчет отправлен. Спасибо!");
-      setIsOpen(false);
+      })
+      setComment('')
+      setReportId(result.reportId)
+      setMessage('Отчет отправлен. Спасибо!')
+      setIsOpen(false)
+      focusOpenButton()
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "Не удалось отправить отчет.",
-      );
+        error instanceof Error ? error.message : 'Не удалось отправить отчет.',
+      )
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
-  };
+  }
 
   return (
     <>
@@ -78,6 +149,7 @@ export const SupportReportCard: React.FC<SupportReportCardProps> = ({
             </p>
           </div>
           <button
+            ref={openButtonRef}
             type="button"
             onClick={openDialog}
             disabled={disabled}
@@ -88,7 +160,7 @@ export const SupportReportCard: React.FC<SupportReportCardProps> = ({
           </button>
         </div>
         {message ? (
-          <div className="mt-2 space-y-1">
+          <div className="mt-2 space-y-1" role="status">
             <p className="text-sm font-medium text-[var(--primary)]">
               {message}
             </p>
@@ -103,12 +175,15 @@ export const SupportReportCard: React.FC<SupportReportCardProps> = ({
 
       {isOpen ? (
         <div
+          ref={dialogRef}
+          tabIndex={-1}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
+          aria-busy={isSubmitting}
           aria-labelledby="support-report-title"
         >
-          <section className="glass-card glass-modal w-full max-w-[360px] rounded-[24px] p-4 shadow-soft">
+          <section className="glass-card glass-modal max-h-[calc(100dvh-32px)] w-full max-w-[360px] overflow-y-auto rounded-[24px] p-4 shadow-soft">
             <div className="flex items-start gap-3">
               <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-[var(--accent-warm-soft)] text-[var(--accent-warm)]">
                 <Bug size={20} strokeWidth={2.2} aria-hidden="true" />
@@ -135,16 +210,24 @@ export const SupportReportCard: React.FC<SupportReportCardProps> = ({
               </button>
             </div>
 
+            <label
+              htmlFor="support-report-comment"
+              className="mt-4 block text-sm font-medium text-[var(--text-primary)]"
+            >
+              Что произошло?
+            </label>
             <textarea
+              ref={commentRef}
+              id="support-report-comment"
               value={comment}
               onChange={(event) => {
-                setComment(event.target.value);
-                setErrorMessage(null);
+                setComment(event.target.value)
+                setErrorMessage(null)
               }}
               disabled={isSubmitting}
               maxLength={1000}
               placeholder="Опиши, что пошло не так"
-              className="mt-4 min-h-28 w-full resize-none rounded-[18px] border border-[var(--border-strong)] bg-[var(--surface)] px-3 py-3 text-sm leading-5 text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary-soft)] disabled:opacity-60"
+              className="mt-2 min-h-28 w-full resize-none rounded-[18px] border border-[var(--border-strong)] bg-[var(--surface)] px-3 py-3 text-sm leading-5 text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary-soft)] disabled:opacity-60"
             />
 
             <p className="mt-2 text-xs leading-4 text-[var(--text-muted)]">
@@ -153,7 +236,10 @@ export const SupportReportCard: React.FC<SupportReportCardProps> = ({
             </p>
 
             {errorMessage ? (
-              <p className="mt-3 whitespace-pre-line text-sm font-medium text-[var(--accent-coral)]">
+              <p
+                role="alert"
+                className="mt-3 whitespace-pre-line text-sm font-medium text-[var(--accent-coral)]"
+              >
                 {errorMessage}
               </p>
             ) : null}
@@ -165,11 +251,11 @@ export const SupportReportCard: React.FC<SupportReportCardProps> = ({
               className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[22px] bg-[var(--accent-coral)] px-5 py-3 font-heading text-sm font-semibold text-white shadow-coral-glow transition duration-200 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-coral)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
             >
               <SendHorizontal size={17} strokeWidth={2.2} aria-hidden="true" />
-              {isSubmitting ? "Отправляем..." : "Отправить отчет"}
+              {isSubmitting ? 'Отправляем...' : 'Отправить отчет'}
             </button>
           </section>
         </div>
       ) : null}
     </>
-  );
-};
+  )
+}

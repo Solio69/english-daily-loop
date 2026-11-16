@@ -1,0 +1,40 @@
+{
+  "version": "5",
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:@eslint/js@^10.0.1",
+        "npm:@fontsource/inter@^5.2.8",
+        "npm:@fontsource/manrope@^5.2.8",
+        "npm:@playwright/test@^1.64.0",
+        "npm:@supabase/supabase-js@^2.101.1",
+        "npm:@tailwindcss/vite@^4.1.14",
+        "npm:@testing-library/dom@^10.4.2",
+        "npm:@testing-library/jest-dom@^7.0.1",
+        "npm:@testing-library/react@^16.3.3",
+        "npm:@testing-library/user-event@^14.6.8",
+        "npm:@types/node@^22.14.0",
+        "npm:@types/react-dom@^19.2.3",
+        "npm:@types/react@^19.2.14",
+        "npm:@vitejs/plugin-react@^5.0.4",
+        "npm:autoprefixer@^10.4.21",
+        "npm:eslint-plugin-react-hooks@^7.1.1",
+        "npm:eslint@^10.12.0",
+        "npm:jsdom@^30.1.2",
+        "npm:lucide-react@0.546",
+        "npm:prettier@^3.9.10",
+        "npm:react-dom@19",
+        "npm:react@19",
+        "npm:stylelint-config-standard@40",
+        "npm:stylelint@^17.16.0",
+        "npm:supabase@^2.85.0",
+        "npm:tailwindcss@^4.1.14",
+        "npm:tsx@^4.21.0",
+        "npm:typescript-eslint@^8.71.2",
+        "npm:typescript@~5.8.2",
+        "npm:vite@^6.2.0",
+        "npm:vitest@^5.0.4"
+      ]
+    }
+  }
+}

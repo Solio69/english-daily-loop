@@ -14,7 +14,7 @@ import {
   loadTelegramDevEnv,
   syncEnvValues,
 } from "./dev/env.mjs";
-import { color, useColor, withColor } from "./dev/logging.mjs";
+import { color, useColor } from "./dev/logging.mjs";
 import { runOnce, spawnLabeled, stopChildProcess } from "./dev/process.mjs";
 import {
   getLocalSupabaseAnonKey,

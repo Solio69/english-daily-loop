@@ -21,7 +21,7 @@ UI блока и модального окна находится в `src/compon
 
 - storage key: `edl.diagnostics.events`
 - лимит: последние `100` событий
-- события добавляются через `src/services/clientLogger.ts`
+- события добавляются через `src/services/clientLogger.ts`; известные секретные шаблоны в строках очищаются до записи в sessionStorage
 - `src/services/functionClient.ts` добавляет `x-request-id` к каждому вызову Edge Function и пишет события `edge_request_started`, `edge_request_succeeded`, `edge_request_failed`
 - `src/services/edgeFunctionErrors.ts` нормализует ошибки Edge Functions, request id и diagnostics для пользовательских сообщений и client events
 - `App` пишет `screen_opened` при смене экрана
@@ -35,10 +35,10 @@ UI блока и модального окна находится в `src/compon
 1. Принимает только `POST`.
 2. Валидирует Telegram `initData` через `TELEGRAM_BOT_TOKEN`.
 3. Находит пользователя по `telegram_user_id`, полученному только из валидного `initData`.
-4. Дальше использует только внутренний `user_id` и проверяет по нему rate limit: не больше `5` отчетов за последний час на пользователя.
-5. Санитизирует `appContext`, `events`, `requestIds` и `aiDiagnostics`, ограничивает размер вложенных объектов и принимает только корректный формат request id.
+4. Дальше использует только внутренний `user_id`; server-only RPC `submit_support_report` под блокировкой пользователя атомарно проверяет скользящий лимит `5` отчетов за последний час и сохраняет запись с одним DB timestamp.
+5. Принимает только документированные поля `appContext`, события и AI-метаданные, очищает известные секретные шаблоны во всех строках и принимает только корректный формат request id. Неизвестные поля и типы событий отбрасываются.
 6. Гарантирует размер diagnostic snapshot не больше `100KB`; при превышении последовательно удаляет самые старые events, AI diagnostics и request ids, затем сокращает app context.
-7. Сохраняет отчет в `public.support_reports` через `SUPABASE_SERVICE_ROLE_KEY`.
+7. Вызывает `submit_support_report` через `SUPABASE_SERVICE_ROLE_KEY`; превышение лимита возвращает `429 SUPPORT_REPORT_RATE_LIMITED`.
 
 Frontend не имеет прямого доступа к `public.support_reports`.
 
@@ -69,7 +69,9 @@ Frontend не имеет прямого доступа к `public.support_report
 - текущий экран
 - счетчики progress
 - request id Edge Function вызовов
-- safe AI diagnostics: function name, prompt version, model chain, failed/current model, stage, target/validation ranges, output word count, duration, sanitized provider/validation error
+- safe AI diagnostics: function name, prompt version, model chain, current model, stage, target/validation ranges, output word count, duration и ограниченный provider error code
+
+Точный whitelist полей и событий описан в `specs/017-f16-support-diagnostics/contracts/support-report.md`. Свободный error text и неизвестные поля не сохраняются. Комментарий пользователя, экран и метаданные проходят server-side redaction известных форматов token, `initData`, Bearer, key/secret/password и прямого Telegram ID. Неизвестный произвольный секрет нельзя распознать гарантированно; предупреждение в форме остаётся.
 
 Общий server helper safe AI diagnostics находится в `supabase/functions/_shared/ai-diagnostics.ts`; доменные Edge Functions добавляют к нему только поля своего сценария.
 
@@ -96,7 +98,7 @@ cleanup_support_reports
 ## Processing workflow
 
 На текущем объеме отчеты обрабатываются вручную через последовательные read-only запросы из
-`docs/agents/skills/english-daily-loop-support-triage/references/sql.md`. Admin UI, отдельный
+`.agents/skills/english-daily-loop-support-triage/references/sql.md`. Admin UI, отдельный
 реестр обработанных отчетов и lifecycle-поля в БД не используются.
 
 При работе с production агент сначала явно сообщает: `Мы работаем с production БД`. Если у
@@ -120,7 +122,7 @@ cleanup_support_reports
    - AI metadata — с `public.reading_generation_attempts` или
      `public.vocabulary_card_generation_attempts` в ограниченном временном окне рядом с отчетом.
 6. Отделить подтвержденные факты от гипотез и присвоить отчету ровно одну классификацию.
-7. Сразу перенести actionable evidence в каноническую карточку или feature draft, потому что
+7. Сразу перенести actionable evidence в карточку проекта или обзор фичи, потому что
    исходный отчет автоматически удалится через `30` дней.
 
 Во время triage строки `public.support_reports` не изменяются и не удаляются. Агент не применяет
@@ -129,22 +131,22 @@ cleanup_support_reports
 ## Классификация и маршрутизация
 
 - `тест / шум` — действий не требуется; дополнительные поля отчета не запрашиваются.
-- `дубликат` — используется существующая bug-карточка или feature draft; новый элемент не
+- `дубликат` — используется существующая карточка бага или обзор фичи; новый элемент не
   создается, в существующий переносится только новая безопасная evidence.
 - `внешний инцидент` — фиксируются причина и восстановление; код не меняется без отдельного
   подтвержденного дефекта приложения.
-- `наблюдаем` — данных недостаточно для подтверждения; кейс передается в bug dashboard со
+- `наблюдаем` — данных недостаточно для подтверждения; кейс передается в карточку проекта со
   статусом `наблюдаем`.
 - `bug` — создается или обновляется карточка через канонический skill
-  `docs/agents/skills/triage-english-daily-loop-bugs/SKILL.md`. Сам support triage не дает
+  `.agents/skills/triage-english-daily-loop-bugs/SKILL.md`. Сам support triage не дает
   допуска к изменению кода.
-- `improvement / feature` — создается или обновляется feature draft через канонический skill
-  `docs/agents/skills/english-daily-loop-feature-spec/SKILL.md`. Изменение продуктового правила
+- `improvement / feature` — создается или обновляется обзор фичи через канонический skill
+  `.agents/skills/english-daily-loop-feature-spec/SKILL.md`. Изменение продуктового правила
   не маскируется под баг.
 
-Перед созданием карточки или draft сначала проверяется отсутствие дубликата. Дальнейшее
+Перед созданием карточки или обзора сначала проверяется отсутствие дубликата. Дальнейшее
 согласование и допуск к реализации выполняются только по соответствующему каноническому
-workflow и `docs/agents/WORKFLOW.md`.
+workflow и `D:\anastasiaStorage\Проекты\English daily loop\work\release-1.1-refactor\SDD workflow English Daily Loop.md`.
 
 ## Data minimization during triage
 
@@ -155,7 +157,7 @@ workflow и `docs/agents/WORKFLOW.md`.
   provider response, generated content, stack trace, полный `app_context` или полные `events`.
 - Пользовательский комментарий считать потенциально чувствительным. Перед передачей в чат или
   долговременную документацию удалять контакты, credentials и другие личные данные.
-- В bug-карточку, feature draft или operational note переносить только report id, дату,
+- В карточку бага, обзор фичи или эксплуатационную заметку переносить только report id, дату,
   безопасный краткий пересказ, релевантные request id и минимальные доказательства диагноза.
   Не копировать исходный комментарий и весь snapshot целиком.
 - Использовать только синтетические значения в примерах документации.
@@ -164,6 +166,7 @@ workflow и `docs/agents/WORKFLOW.md`.
 
 - Таблица закрыта для `anon` и `authenticated`.
 - Запись выполняется только через Edge Function.
+- RPC `submit_support_report` доступна только `service_role`; проверка лимита и insert выполняются в одной транзакции. Миграцию применяет владелец до запуска нового Edge Function.
 - `requestId` не является секретом; он нужен для корреляции клиентского события, server log и записи в БД.
 - Для корреляции пользователя используются внутренние `appUserId`/`user_id`; прямой Telegram ID не передается во frontend context и прикладные логи.
 - Санитизация есть на клиенте и на сервере, но source of truth по безопасности остается сервер.

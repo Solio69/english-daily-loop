@@ -28,6 +28,7 @@ export const assertSafeText = (field: string, value: string): void => {
 };
 
 export const assertAsciiEnglishText = (field: string, value: string): void => {
+  // deno-lint-ignore no-control-regex -- Tabs and line breaks are intentionally allowed.
   if (!/^[\x09\x0A\x0D\x20-\x7E]+$/.test(value)) {
     throw new Error(`${field} must contain only English text.`);
   }

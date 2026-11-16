@@ -36,7 +36,7 @@ frontend bundle. Не использовать ее для секретов.
 - без hover background, full border, glow, primary CTA веса и отдельной карточки.
 
 Актуальные дизайн-правила зафиксированы в
-`docs/agents/DESIGN_SYSTEM.md`.
+`docs/DESIGN_SYSTEM.md`.
 
 ## 4) Открытие ссылки
 
