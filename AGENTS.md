@@ -20,17 +20,17 @@
 
 ## Документация для владельца и агентов
 
-- Канонический workflow: `D:\anastasiaStorage\Проекты\English daily loop\_work\release-1.1-refactor\SDD workflow English Daily Loop.md`; правила груминга всех задач: `D:\anastasiaStorage\Проекты\English daily loop\_agents\rules\Груминг задач English Daily Loop.md`. Рабочие обзоры рефакторинга пока находятся в `_work` Obsidian, документы изменений релиза — в `_work/release-1.1-refactor/`, полный пакет Spec Kit — в `specs/NNN-slug/`.
+- Канонический workflow: D:\anastasiaStorage\Проекты\English daily loop\work\release-1.1-refactor\SDD workflow English Daily Loop.md; правила груминга: D:\anastasiaStorage\Проекты\English daily loop\agents\rules\Груминг задач English Daily Loop.md. Карта, обзоры F01–F17 и документы изменений находятся в work/release-1.1-refactor/; полный пакет Spec Kit — в specs/NNN-slug/.
 - Постоянные принципы: `.specify/memory/constitution.md`; полномочия Git: `GIT_POLICY.md`; восемь операций Spec Kit и три проектных скилла: `.agents/skills/`.
 - Актуальная дизайн-система: `docs/DESIGN_SYSTEM.md`; локальный Telegram-запуск: `docs/LOCAL_TELEGRAM_RUN.md`; руководство ручного тестирования: `.agents/references/manual-testing-guide.md`; правила написания кода: `.agents/rules/CODING_RULES.md`.
 - Шаблон локального Telegram env: `.env.telegram.example`; production env: `.env.production.example` и `notes/production-env.md`; backup/recovery: `notes/backup-and-restore.md`.
 - Исторический процесс до SDD сохранён в `docs/archive/pre-sdd/agents/` для будущего рефакторинга. Архив не задаёт действующие правила. Происхождение набора: `docs/spec-kit-provenance.md`.
-- Карта рефакторинга релиза 1.1 и отдельные обзоры F01–F17 находятся в `D:\anastasiaStorage\Проекты\English daily loop\_work\`. Карта задаёт очередь и зависимости, но не разрешает реализацию всех фич сразу.
+- Карта рефакторинга релиза 1.1 и отдельные обзоры F01–F17 находятся в D:\anastasiaStorage\Проекты\English daily loop\work\release-1.1-refactor\. Карта задаёт очередь и зависимости, но не разрешает реализацию всех фич сразу.
 
 ## Рабочий процесс и допуск к реализации
 
 - Сначала агент исследует текущий код и документы, показывает жизнеспособные варианты реализации с плюсами, минусами, рисками и рекомендацией, обсуждает результат и вопросы. Компактный обзор фичи в Obsidian содержит границы, решение, шаги и приёмку.
-- При начале работы над рефакторингом выбирается одна фича из карты. Для неё используется собственный короткий обзор в `_work/`; при груминге проверяются факты в актуальном коде, уточняются решения, инструменты и критерии приёмки. Фичи выделяются по логическим слоям и результату; ориентир до одного часа относится к согласованию с владельцем, а не к времени работы агента. Приёмка проходит отдельно.
+- При начале работы над рефакторингом выбирается одна фича из карты. Для неё используется собственный короткий обзор в `work/`; при груминге проверяются факты в актуальном коде, уточняются решения, инструменты и критерии приёмки. Фичи выделяются по логическим слоям и результату; ориентир до одного часа относится к согласованию с владельцем, а не к времени работы агента. Приёмка проходит отдельно.
 - После явного согласования владельцем основного обзора на выполнение и назначения созданной ею ветки агент самостоятельно проходит constitution, specify, clarify, plan, checklist, tasks, analyze, implement и проверки. Отдельный обязательный допуск после технических документов не нужен. Существенное новое решение возвращается владельцу до затронутой реализации.
 - Технические документы находятся в `specs/NNN-slug/` и выбираются явно, независимо от имени ветки. Analyze только читает; отчёт сохраняется отдельным действием после прохода. Блокирующие замечания закрываются до кода. Скрипты Spec Kit не выполняют Git-команды.
 - Код меняется только после согласования соответствующей фичи либо отдельного явного запроса владельца. Агент сверяет spec/plan/tasks с актуальным HEAD. При противоречии, новом scope или несогласованном изменении поведения, данных, дизайна, auth, RLS, grants он уточняет затронутое решение.
@@ -342,7 +342,7 @@
 - Vite передает во frontend compile-time `appVersion`, `buildId` и `environment`: Vercel Git SHA для deployment либо безопасный fallback `local`, без чтения runtime env и secrets в браузере.
 - Skill source для triage support reports лежит в `.agents/skills/english-daily-loop-support-triage`.
 - Skill source для pre-code triage багов и формирования пачек лежит в `.agents/skills/triage-english-daily-loop-bugs`.
-- Скилл подготовки фич находится в `.agents/skills/english-daily-loop-feature-spec`; компактные обзоры для согласования находятся в `D:\anastasiaStorage\Проекты\English daily loop\_work`, технические документы — в `specs/NNN-slug/`.
+- Скилл подготовки фич находится в `.agents/skills/english-daily-loop-feature-spec`; компактные обзоры для согласования находятся в `D:\anastasiaStorage\Проекты\English daily loop\work`, технические документы — в `specs/NNN-slug/`.
 - Ссылка обратной связи из настроек зафиксирована в `notes/feedback-link.md`.
 - Production-схема деплоя зафиксирована в `notes/deployment-platform-decision.md`: frontend на Vercel, backend/data на Supabase Cloud.
 - Production env inventory зафиксирован в `notes/production-env.md`; реальные секреты в репозиторий не записывать.

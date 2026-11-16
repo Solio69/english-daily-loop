@@ -75,6 +75,7 @@ or reduce production dev tools to a safer subset.
 
 - Do not commit `.env.telegram.local` or any other file containing real environment values.
 - Do not paste real secrets into notes, README, AGENTS, issue text or chat.
+- Set production Edge Function secrets through Supabase Dashboard secret fields; do not put values in CLI arguments or shell history.
 - Do not put `OPENROUTER_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_WEBHOOK_SECRET` or `SUPABASE_SERVICE_ROLE_KEY` into Vercel `VITE_*` env.
 - Production bot token and webhook secret are entered into `scripts/telegram/configure-production-bot.ps1` only through hidden prompts; never pass them as command arguments.
 - Rotate secrets if they appear in git history, logs, screenshots or support reports.

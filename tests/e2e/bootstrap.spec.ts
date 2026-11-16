@@ -220,12 +220,11 @@ test('settings submit a support report and show its confirmation', async ({
     .getByRole('button', { name: BOOTSTRAP_MOCKS.settingsButton })
     .first()
     .click()
-  await page
-    .getByRole('button', {
-      name: BOOTSTRAP_MOCKS.supportOpenButton,
-      exact: true,
-    })
-    .click()
+  const openButton = page.getByRole('button', {
+    name: BOOTSTRAP_MOCKS.supportOpenButton,
+    exact: true,
+  })
+  await openButton.click()
   await page
     .getByPlaceholder(BOOTSTRAP_MOCKS.supportPlaceholder)
     .fill(BOOTSTRAP_MOCKS.supportComment)
@@ -234,12 +233,52 @@ test('settings submit a support report and show its confirmation', async ({
     .click()
 
   await expect(page.getByText(BOOTSTRAP_MOCKS.supportSuccessText)).toBeVisible()
+  await expect(openButton).toBeFocused()
   expect(requests.supportBodies).toHaveLength(1)
   expect(requests.supportBodies[0]).toMatchObject({
     initData: BOOTSTRAP_MOCKS.fakeInitData,
     comment: BOOTSTRAP_MOCKS.supportComment,
   })
   expect(requests.unexpectedRequests).toEqual([])
+})
+
+test('support report dialog keeps keyboard focus and returns it on close', async ({
+  page,
+}) => {
+  await installMocks({
+    page,
+    authResponse: MOCK_SUCCESSFUL_AUTH,
+    authStatus: HTTP_STATUS.ok,
+  })
+  await page.goto(BOOTSTRAP_MOCKS.homePath)
+  await page
+    .getByRole('button', { name: BOOTSTRAP_MOCKS.settingsButton })
+    .first()
+    .click()
+
+  const openButton = page.getByRole('button', {
+    name: BOOTSTRAP_MOCKS.supportOpenButton,
+    exact: true,
+  })
+  await openButton.click()
+
+  const dialog = page.getByRole('dialog', { name: 'Отчет об ошибке' })
+  const comment = dialog.getByRole('textbox', { name: 'Что произошло?' })
+  const closeButton = dialog.getByRole('button', { name: 'Закрыть' })
+  const submitButton = dialog.getByRole('button', {
+    name: BOOTSTRAP_MOCKS.supportSubmitButton,
+  })
+
+  await expect(comment).toBeFocused()
+  await page.keyboard.press('Shift+Tab')
+  await expect(closeButton).toBeFocused()
+  await page.keyboard.press('Shift+Tab')
+  await expect(submitButton).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(closeButton).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(dialog).not.toBeVisible()
+  await expect(openButton).toBeFocused()
 })
 
 test('admin can use mocked dev tools and refreshes the profile', async ({
