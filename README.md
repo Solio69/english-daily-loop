@@ -1,411 +1,118 @@
-# english-daily-loop
+# English Daily Loop
 
-Telegram Mini App для ежедневной практики английского языка.
+Telegram Mini App для ежедневной практики английского: короткое чтение по своему уровню, личный словарь и повторение слов. Пользователь выбирает уровень и длительность чтения, получает текст, сохраняет незнакомые слова и возвращается к ним в следующих занятиях.
 
-Проект находится в MVP-стадии. Основной фокус: короткий ежедневный цикл обучения, генерация текста для чтения под уровень пользователя, дневной прогресс, история материалов и простая модель подписок.
+**Статус:** MVP. Приложение работает внутри Telegram; оплата подписки и редактирование AI-карточек пока не открыты в пользовательском интерфейсе.
 
-## Что уже есть
+## Возможности пользователя
 
-- Telegram Mini App с авторизацией через `Telegram WebApp initData`.
-- Онбординг с настройками уровня английского и времени чтения.
-- Экран `Текст` с AI-генерацией текста через OpenRouter и mobile-first glass UI для idle, active text, loading, error и completed состояний.
-- Серверные дневные лимиты генерации текста.
-- Активный непрочитанный текст на пользователя.
-- Завершение чтения, сохранение нескольких текстов за день в историю и streak по дням.
-- Раздел `Мои материалы` с историей прочитанных текстов, словарем, glass-табами, входом из нижней навигации, общим счетчиком прочитанных текстов и индикатором действий по словарю на главной.
-- Словарь: быстрое добавление слова из активного текста, отдельная AI-подготовка карточек и просмотр готовых слов; подтверждение и редактирование карточек не доступны в пользовательском UI.
-- Дневное повторение готовых карточек по интервальной шкале от 1 дня до 6 месяцев с действиями `Не помню`, текущий шаг, следующий шаг и шаг через один.
-- Mobile-first главная страница с full-bleed Telegram layout, compact bottom navigation `Главная` / `Текст` / `Слова` / `Материалы`, glass UI и дизайн-токенами.
-- Тема приложения по умолчанию следует системной теме Telegram; пользователь может выбрать режим `Как в Telegram`, светлую или темную тему через трехпозиционный переключатель в header главной.
-- Экран настроек использует mobile-first glass UI для выбора уровня английского и времени чтения.
-- Дневной прогресс и план урока объединяют последовательные шаги `Текст` и `Повторение`.
-- После первоначальной настройки раздел `Слова` доступен независимо от завершения первого текста; дневной урок по-прежнему начинается с чтения.
-- Пустой шаг повторения отображается как `Слов на повторение нет` и сохраняет completed-стиль дневного прогресса.
-- Единые app-level toast-сообщения показываются сверху как floating glass card с variant-состояниями `success`, `warning`, `error`.
-- Общие UI primitives: `ScreenHeader`, `LoadingState`, `InlineStatusCard`, shared `Button`.
-- Роли доступа `admin` / `tester` / `user`; `admin` и `tester` получают internal paid-like доступ без платежей, а пользовательский flow подписки скрыт до подключения реальной оплаты.
-- Отправка отчета об ошибке из настроек: пользовательский комментарий, последние client events, request ids и safe AI diagnostics сохраняются в `public.support_reports` со связью только по внутреннему `user_id`.
-- Версия приложения и описание последнего релиза доступны в настройках; техническая история хранится в `CHANGELOG.md`.
-- Базовый security-контур: server-side Telegram auth, RLS/grants hardening, защищенные секреты и безопасные ошибки Edge Functions.
-- Локальный Telegram-запуск через `npm run dev:telegram`.
-
-## Стек
-
-- Vite
-- React
-- TypeScript
-- pnpm
-- Tailwind CSS 4
-- `@fontsource/inter` и `@fontsource/manrope`
-- `lucide-react`
-- Supabase local
-- Supabase Edge Functions
-- Postgres
-- OpenRouter для AI-генерации текстов и карточек слов
-- Cloudflare Tunnel для запуска Mini App внутри Telegram во время локальной разработки
+- **Настроить занятие:** выбрать уровень английского от A1 до B2 и время чтения: 3, 5, 10 или 15 минут.
+- **Читать:** получить текст под свои настройки, вернуться к незавершённому тексту и посмотреть историю прочитанного.
+- **Собирать словарь:** сохранить незнакомое слово из текста и позже подготовить для него карточку с переводом и примерами.
+- **Повторять слова:** проходить дневную очередь карточек и видеть прогресс чтения и повторения на главной.
+- **Сообщить о проблеме:** отправить отчёт об ошибке из настроек приложения.
 
 ## Архитектура
 
-В проекте нет отдельного Express/Nest backend. Backend-слой сейчас состоит из Supabase API, Postgres и Supabase Edge Functions.
+Mini App открывается внутри Telegram и показывает состояние пользователя. Edge Functions проверяют initData, лимиты и права доступа; Postgres хранит данные, а OpenRouter используется только для AI-генерации. Стрелки показывают обмен запросами и ответами между основными компонентами.
 
-Основная граница ответственности:
-
-- `src/screens` — UI-экраны приложения.
-- `src/components` — общие UI-компоненты и feature-компоненты экранов.
-- `src/hooks` — app-level и feature hooks для профиля пользователя, toast, действий приложения и локальной UI-логики.
-- `src/services` — клиентский сервисный слой, который вызывает Supabase и Edge Functions.
-- `src/types` — общие frontend/domain типы.
-- `supabase/migrations` — схема базы данных.
-- `supabase/functions` — серверная логика в Deno runtime.
-- `notes` — проектные решения и текущие ограничения.
-- `docs/` — документация продукта и архив прежнего процесса; `.agents/` — действующие инструкции и скиллы агентов; `.specify/` и `specs/` — комплект SDD и документы фич.
-- `scripts/dev-stack.mjs` и `scripts/dev/*` — локальная инфраструктура разработки.
-- `tools` — локальные утилиты вроде `cloudflared.exe`; папка не коммитится.
-
-Важный принцип: frontend не принимает security/business-решения по лимитам, подписке и Telegram auth. Он отображает состояние, которое возвращает сервер.
-
-## Edge Functions
-
-Сейчас используются функции:
-
-- `auth-telegram` — валидирует Telegram `initData`, создает или находит пользователя, возвращает роль, настройки, effective subscription summary, прогресс главного экрана и streak.
-- `save-user-settings` — валидирует пользователя на сервере и сохраняет настройки в `user_settings`.
-- `activate-subscription` — скрытая server-side заготовка для будущего платного flow; работает только при `SUBSCRIPTION_FLOW_ENABLED="true"` и транзакционно активирует MVP-подписку за 0 рублей.
-- `get-reading-state` — возвращает состояние экрана чтения: единственный активный текст пользователя независимо от даты генерации, общие и pending-индексы сохраненных слов, лимиты текущей учебной даты и факт завершения чтения за учебный день.
-- `generate-reading-text` — атомарно списывает попытку текущей учебной даты, вызывает OpenRouter, валидирует ответ модели и сохраняет активный текст с `reading_date` генерации.
-- `complete-reading-text` — транзакционно завершает единственный активный текст, сохраняет snapshot с текущей учебной датой в историю, удаляет active text и best-effort обновляет производные метрики streak/count, не меняя результат уже выполненного завершения.
-- `get-reading-history` — возвращает историю прочитанных текстов текущего пользователя с cursor-пагинацией.
-- `save-reading-position` — сохраняет существующий индекс абзаца текущего active text либо `null` для абсолютного верха; ownership и актуальность `reading_text_id` проверяются на сервере.
-- `save-vocabulary-word` — валидирует принадлежность и актуальный `reading_text_id` единственного active text независимо от даты генерации, проверяет лимит словаря и быстро сохраняет слово как `not_started` + `pending`.
-- `delete-pending-vocabulary-word` — по подтверждению удаляет только еще не подготовленное pending-слово и все его source-связи; готовые карточки и прогресс повторения не затрагиваются.
-- `get-vocabulary-state` — возвращает количество pending/needs_approval/ready слов в словаре пользователя и состояние дневного лимита подготовки AI-карточек; пользовательский UI показывает pending и ready.
-- `get-vocabulary-words` — возвращает готовые карточки словаря; скрытый approval-flow оставлен в коде для следующих версий.
-- `prepare-vocabulary-cards` — batch-ом до 5 pending-слов списывает дневную попытку подготовки карточек, готовит AI-карточки, пробует следующую allowlist-модель при невалидном AI-ответе или provider-ошибке и через атомарную server-only RPC сохраняет карточку либо мержит канонический дубль; удаленные во время AI-вызова targets пропускаются без побочных эффектов.
-- `approve-vocabulary-card` — скрытая server-side операция для будущего flow проверки карточек.
-- `approve-vocabulary-cards` — скрытая server-side операция для будущего массового flow проверки карточек.
-- `get-vocabulary-review-state` — возвращает точный snapshot дневной очереди, прогресс, следующую карточку и действия словаря.
-- `review-vocabulary-word` — атомарно применяет выбранный интервал и завершает дневной план после последней обязательной карточки.
-- `dev-tools` — технические действия для admin-пользователя; управляет попытками генерации, чтением, повторением слов, batch-переносом дневной очереди на выбранный шаг и подписками; работает только при `DEV_TOOLS_ENABLED="true"` и `users.app_role = 'admin'`.
-- `submit-support-report` — принимает пользовательский отчет об ошибке, валидирует Telegram `initData`, применяет rate limit и сохраняет sanitized diagnostic snapshot в `public.support_reports`.
-
-Все чувствительные операции выполняются на сервере либо доверенным owner-run configuration helper. `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_WEBHOOK_SECRET`, `SUPABASE_SERVICE_ROLE_KEY` и `OPENROUTER_API_KEY` нельзя использовать в клиентском коде. Неожиданные внутренние ошибки Edge Functions логируются на сервере, а клиент получает безопасный код и сообщение без SQL/provider details.
-
-`users.telegram_user_id` используется только server-side для Telegram auth и будущего Bot API flow. Frontend user contract, новые support reports и прикладные логи не содержат прямой Telegram ID. Новый профиль сохраняет только Telegram ID, `first_name` и технические поля; `username`, `last_name` и `language_code` не собираются.
-
-Общая server-инфраструктура Edge Functions находится в `supabase/functions/_shared/server.ts`: CORS, POST guard, JSON parsing, чтение env, Telegram `initData` validation, request id, `AppError` и единый формат JSON-ответов. Общий helper safe AI diagnostics находится в `supabase/functions/_shared/ai-diagnostics.ts`. Общий helper московской учебной даты с границей `05:00 Europe/Moscow` находится в `supabase/functions/_shared/moscow-study-date.ts`. Роли, effective subscription summary и лимиты доступа считаются в `supabase/functions/_shared/access.ts`. Общий OpenRouter client/model allowlist находится в `supabase/functions/_shared/openrouter.ts`, общие AI text helpers — в `supabase/functions/_shared/ai-text.ts`. Лимит, подсчет и metadata попыток подготовки карточек вынесены в `supabase/functions/_shared/vocabulary-card-generation.ts`, snapshot повторения и home progress — в `supabase/functions/_shared/vocabulary-review-state.ts` и `supabase/functions/_shared/home-progress.ts`, streak чтения и счетчик истории — в `supabase/functions/_shared/reading-streak.ts` и `supabase/functions/_shared/reading-history.ts`, а best-effort post-completion orchestration — в `supabase/functions/_shared/reading-completion-metrics.ts`.
-Prompt/output слой словарных карточек находится рядом с функцией подготовки: `supabase/functions/prepare-vocabulary-cards/ai-pipeline.ts`. Сохранение подготовленных карточек и merge pending-дубликатов в существующие канонические карточки вынесены в `supabase/functions/prepare-vocabulary-cards/card-persistence.ts`.
-
-## Данные
-
-Ключевые таблицы:
-
-- `public.users`
-- `public.user_settings`
-- `public.reading_texts`
-- `public.reading_generation_attempts`
-- `public.user_active_reading_texts`
-- `public.user_daily_reading_completions`
-- `public.user_completed_reading_texts`
-- `public.user_subscriptions`
-- `public.user_vocabulary_words`
-- `public.user_vocabulary_word_sources`
-- `public.vocabulary_card_generation_attempts`
-- `public.user_daily_vocabulary_review_completions`
-- `public.support_reports`
-
-Дневной цикл считается по timezone `Europe/Moscow`.
-
-`public.user_settings` хранит уровень английского и время чтения: `english_level`, `daily_reading_minutes`.
-
-Доступ к чувствительным пользовательским данным идет через Edge Functions. На пользовательских, reading-state, completion/history и subscription таблицах включен RLS. Для `anon` и `authenticated` явно закрыт прямой доступ к защищенным таблицам и server-only RPC; серверные операции выполняются через Edge Functions с `SUPABASE_SERVICE_ROLE_KEY`. Клиент не пишет напрямую в пользовательские, reading и subscription таблицы.
-
-`public.reading_generation_attempts` хранит безопасные metadata AI-попыток: prompt version, model chain, target/validation ranges, output word count, fallback flag, duration, failure stage и sanitized error details. Полный prompt, raw provider response, полный generated text, Telegram `initData`, secrets и stack trace в attempt metadata не пишутся.
-
-AI attempt metadata хранится `90` дней; scheduled cleanup выполняется server-side через `pg_cron` job `cleanup_ai_generation_attempts`.
-
-`public.vocabulary_card_generation_attempts` хранит дневные попытки подготовки AI-карточек словаря: provider/model, prompt version, model chain, количество запрошенных/подготовленных/неподготовленных карточек, merge/reactivation counters, duration и sanitized error details. Записи хранятся `90` дней; scheduled cleanup выполняется server-side через `pg_cron` job `cleanup_vocabulary_card_generation_attempts`.
-
-`public.support_reports` хранит только вручную отправленные пользователем отчеты об ошибках: внутренний `user_id`, комментарий, текущий экран, безопасный app context, последние client events, request ids и safe AI diagnostics. Прямой Telegram ID в новые отчеты не записывается. Nullable-столбец `telegram_user_id` и существующие старые строки остаются до отдельного contract cleanup. Таблица закрыта для `anon`/`authenticated`, запись идет через Edge Function `submit-support-report`; отчеты хранятся `30` дней и очищаются job `cleanup_support_reports`.
-
-Критичные операции, где важна защита от параллельных запросов, вынесены в Postgres RPC:
-
-- `public.claim_reading_generation_attempt(...)` — проверяет дневной лимит и создает attempt одним DB-действием.
-- `public.get_moscow_study_date(...)` — server-only SQL-helper учебной даты с границей `05:00 Europe/Moscow`; timestamp-чувствительные mutation RPC вычисляют через него дату из того же DB timestamp, который сохраняют в записи.
-- `public.complete_daily_reading_text(...)` — завершает единственный active text независимо от даты генерации, атомарно фиксирует DB timestamp и соответствующую ему учебную дату, пишет completion-marker, сохраняет snapshot текста в историю, удаляет active text и обновляет onboarding-флаг.
-- `public.activate_mvp_subscription(...)` — активирует или планирует MVP-подписку с advisory lock по пользователю.
-- `public.save_pending_vocabulary_word_with_source(...)` — сохраняет pending-слово и источник из актуального active text независимо от даты генерации с advisory lock по пользователю.
-- `public.delete_pending_vocabulary_word_with_sources(...)` — под advisory/row lock удаляет только pending-слово из актуального active text; существующий FK cascade удаляет все его source-связи.
-- `public.persist_generated_vocabulary_card(...)` — под тем же пользовательским advisory lock атомарно сохраняет сгенерированную карточку или переносит sources в существующую каноническую карточку и удаляет pending-дубль; уже удаленный target возвращается как `cancelled`.
-- `public.claim_vocabulary_card_generation_attempt(...)` — атомарно проверяет дневной лимит подготовки карточек и создает attempt с advisory lock по пользователю и дате.
-- `public.review_vocabulary_word(...)` — атомарно фиксирует DB timestamp и соответствующую ему учебную дату, применяет действие повторения, обновляет интервалы и создает дневной completion-marker.
-- `public.get_or_create_vocabulary_review_state(...)` — атомарно считает очередь, фиксирует завершение пустого или выполненного плана и возвращает отдельные счетчики для обязательного плана и экрана повторения.
-
-Текущие MVP-лимиты:
-
-- `free`: 3 генерации текста в день, словарь до 30 слов.
-- `paid`: 10 генераций текста в день, словарь до 300 слов.
-- Подготовка AI-карточек словаря: `free` — 5 batch-попыток в день, `paid` — 20 batch-попыток в день.
-- Роли `admin` и `tester` получают paid-like лимиты через internal access без строки в `user_subscriptions`.
-
-Одна попытка подготовки карточек равна одному запросу `prepare-vocabulary-cards` для batch до 5 pending-слов. Если pending-слов нет, попытка не списывается. Если AI/provider/validation завершились ошибкой после списания, попытка считается использованной.
-
-Подписки пока не продаются в пользовательском интерфейсе:
-
-- `monthly` действует 1 день.
-- `yearly` действует 7 дней.
-- реальные платежи не подключены.
-- экран и кнопка подписки скрыты через `SHOW_SUBSCRIPTION_FLOW = false`; код `SubscriptionScreen` и `activate-subscription` сохранен для будущего платежного flow.
-
-## Переменные окружения
-
-Production-переменные frontend хранятся в Vercel, а server secrets — в Supabase Cloud. `.env.production.example` фиксирует только имена, назначение и безопасные placeholder-значения; production runtime не читает этот файл.
-
-Для локального Telegram-запуска создай отдельный `.env.telegram.local` на основе `.env.telegram.example`. `npm run dev:telegram` не читает и не изменяет `.env.local`.
-
-Обязательные значения для Telegram dev mode:
-
-```env
-TELEGRAM_DEV_MODE="true"
-DEV_TELEGRAM_BOT_USERNAME="@english_daily_loop_dev_bot"
-TELEGRAM_BOT_TOKEN="YOUR_DEV_TELEGRAM_BOT_TOKEN"
-TELEGRAM_BOT_WEBHOOK_SECRET="YOUR_RANDOM_DEV_WEBHOOK_SECRET"
-OPENROUTER_API_KEY="YOUR_OPENROUTER_API_KEY"
-DEV_TOOLS_ENABLED="true"
-SUBSCRIPTION_FLOW_ENABLED="false"
+```mermaid
+flowchart LR
+    U["Пользователь в Telegram"]
+    subgraph EDL["English Daily Loop"]
+        UI["Mini App<br/>React + Vite"]
+        API["Supabase Edge Functions<br/>Авторизация, правила, AI"]
+        DB[("Postgres<br/>Данные и RPC")]
+    end
+    OR["OpenRouter<br/>Внешний AI-провайдер"]
+    U <-->|"Действия / интерфейс"| UI
+    UI <-->|"HTTPS: initData + запрос / JSON-ответ"| API
+    API <-->|"Чтение, запись, RPC"| DB
+    API <-->|"Запрос к модели / ответ"| OR
 ```
 
-`DEV_TELEGRAM_BOT_USERNAME` и `TELEGRAM_BOT_TOKEN` должны принадлежать отдельному development-боту. `TELEGRAM_BOT_WEBHOOK_SECRET` — отдельное случайное значение длиной 32–256 символов из `A-Z`, `a-z`, `0-9`, `_`, `-`. Скрипт откажется запускаться для production-бота `@english_daily_loop_bot`.
+Команды бота обслуживает отдельная Edge Function telegram-bot-webhook. Этот вход не участвует в запросах чтения и словаря.
 
-`VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY` в `.env.telegram.local` обновляются автоматически значениями локального Supabase и текущего API tunnel. Frontend Telegram dev-сборки получает env напрямую от скрипта и не загружает обычные Vite env-файлы.
+| Слой | Ответственность | Где смотреть |
+| --- | --- | --- |
+| Интерфейс | Экраны, компоненты и локальное состояние | [`src/screens`](src/screens), [`src/components`](src/components), [`src/hooks`](src/hooks) |
+| Клиентские сервисы | Контракты запросов к Edge Functions и обработка ошибок | [`src/services`](src/services) |
+| Сервер | Telegram `initData`, правила доступа, лимиты, AI и сохранение данных | [`supabase/functions`](supabase/functions) |
+| Данные | Схема Postgres, ограничения доступа и транзакционные операции | [`supabase/migrations`](supabase/migrations) |
 
-Опциональные переменные для выбора OpenRouter-моделей:
+Прямой доступ клиентских ролей к защищённым таблицам и RPC закрыт через RLS и grants. Edge Functions проверяют `initData` и выполняют чувствительные операции на сервере. Подробнее: [границы доступа](notes/server-side-data-guards.md).
 
-```env
-OPENROUTER_MODEL_CHAIN="qwen/qwen3-next-80b-a3b-instruct:free,nvidia/nemotron-nano-9b-v2:free,google/gemma-4-31b-it:free,google/gemma-4-26b-a4b-it:free,openai/gpt-oss-20b:free"
+Для первого production-развёртывания выбрана схема: статический frontend на Vercel, Edge Functions и Postgres в Supabase Cloud, AI-запросы через OpenRouter. [Почему выбрана эта архитектура](notes/deployment-platform-decision.md).
+
+### Как работает AI в запросе на генерацию
+
+Схема ниже показывает путь запросов, в которых участвует AI: Mini App обращается к Edge Function, сервер проверяет пользователя и лимит, вызывает OpenRouter, проверяет ответ и только затем сохраняет результат. Это относится к генерации текста для чтения и подготовке словарных карточек. Промпты хранятся рядом с серверной логикой и имеют версии; ключ OpenRouter хранится отдельно в серверном окружении.
+
+```mermaid
+sequenceDiagram
+    participant UI as Mini App
+    participant API as Edge Function
+    participant DB as Postgres
+    participant AI as OpenRouter
+
+    UI->>API: initData и запрос на генерацию
+    API->>API: Проверка пользователя, настроек и лимита
+    API->>DB: Атомарно зарегистрировать попытку
+    loop Пока нет валидного ответа и есть разрешённые модели
+        API->>AI: Версионированный промпт и очередная модель
+        AI-->>API: Кандидат в формате JSON или ошибка
+        API->>API: Проверка структуры, длины и содержимого
+    end
+    alt Получен валидный ответ
+        API->>DB: Сохранить результат
+        API-->>UI: Текст или готовые карточки
+    else Результат не получен
+        API-->>UI: Безопасная ошибка
+    end
 ```
 
-`OPENROUTER_MODEL_PRIMARY`, `OPENROUTER_MODEL_FALLBACK` и `OPENROUTER_MODEL_TERTIARY` можно использовать как дополнительные модели после дефолтной цепочки, если `OPENROUTER_MODEL_CHAIN` не задан.
+Модель предлагает результат, но не принимает решения о доступе и не сохраняет данные напрямую. Сервер проверяет ответ до записи в БД; для текста сохраняет только валидный результат, а при неудаче оставляет прежний активный текст доступным. В диагностике фиксируются версия промпта, модель и безопасные технические метаданные без полного промпта и исходного ответа провайдера.
 
-`VITE_FEEDBACK_TELEGRAM_USERNAME` задает публичную ссылку обратной связи в настройках. Укажи username без `@`, например `my_username`; если переменная пустая или не похожа на Telegram username, блок обратной связи не показывается.
+Код сценариев: [генерация текста](supabase/functions/generate-reading-text), [подготовка карточек](supabase/functions/prepare-vocabulary-cards). Подробности: [пайплайн генерации](notes/text-generation-pipeline.md), [AI-безопасность](notes/ai-pipeline-security.md), [словарь](notes/vocabulary-save-flow.md).
 
-Отчеты об ошибках отправляются из настроек через `submit-support-report` и не требуют отдельного env: отчет сохраняется в `public.support_reports`, а разработчик просматривает его в БД.
+## Технологии
 
-Номер версии берется из `package.json` во время Vite-сборки. Vercel build также получает безопасные system metadata: Git commit SHA как `buildId` и `production`/`preview` как environment. Для локальных сборок используются `buildId = local` и environment `development` либо `telegram-dev`; дополнительные env-файлы и secrets для этого не нужны.
+| Область | Инструменты |
+| --- | --- |
+| Интерфейс | React, TypeScript, Vite, Tailwind CSS, Telegram Mini Apps |
+| Сервер и данные | Supabase Edge Functions, Deno, Postgres, SQL migrations, RLS |
+| AI | OpenRouter, версионированные промпты, проверка ответов и fallback между разрешёнными моделями |
+| Разработка | pnpm, локальный Supabase в Docker, Cloudflare Tunnel для запуска внутри Telegram |
+| Качество | TypeScript, ESLint, Prettier, Stylelint, Node test runner, Vitest, Playwright, Deno tests |
 
-`SUBSCRIPTION_FLOW_ENABLED` оставляем `"false"`, пока пользовательский flow подписки и реальные платежи выключены.
+Серверные секреты не входят в frontend bundle. В `VITE_*` находятся только публичные параметры клиента; ключи Telegram и OpenRouter задаются для Edge Functions. [Состав окружения](notes/production-env.md).
 
-Правило безопасности: во frontend доступны только переменные с префиксом `VITE_`. AI-ключи, Telegram token и service role key должны оставаться только на серверной стороне.
+## Разработка по спецификациям
 
-## Локальный запуск
+Рефакторинг версии 1.1 вёлся по SDD (Specification-Driven Development). Для каждой согласованной части сначала фиксировались цель, границы и критерии приёмки, затем готовились спецификация, план и задачи. Перед кодом документы проверялись на противоречия; после реализации результаты команд и оставшиеся ограничения записывались отдельно. AI-агент помогал готовить технические документы и реализовывать согласованные шаги; ключевые решения и приёмка оставались за мной.
 
-Нужны:
+В репозитории можно проследить процесс на [F16: отчёты об ошибках](specs/017-f16-support-diagnostics): [спецификация](specs/017-f16-support-diagnostics/spec.md), [план](specs/017-f16-support-diagnostics/plan.md), [задачи](specs/017-f16-support-diagnostics/tasks.md), [анализ](specs/017-f16-support-diagnostics/analysis.md) и [проверка](specs/017-f16-support-diagnostics/verification.md). Общие принципы проекта находятся в [constitution](.specify/memory/constitution.md).
 
-- Node.js
-- pnpm
-- Docker Desktop
-- локальная утилита `tools/cloudflared.exe` для Telegram Mini App запуска через HTTPS tunnel
+## Проверки
 
-Установить зависимости:
+[GitHub Actions](.github/workflows/quality.yml) запускает проверки типов, линтеры и форматирование, тесты, проверку Edge Functions и сборку. Наборы решают разные задачи:
 
-```bash
-pnpm install
-```
+| Проверка | Что проверяет |
+| --- | --- |
+| `pnpm typecheck` | Типы frontend и TypeScript-кода репозитория |
+| `pnpm lint`, `pnpm format:check`, `pnpm lint:styles` | ESLint, Prettier и CSS-правила |
+| `pnpm test` | Контракты, доменную логику и React-компоненты через Node test runner и Vitest |
+| `pnpm test:e2e` | Пользовательские сценарии в браузере через Playwright |
+| `pnpm test:edge` | Типы, lint и тесты серверных Edge Functions через Deno |
+| `pnpm build` | Production-сборку frontend |
 
-Запустить локальный стек для Telegram:
+Для исторических файлов действует [baseline проверок](scripts/quality/quality-baseline.json): новые и изменённые файлы проходят актуальные правила, а замечания в части неизменённых файлов остаются техническим долгом. Результаты по каждой части рефакторинга зафиксированы в её `verification.md`. Это не утверждение о полном покрытии кода тестами.
 
-```bash
-npm run dev:telegram
-```
+## Документация
 
-`dev:telegram` делает следующее:
-
-- проверяет отдельного dev-бота и обязательный маркер `TELEGRAM_DEV_MODE="true"`;
-- запускает локальный Supabase;
-- получает локальный anon key из Supabase CLI;
-- запускает Edge Functions;
-- поднимает Quick Tunnel для Supabase API и ждёт появления URL в выводе `cloudflared`;
-- автоматически обновляет `VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY` только в `.env.telegram.local`;
-- собирает frontend через изолированный `pnpm build:telegram` в `dist-telegram`;
-- запускает frontend через Vite preview в mode `telegram-dev` на `localhost:3000`;
-- автоматически пересобирает `dist-telegram` после изменений frontend-кода;
-- поднимает Quick Tunnel для frontend и ждёт появления URL в выводе `cloudflared`;
-- проверяет dev-бота через Telegram `getMe`, затем автоматически настраивает его profile, `/start`/`/help`, menu button `Открыть приложение` и webhook на текущие tunnel URL;
-- показывает логи frontend, Edge Functions, DB и API;
-- печатает `STARTUP SUMMARY` только после успешной настройки dev-бота.
-
-Frontend собирается после получения API tunnel URL, поэтому Telegram открывает production-like bundle с актуальным `VITE_SUPABASE_URL`.
-
-Quick Tunnel URL создаются один раз и остаются активными, пока работает команда. Скрипт не пересоздает домены и не блокирует запуск проверкой DNS: Windows `getaddrinfo` может временно возвращать закешированный `ENOTFOUND`, даже когда публичная DNS-запись уже существует. Если Telegram открыл новый URL слишком рано, Mini App нужно повторно открыть через несколько секунд, не перезапуская dev-stack.
-
-Telegram Desktop может обновить текст menu button с задержкой после успешной автоматической настройки. В этом случае текущую команду нужно оставить запущенной и дождаться обновления кнопки; перезапуск создаст новые Quick Tunnel URL и может привести к Cloudflare `429 Too Many Requests`.
-
-Неожиданное завершение frontend, Edge Functions или tunnel останавливает dev-stack с ошибкой. Потоки DB/API-логов вспомогательные и не останавливают приложение.
-
-После summary команда продолжает работать и показывает только новые DB/API container logs; накопленная история Docker при старте не выводится.
-
-Новые миграции без пересоздания локальной БД применяются командой:
-
-```bash
-npx supabase migration up
-```
-
-Полный reset локальной БД:
-
-```bash
-npx supabase db reset
-```
-
-Важно: `db reset` пересоздает локальную БД и удаляет текущие локальные данные.
-
-Остановить локальный Supabase:
-
-```bash
-npm run dev:stop
-```
-
-Удалить только webhook отдельного dev-бота для rollback-проверки:
-
-```bash
-pnpm telegram:dev:webhook:delete
-```
-
-Menu button при этом сохраняется; следующий `npm run dev:telegram` зарегистрирует webhook заново.
-
-## Запуск внутри Telegram
-
-После `npm run dev:telegram` дождись `STARTUP SUMMARY`.
-
-Summary должен подтвердить dev username, menu button, Mini App URL и webhook URL. Token и webhook secret в выводе отсутствуют.
-
-Открой dev-бота в Telegram, отправь `/start` и нажми inline button либо нижнюю menu button `Открыть приложение`. После перезапуска stack отправь новый `/start`: старое сообщение сохраняет уже выключенный Quick Tunnel URL.
-
-`dev:telegram` проверяет username через `getMe` и не допускает настройку production-бота `@english_daily_loop_bot`.
-
-Приложение должно открываться внутри Telegram и проходить авторизацию через настоящий `initData`.
-
-## Команды
-
-```bash
-pnpm dev
-```
-
-Запускает только frontend через Vite dev server. Для проверки Telegram Mini App используется `npm run dev:telegram`.
-
-```bash
-npm run dev:telegram
-```
-
-Запускает локальную инфраструктуру для Telegram Mini App с tunnels, production-like frontend bundle и реальным Telegram `initData`.
-
-```bash
-npm run dev:stop
-```
-
-Останавливает локальный Supabase.
-
-```bash
-pnpm lint
-```
-
-Запускает TypeScript-проверку frontend-кода.
-
-```bash
-pnpm test
-```
-
-Запускает unit- и архитектурные тесты frontend, release flow и server helpers.
-
-```bash
-pnpm release:check
-```
-
-Только читает `package.json`, `src/constants/currentRelease.ts` и `CHANGELOG.md` и проверяет, что версия, дата и release note согласованы. Команда ничего не исправляет и не запускает deploy.
-
-```bash
-pnpm backup:setup
-```
-
-Один раз подготавливает защищенную локальную папку и Windows-конфигурацию production backup. Пароль БД сохраняется через Windows DPAPI вне репозитория.
-
-```bash
-pnpm backup:schedule
-```
-
-Регистрирует ежедневный запуск backup в Windows Task Scheduler. Пропущенный запуск выполняется после следующего включения компьютера.
-
-```bash
-pnpm backup:production
-```
-
-Вручную запускает тот же production backup. Команда только читает production БД через Supabase CLI и сохраняет logical snapshot локально.
-
-```bash
-pnpm backup:status
-```
-
-Локально проверяет последний completed snapshot, checksums и возраст backup, не подключаясь к БД.
-
-```bash
-pnpm build
-```
-
-Собирает production build frontend-приложения в `dist`. Telegram dev build
-использует отдельную папку `dist-telegram`, поэтому эта команда не
-перезаписывает bundle запущенного `dev:telegram`.
-
-## Разработка
-
-- Новую работу с данными лучше выносить в `src/services`, а не напрямую в UI-компоненты.
-- App-level orchestration держать в hooks: профиль пользователя и refresh — в `useAppUserProfile`, toast — в `useToast`, пользовательские действия и локальные обновления `homeProgress` — в `useAppUserActions`.
-- Общие типы держать в `src/types`.
-- Дизайн-токены и общие glass utilities держать в `src/index.css`; актуальные UI-правила главной фиксировать в `docs/DESIGN_SYSTEM.md`.
-- Для внутренних экранов с back navigation использовать `ScreenHeader`; для встроенных статусов использовать `InlineStatusCard`; для загрузок использовать `LoadingState`.
-- UI экрана чтения держать как контейнер `src/screens/ReadingScreen.tsx`, презентационные компоненты `src/components/reading/*` и helper парсинга текста `src/utils/readingText.ts`.
-- Серверные проверки Telegram `initData`, ролей, лимитов и подписок должны оставаться в Edge Functions.
-- Общую инфраструктуру Edge Functions нужно переиспользовать из `supabase/functions/_shared/server.ts`, а доменные проверки держать рядом с бизнес-операцией конкретной функции.
-- Для frontend-вызовов Edge Functions использовать `src/services/functionClient.ts`; request id, diagnostic extraction и ошибки держать в `src/services/edgeFunctionErrors.ts`.
-- Server-only таблицы и RPC должны оставаться закрытыми для `anon` и `authenticated`; новые чувствительные операции нужно добавлять через Edge Functions и миграции прав доступа.
-- Edge Functions работают в Deno runtime и исключены из корневого frontend `tsconfig.json`.
-- Панель dev tools показывается только пользователю с ролью `admin`, а изменения БД выполняются только при server env `DEV_TOOLS_ENABLED="true"` и server-side проверке `users.app_role = 'admin'`.
-- После изменения frontend-кода дождись сообщения `[frontend-watch]` об успешной пересборке и обнови Mini App; tunnel и `dev:telegram` перезапускать не нужно.
-- После изменения `.env.telegram.local`, Vite config, dependencies или server env перезапусти `npm run dev:telegram`.
-- Текущий номер приложения вручную меняется только в `package.json`; тот же номер и дата релиза должны быть согласованы с `src/constants/currentRelease.ts` и `CHANGELOG.md` через `pnpm release:check`.
-- Пользовательский release note содержит только последний релиз; полная техническая история остается в `CHANGELOG.md`.
-- После существенных изменений стоит запускать минимум `pnpm lint`.
-
-## Документация проекта
-
-Дополнительный контекст лежит в:
-
-- `AGENTS.md` — правила работы в репозитории и текущий статус.
-- `GIT_POLICY.md` — текущие полномочия Git для AI-агентов.
-- `D:\anastasiaStorage\Проекты\English daily loop\_work\release-1.1-refactor\SDD workflow English Daily Loop.md` — согласованный жизненный цикл разработки и точки участия пользователя.
-- `docs/LOCAL_TELEGRAM_RUN.md` — подробный локальный запуск внутри Telegram.
-- `docs/DESIGN_SYSTEM.md` — актуальная дизайн-система приложения.
-- `.agents/references/manual-testing-guide.md` — единый формат подробных сценариев ручного тестирования для фич и баг-пачек.
-- `.agents/skills/english-daily-loop-support-triage` — project-local skill source для разбора support reports и AI diagnostics.
-- `.agents/skills/triage-english-daily-loop-bugs` — project-local skill source для pre-code разбора сырых багов и формирования согласуемых баг-пачек.
-- `.agents/skills/english-daily-loop-feature-spec` — проектный скилл груминга: исследование, варианты реализации и компактный обзор фичи для согласования перед полным Spec Kit.
-- `CHANGELOG.md` — курируемая техническая история релизов.
-- `notes/server-side-data-guards.md` — серверные границы доступа, RLS и транзакционные RPC.
-- `notes/security-threat-model.md` — модель угроз MVP и чеклист security-аудита.
-- `notes/security-audit-2026-04-30.md` — результат проверки базового security-контура.
-- `notes/ai-pipeline-security.md` — security-модель AI-пайплайна генерации текста.
-- `notes/ai-observability-diagnostics.md` — retention policy и SQL-диагностика AI-попыток.
-- `notes/ai-red-team-checklist.md` — ручные adversarial-проверки AI-пайплайна.
-- `notes/text-generation-pipeline.md` — AI-пайплайн генерации текста.
-- `notes/reading-generation-limits.md` — дневные попытки и активный текст.
-- `notes/materials-and-reading-history.md` — раздел `Мои материалы` и история прочитанных текстов.
-- `notes/vocabulary-save-flow.md` — словарь: сохранение слов из активного текста, AI-подготовка карточек и дневные попытки подготовки.
-- `notes/vocabulary-review.md` — алгоритм, дневная очередь, server-side progress и UI повторения слов.
-- `notes/subscriptions.md` — MVP-модель ролей, доступа и подписок.
-- `notes/support-diagnostics.md` — пользовательские отчеты об ошибках, request id и безопасный diagnostic snapshot.
-- `notes/feedback-link.md` — ссылка обратной связи из настроек в Telegram.
-- `notes/deployment-platform-decision.md` — выбранная production-схема Supabase Cloud + Vercel и fallback-варианты.
-- `notes/production-env.md` — production env inventory для Vercel и Supabase Edge Functions.
-- `notes/production-deploy-flow.md` — ручной runbook первого production-деплоя через Supabase Cloud + Vercel.
-- `notes/production-smoke-checklist.md` — ручной smoke checklist для проверки production-деплоя.
-- `notes/backup-and-restore.md` — production logical backups, локальное хранение, retention и изолированная проверка восстановления.
-- `notes/home-progress-and-toast.md` — прогресс главного экрана и toast-сообщения.
-- `notes/dev-mode-dx.md` — локальный Telegram-режим разработки и ограничения DX.
-- `notes/production-readiness.md` — что нужно пересмотреть перед production.
+- [Дизайн-система](docs/DESIGN_SYSTEM.md)
+- [Словарь и подготовка карточек](notes/vocabulary-save-flow.md)
+- [Алгоритм повторения](notes/vocabulary-review.md)
+- [Отчёты об ошибках](notes/support-diagnostics.md)
+- [План первого production-развёртывания](notes/production-deploy-flow.md)
+- [Модель угроз](notes/security-threat-model.md)
